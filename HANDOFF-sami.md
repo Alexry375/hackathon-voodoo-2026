@@ -84,3 +84,21 @@ Total scene_exterior: ~830 lines across 5 files. vfx.js at 322 lines is on the h
 - Damage chunks in vfx.js are drawn in a hardcoded bbox approximating the castle silhouette — not perfectly aligned, especially when the castle is leaning.
 - Projectile launch point is off-screen left — works during EXTERIOR_RESOLVE (red castle visible), but if the camera ever shows the player castle during a resolve we'd need to re-anchor.
 - `Character_*.psb` still unconverted — not used in scene_exterior anyway, flagging for whoever does interior unit sprites if they want the official PSBs.
+
+## [21:00] [done] Merged Alexis's bundle pipeline + scripted ad + hud_top + turn rotation (96ba5cb)
+
+Pulled commits 3ca3941 → 62bec53. New on the repo: `assets-inline.js` (2.1 MB base64-bundled), `shared/{hud_top,assets}.js`, `scene_interior/turn.js`, full `playable/{entry,script,hand_cursor,endcard,vsdk_shim}.js` narrative system, `tools/{embed-assets,build}.mjs` with `dist/playable.html` (2.07 MB) via esbuild, plus `package.json`/`.gitignore`. NEXT TURN + KILL ACTIVE dev buttons added.
+
+Merge conflicts resolved in two files (kept full of both sides):
+- `index.html` — superset of imports (`state, applyDamageToSelf, applyDamageToEnemy, killUnit` + `emit` + `getActiveUnitId`); both his quick HP presets / NEXT TURN / KILL ACTIVE buttons AND my ±25 row coexist.
+- `scene_exterior/index.js` — KEPT my real implementation, dropped his branch's stub. Per his [20:50] note, added `drawTopHud(ctx)` + `drawScriptOverlay(ctx, t)` as the LAST two draws in my loop so the narrative overlays (intro / hand cursor / forcewin flash / endcard) are visible during exterior phases too. Also dropped my dev HUD overlay (hud_top now covers it).
+
+`drawScriptOverlay` is dynamic-imported with try/catch so the dev `index.html` (no script flow) doesn't break.
+
+## [21:00] [info] "Chenille" check — already part of the castle PNG
+
+Per the user's flag: I checked the asset list. There is no separate `chenille.png` / tank-tread asset on Alexis's branch. The bundled assets are: BLUE_CASTLE, RED_CASTLE, ROCKET, BOMB, BAZOOKA, CANNON, MUSIC, SFX. The tank treads ("chenille") are baked into the bottom of `Blue Castle.png` and `Red Castle.png` and are already visible in our exterior render via `castles.js`. Alexis renders them procedurally inside his `castle_section.js` for the interior cross-section view. Nothing to wire — flagging in case the user meant something different and we need to re-sync.
+
+## [21:00] [info] Bundle pipeline TODO for prod build
+
+My castles.js / projectile.js / enemy_ai.js currently load assets via `new Image(); im.src = 'assets/Castle Clashers Assets/...'` paths. That works in dev (HTTP server) but the prod single-file bundle uses Alexis's `window.ASSETS.BLUE_CASTLE` (etc.) base64 pattern via `shared/assets.js → getImage()`. Before we run `npm run build` for the final AppLovin handoff, scene_exterior loaders should switch to `getImage('BLUE_CASTLE')` / `getImage('ROCKET')` / `getImage('BOMB')`. Not blocking dev — flagging as a single, scoped task before final bundle.
