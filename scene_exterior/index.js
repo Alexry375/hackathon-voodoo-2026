@@ -58,6 +58,7 @@ export function mount(c) {
       // Snap-cut to player castle for the enemy intro attack (spec §6: enemy shots snap-cut).
       _enemyShotIncoming = true;
       snapPreset('blue');
+      pulseEnemyTint();
       startEnemyAttack({ onComplete: () => {
         _enemyShotIncoming = false;
         ready_for_player_input();
@@ -105,35 +106,27 @@ function _driveCamera() {
   setTarget(CAM_PRESETS.red, { ease: 0.006 });
 }
 
-// Pulsing red crosshair on the enemy castle during the tutorial phase, only
-// while no player shot is mid-flight (so it doesn't fight the camera follow).
-function _drawTutorialReticle(ctx, t_ms) {
-  const phase = /** @type {any} */ (window).__game?.phase;
-  if (phase !== 'tutorial' && phase !== 'intro') return;
-  if (getLeadProjectilePos()) return;
+// "Under attack" red flash at the bottom of the screen — kicked to 1 when an
+// enemy wave starts, decays exponentially so it bleeds out by the time the
+// player gets the turn back. Matches the rising red streaks in B01 ref frames.
+let _enemyTintLevel = 0;
 
-  const cx = WORLD.red_castle.x;
-  const cy = WORLD.ground_y - WORLD.castle_h * 0.55;
-  const pulse = 0.55 + 0.45 * Math.sin(t_ms / 1000 * Math.PI * 1.6);
-  const r = 70 + pulse * 14;
+export function pulseEnemyTint() { _enemyTintLevel = 1; }
+
+function _drawEnemyTint(ctx, viewport, dt_ms) {
+  // Decay ~halves every 700ms.
+  _enemyTintLevel *= Math.exp(-dt_ms / 1000); // ~37% after 1s, ~13% after 2s
+  if (_enemyTintLevel < 0.02) { _enemyTintLevel = 0; return; }
+  const { w, h } = viewport;
+  const bandH = h * 0.32;
+  const grad = ctx.createLinearGradient(0, h - bandH, 0, h);
+  const a = _enemyTintLevel;
+  grad.addColorStop(0,    `rgba(190,30,30,0)`);
+  grad.addColorStop(0.6,  `rgba(210,40,40,${(a * 0.30).toFixed(3)})`);
+  grad.addColorStop(1,    `rgba(230,50,50,${(a * 0.55).toFixed(3)})`);
   ctx.save();
-  ctx.globalAlpha = 0.55 + pulse * 0.35;
-  ctx.strokeStyle = '#FF3030';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-  // Crosshair ticks (4 cardinal)
-  ctx.lineWidth = 4;
-  for (const a of [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2]) {
-    const x0 = cx + Math.cos(a) * (r - 14);
-    const y0 = cy + Math.sin(a) * (r - 14);
-    const x1 = cx + Math.cos(a) * (r + 22);
-    const y1 = cy + Math.sin(a) * (r + 22);
-    ctx.beginPath();
-    ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
-    ctx.stroke();
-  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, h - bandH, w, bandH);
   ctx.restore();
 }
 
@@ -172,7 +165,6 @@ function loop() {
     drawVfx(ctx, viewport, dt_ms);
     drawEnemy(ctx, viewport, dt_ms);
     drawProjectile(ctx, viewport, dt_ms);
-    _drawTutorialReticle(ctx, now);
   } catch (e) {
     console.error('[scene_exterior] world draw threw:', e);
   } finally {
@@ -182,6 +174,7 @@ function loop() {
 
   // Screen-space overlays — rain stays here so it tiles the viewport, not the world.
   drawRainOverlay(ctx, viewport, dt_ms);
+  _drawEnemyTint(ctx, viewport, dt_ms);
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
 }
