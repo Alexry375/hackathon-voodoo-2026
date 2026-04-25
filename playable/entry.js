@@ -17,16 +17,17 @@ mountExterior(canvas);
 const params = new URLSearchParams(location.search);
 const mode = params.get('mode') || (location.pathname.includes('/dist/') ? 'prod' : 'dev');
 
-// scene_manager.start() transitions to EXTERIOR_OBSERVE first, so we run it
-// BEFORE the mode-specific overrides that may force a different state.
-start();
+// In prod we let scene_manager.start() drive the cinematic from INTRO_INCOMING
+// (enemy bomb falls on us, then transitions to INTERIOR_AIM). In dev we jump
+// straight to INTERIOR_AIM for fast iteration.
 
 if (mode === 'prod') {
-  // Hide the dev affordances if the bundle was opened in a dev shell.
   const devbar = document.getElementById('devbar');
   if (devbar) devbar.style.display = 'none';
+  start();              // → INTRO_INCOMING
   runScript(canvas);
 } else {
+  start();
   // Dev mode: rely on the index.html devbar. Wire its buttons here so the
   // bundle build still works — when the bundle runs in dist/ there's no
   // devbar at all (the wiring just no-ops).

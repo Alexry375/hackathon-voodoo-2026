@@ -1,19 +1,26 @@
 // Scene state machine — drives the alternation between exterior and interior views.
 // Each scene observes the current state via subscribe() and shows/hides itself accordingly.
-// Cuts are instant (no fade) — matches B01.mp4 reference.
+//
+// Flow (matches source video sec_01..sec_15):
+//   INTRO_INCOMING    — wide shot of OUR castle, enemy bomb falls (-33% HP)
+//   INTERIOR_AIM      — cross-section view, player drags to aim
+//   EXTERIOR_RESOLVE  — single-castle ping-pong cinematic (ours fires → enemy
+//                       impact → enemy ripostes → ours impact)
+//   END_VICTORY/DEFEAT
+//
+// Cuts are instant (matches source) — the cinematic timing lives inside scene_exterior.
 
 import { emit, on } from './events.js';
-import { state, applyDamageToSelf, applyDamageToEnemy, killUnit } from './state.js';
+import { state, killUnit } from './state.js';
 
 /**
- * @typedef {'INTRO' | 'EXTERIOR_OBSERVE' | 'INTERIOR_AIM' | 'EXTERIOR_RESOLVE' | 'END_VICTORY' | 'END_DEFEAT'} SceneState
+ * @typedef {'INTRO_INCOMING' | 'EXTERIOR_OBSERVE' | 'INTERIOR_AIM' | 'EXTERIOR_RESOLVE' | 'END_VICTORY' | 'END_DEFEAT'} SceneState
  */
 
 /** @type {SceneState} */
-let current = 'INTRO';
+let current = 'INTRO_INCOMING';
 const subscribers = /** @type {Set<(s: SceneState) => void>} */ (new Set());
 
-/** @returns {SceneState} */
 export function getState() { return current; }
 
 /** @param {(s: SceneState) => void} fn */
@@ -32,42 +39,31 @@ function transition(next) {
   }
 }
 
-// Wiring — the manager listens to the cross-scene events and drives transitions.
+on('player_fire', () => { transition('EXTERIOR_RESOLVE'); });
 
-// Interior fires → resolve in exterior
-on('player_fire', (payload) => {
-  // Exterior is responsible for animating the projectile and computing damage.
-  // It then emits 'cut_to_interior' when resolution is done.
-  transition('EXTERIOR_RESOLVE');
-});
-
-// Exterior signals end of resolution
 on('cut_to_interior', (payload) => {
   state.hp_self_pct = payload.hp_self_after;
   state.hp_enemy_pct = payload.hp_enemy_after;
   for (const id of (payload.units_destroyed_ids || [])) killUnit(id);
   state.turn_index += 1;
 
-  if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
-  if (state.hp_self_pct <= 0)   { transition('END_DEFEAT');  return; }
+  if (state.hp_enemy_pct <= 5) { transition('END_VICTORY'); return; }
+  if (state.hp_self_pct <= 0)  { transition('END_DEFEAT');  return; }
   transition('INTERIOR_AIM');
 });
 
-on('unit_killed', (payload) => {
-  killUnit(payload.unit_id);
-});
+on('unit_killed', (payload) => { killUnit(payload.unit_id); });
 
-// Public starter — call once from index.html after scenes are mounted.
+/** Public starter — call once from index.html after scenes are mounted. */
 export function start() {
-  transition('EXTERIOR_OBSERVE');
+  transition('INTRO_INCOMING');
 }
 
-// Test hook — exterior calls this once it has shown the opening damage cinematic
-// (or interior calls it after the intro tap-to-start). Keeps scene_manager dumb.
+/** Called by exterior after the opening enemy bomb impact. */
 export function ready_for_player_input() {
   transition('INTERIOR_AIM');
 }
 
-// Dev-only: bypass the state machine to render a specific scene. NEVER call from production code.
+/** Dev-only: bypass the state machine. */
 /** @param {SceneState} s */
 export function _devForceState(s) { transition(s); }
