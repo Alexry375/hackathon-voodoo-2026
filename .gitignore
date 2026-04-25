@@ -1,0 +1,13 @@
+# Raw source material — heavy, local-only. Pipeline reads from here, output is committed.
+RESSOURCES/
+
+# Legacy v1 stub
+castle-clasher-v1/
+
+# v2 built artifacts (keep sources, ignore output)
+castle-clasher-v2/playable-bundle.html
+castle-clasher-v2/node_modules/
+
+# Editor / OS
+.DS_Store
+*.swp
