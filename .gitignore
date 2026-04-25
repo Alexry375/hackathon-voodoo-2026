@@ -13,3 +13,7 @@ castle-clasher-v2/node_modules/
 *.swp
 node_modules/
 dist/playable.html
+
+# Recorded gameplay captures — large video files, local only
+shots/*.webm
+shots/*_analysis.md

@@ -5,7 +5,8 @@
   "scripts": {
     "embed": "node tools/embed-assets.mjs",
     "build": "node tools/build.mjs",
-    "dev": "python3 -m http.server 8765"
+    "dev": "python3 -m http.server 8765",
+    "record": "node tools/record_gameplay.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
