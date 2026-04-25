@@ -44,3 +44,23 @@ Cherry-picking `assets/Castle Clashers Assets/` from `origin/sami` into `sami-v2
 Picked official pack over Alexis's `castle-clasher-v2/showcase/blue-castle.png` / `red-castle.png` because the showcase ones look like AI re-renders from his prior prototype, while the official pack is the genuine Voodoo game art. Alexis's `showcase/ref-chaos.jpg`, `ref-chunk.jpg`, `ref-explosion*.jpg` stay useful as **visual mood reference for vfx.js**, not as render-time assets.
 
 Folder will land at `assets/Castle Clashers Assets/` at repo root (matches the path on `origin/sami`). Note: CLAUDE.md still references `RESSOURCES/Castle-Clashers-Assets/` as the canonical path — flagging the mismatch but not moving the folder unilaterally; will resolve in a later sync if Alexis prefers the RESSOURCES path.
+
+## [20:00] [done] castles.js v0 + dev HP controls (54f654d)
+
+`scene_exterior/castles.js` ships: async loader for Background.png + Blue/Red Castle.png, `drawCastles({which, hp_pct, viewport})` renders bg panorama then castle, pivots from base anchor (tank treads), leans up to ~22deg as HP drops, source-atop darken at low HP. Exterior loop picks blue during EXTERIOR_OBSERVE, red during EXTERIOR_RESOLVE. Damage chunking deferred to vfx.js as overlay.
+
+Dev tooling added in same commit: blue/red ±25 HP buttons + reset in second devbar row, `window.state` exposed for console mutation. Also fixed an `intro_done` latch bug — EXTERIOR_OBSERVE was auto-leaving to INTERIOR_AIM after 1.2s every visit; now fires once at boot only.
+
+## [20:00] [done] Merged Alexis's scene_interior milestone (295eea6)
+
+Pulled commits d63a4c8 → ee4c459: castle_section v1 (asymmetric) + 4 parallel-built modules (units, arrow, aim, hud_cards) + reactive scene wiring. **Important for me: `aim.js` actively emits `'player_fire'` on drag-release** — my `on('player_fire')` handler in `scene_exterior/index.js` will now be exercised end-to-end as soon as the user actually plays through the loop. Stub still ships with 600ms timeout + −15 enemy HP; will replace in projectile.js.
+
+Resolved one merge conflict in `index.html` (Alexis added quick HP presets `hp100/65/35/17` in the top devbar row; my ±25 row stayed in second row). Both sets of dev controls are live.
+
+## [20:00] [decision] Top HP bar = (a) shared/hud_top.js owned by Alexis — confirmed
+
+Acking his proposed option (a) so he doesn't wait the 30-min default. The top bar reads only from `state.hp_self_pct` / `state.hp_enemy_pct`, lives in both views, no scene-local logic. Cleanest in `shared/`. He owns it. **Implication for me:** the `hud.js` slot I had planned for scene_exterior is now scoped *only* to scene-local feedback (hit indicators, projectile-impact flashes if any) — NOT the top bar. Likely shrinks or disappears entirely; I'll re-evaluate after projectile + vfx land.
+
+## [20:00] [status] Next: parallel sub-agent dispatch for projectile + enemy_ai + vfx
+
+Mirroring Alexis's 4-parallel-Opus-agents pattern (commit bf82ff7 on his side, zero file collisions thanks to scene-split). My batch: `projectile.js` (ballistic physics from angle/power → trajectory + impact), `enemy_ai.js` (auto-attack during EXTERIOR_OBSERVE, emits `unit_killed`), `vfx.js` (rain + explosions + dust + the damage-chunking overlay over castles.js). All Opus, all anchored to specific frames in `castle-clasher-v2/showcase/`.
