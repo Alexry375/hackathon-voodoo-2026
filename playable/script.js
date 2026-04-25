@@ -10,7 +10,7 @@
 
 import { on } from '../shared/events.js';
 import { state } from '../shared/state.js';
-import { _devForceState, getState } from '../shared/scene_manager.js';
+import { _devForceState, getState, subscribe as subscribeScene } from '../shared/scene_manager.js';
 import { getFloorAnchor } from '../scene_interior/castle_section.js';
 import { getActiveFloor } from '../scene_interior/turn.js';
 import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_cursor.js';
@@ -51,6 +51,18 @@ export function runScript(canvas) {
   on('cut_to_interior', (payload) => {
     if (game.phase === 'freeplay' && state.hp_self_pct < 30) {
       state.hp_self_pct = 30;
+    }
+  });
+
+  // If the scene_manager hits END_VICTORY / END_DEFEAT naturally (player won
+  // mid-tutorial, or got killed before the freeplay HP-lock kicks in), jump
+  // straight to the endcard so the ad always shows a closing screen.
+  subscribeScene((s) => {
+    if (s === 'END_VICTORY' || s === 'END_DEFEAT') {
+      game.phase = 'endcard';
+      game.endResult = s === 'END_VICTORY' ? 'win' : 'lose';
+      setEndcardOpacity(1);
+      try { /** @type {any} */ (window).Voodoo?.playable?.win(); } catch {}
     }
   });
 }

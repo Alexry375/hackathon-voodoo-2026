@@ -242,3 +242,35 @@ so a fatal enemy hit transitions to `END_DEFEAT` instead of looping back to aim.
 
 Verified via `tools/trace_turns.mjs` — 2 player shots produce the cycle
 `AIM → RESOLVE → OBSERVE → AIM → RESOLVE → OBSERVE → AIM` with no errors.
+
+## [HH:MM] [done] playthrough fixes — slow shots, real hitbox, end screens
+
+User played through the full playable; three real issues + one clarification:
+
+- **Projectiles too fast**: rocket speed was 1.9 world-units/ms, beam-like
+  visually. Halved across the board (rocket 1.05, volley 0.95). Player can
+  now actually see the arc fly.
+- **Red castle taking damage on misses**: there was no spatial collision —
+  any projectile hitting the target Y line damaged the enemy regardless of
+  X. Added `_hitsRedCastle(x)` (half-width = WORLD.castle_h * 0.22) gating
+  both `addBite` and the damage value passed to `cut_to_interior`. Misses
+  still emit `cut_to_interior` (turn must advance) but with damage=0; their
+  explosion is downgraded to 'small' and the SFX volume drops.
+- **No win/lose screen**: END_VICTORY / END_DEFEAT existed in the state
+  machine but no scene rendered them. Hooked `subscribeScene()` in
+  `script.js` to jump phase to `endcard` (full opacity) the moment either
+  fires, so the ad always closes on something. Stored `game.endResult`
+  ('win' | 'lose') for future end-screen labelling.
+
+**Clarification on the "VS thing"**: VS = small VS badge between the two
+HP bars at the top of the screen (pure HUD ornament). Win/lose screen is
+a separate concern — that's the `endcard` overlay (now wired). VS badge
+is in `hud_top.js` which is Alexis's owned file — flagging for him.
+
+**For Alexis when you next sync this branch:**
+1. `hud_top.js` — add the VS badge between the two HP bars per spec.
+2. `endcard.js` — currently a single-state install screen. Could optionally
+   branch on `window.__game?.endResult === 'lose'` to show a "TRY AGAIN"
+   label instead of "PLAY", but for an ad the install CTA is fine in both.
+
+Bites still don't follow castle tilt — left as-is per user.

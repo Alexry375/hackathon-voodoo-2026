@@ -20,9 +20,9 @@ const DAMAGE_MAX = 28;
 // Weapon-specific tuning. Speed in WORLD units / ms; world battlefield is
 // ~760 units wide between castle pivots so a power=0.7 rocket lands in ~600ms.
 const WEAPON_TUNING = {
-  rocket: { speed: 1.9, gravity: 0.0012, sprite: 44, splits: 1, angleJitter: 0,    damageMul: 1.0 },
-  volley: { speed: 1.6, gravity: 0.0030, sprite: 26, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
-  beam:   { speed: 0,   gravity: 0,      sprite: 0,  splits: 0, angleJitter: 0,    damageMul: 1.1 },
+  rocket: { speed: 1.05, gravity: 0.0010, sprite: 44, splits: 1, angleJitter: 0,    damageMul: 1.0 },
+  volley: { speed: 0.95, gravity: 0.0024, sprite: 26, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
+  beam:   { speed: 0,    gravity: 0,      sprite: 0,  splits: 0, angleJitter: 0,    damageMul: 1.1 },
 };
 const VOLLEY_STAGGER_MS = 90;
 const BEAM_DURATION_MS  = 400;
@@ -97,6 +97,13 @@ const _LAUNCH_X = WORLD.blue_castle.x;
 const _LAUNCH_Y = WORLD.ground_y - WORLD.castle_h * 0.75;
 const _TARGET_X = WORLD.red_castle.x;
 const _TARGET_Y = WORLD.ground_y - WORLD.castle_h * 0.55;
+// Half-width of the red castle silhouette in world units (rough). A projectile
+// impact inside this band counts as a hit; outside = miss (no damage, no bite).
+const _RED_HIT_HALF_W = WORLD.castle_h * 0.22;
+
+function _hitsRedCastle(x) {
+  return Math.abs(x - WORLD.red_castle.x) <= _RED_HIT_HALF_W;
+}
 
 function _spawnRocketLike(payload, weapon_type, angleOffset, batchId) {
   const tune = WEAPON_TUNING[weapon_type];
@@ -151,18 +158,20 @@ function _jitter(j) { return j === 0 ? 0 : (Math.random() * 2 - 1) * j * 8; }
 function _resolveDamage(entity) {
   if (entity.damageEmitted) return;
   entity.damageEmitted = true;
+  // A miss still advances the turn (cut_to_interior MUST fire) but does no damage.
+  const dmg = entity.didHit === false ? 0 : entity.damage;
   // Beams are batch-of-1 implicit. Rockets use the explicit batch tracker.
   if (entity.batchId == null) {
     emit('cut_to_interior', {
       hp_self_after: state.hp_self_pct,
-      hp_enemy_after: Math.max(0, state.hp_enemy_pct - entity.damage),
+      hp_enemy_after: Math.max(0, state.hp_enemy_pct - dmg),
       units_destroyed_ids: [],
     });
     return;
   }
   const b = batches.get(entity.batchId);
   if (!b) return;
-  b.totalDamage += entity.damage;
+  b.totalDamage += dmg;
   b.remaining -= 1;
   if (b.remaining <= 0) {
     batches.delete(entity.batchId);
@@ -245,12 +254,15 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
       }
 
       const descending = p.vy > 0;
-      if ((descending && p.y >= tY) || p.x > WORLD.width + 80 || p.t_ms > 3000) {
+      const groundHit = descending && p.y >= WORLD.ground_y;
+      if ((descending && p.y >= tY) || groundHit || p.x > WORLD.width + 80 || p.t_ms > 3000) {
         p.impacted = true;
         const size = p.weapon_type === 'volley' ? 'small' : 'big';
-        safeVfx('triggerExplosion', p.x, p.y, { size, palette: 'player' });
-        playSfx({ volume: 0.9, rate: p.weapon_type === 'volley' ? 1.1 : 0.7 });
-        _markImpact(p.x, p.y, size);
+        const hit = _hitsRedCastle(p.x) && !groundHit;
+        p.didHit = hit;
+        safeVfx('triggerExplosion', p.x, p.y, { size: hit ? size : 'small', palette: 'player' });
+        playSfx({ volume: hit ? 0.9 : 0.5, rate: p.weapon_type === 'volley' ? 1.1 : 0.7 });
+        _markImpact(p.x, p.y, size, hit);
       }
     } else {
       p.post_impact_ms += dt;
@@ -296,7 +308,7 @@ export function getRecentImpact(maxAgeMs = 800) {
   if (performance.now() - _lastImpact.t_ms > maxAgeMs) return null;
   return _lastImpact;
 }
-function _markImpact(x, y, size = 'big') {
+function _markImpact(x, y, size = 'big', hit = true) {
   _lastImpact = { x, y, t_ms: performance.now() };
-  addBite(x, y, { size });
+  if (hit) addBite(x, y, { size });
 }
