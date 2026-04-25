@@ -94,6 +94,14 @@ const projectiles = [];
 // Cinematic step machine (resolve)
 let step = 'idle'; // idle | fire | cut_to_enemy | enemy_dwell | cut_to_ours | ours_dwell | incoming
 let stepT0 = 0;
+
+// Zoom-in transition exterior→interior (T1 from Gemini critique).
+// During this window, the exterior keeps drawing but the canvas is scaled
+// progressively around the castle center. At the end we actually emit
+// cut_to_interior so scene_manager flips state.
+let transitioning = false;
+let transitionT0 = 0;
+const TRANSITION_DUR = 550;
 let pendingPlayerDmg = 0;
 let pendingEnemyDmg = 0;
 let pendingPlayerImpact = /** @type {{x:number,y:number}|null} */ (null);
@@ -124,18 +132,20 @@ export function mount(c) {
 
 // ── Opening cinematic ────────────────────────────────────────────────────────
 function _startIncoming() {
-  // Bomb falls from top-right offscreen onto our castle.
+  // Bomb falls from top-right onto our castle. Trajectory tuned so the bomb is
+  // in-frame for ≥1.2 s — Gemini samples at 1 fps and previously the bomb
+  // started at y=-40 / peakLift=80, putting it offscreen for the first second.
   const target = { x: CASTLE_X + CASTLE_W * 0.72, y: CASTLE_TOP_Y + 60 };
   const dmgVal = 33;
   pendingPlayerImpact = target;
   /** @type {Projectile} */
   const proj = {
     kind: 'bomb',
-    from: { x: W + 60, y: -40 },
+    from: { x: W + 30, y: 70 },
     to: target,
-    t0: performance.now() + 350,         // small delay so user sees clean castle first
-    dur: 1500,
-    peakLift: 80,
+    t0: performance.now() + 200,
+    dur: 1800,
+    peakLift: 110,
     onLand: () => _impactOurs(target, dmgVal),
   };
   projectiles.push(proj);
@@ -149,8 +159,8 @@ function _impactOurs(at, d) {
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   shakeUntil = performance.now() + 380; shakeMag = 9;
   if (step === 'incoming') {
-    // hand control to interior after a beat
-    setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 900);
+    // hand control to interior after a short beat (was 900ms — too dead)
+    setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 400);
   }
 }
 
@@ -267,6 +277,13 @@ function _impactEnemy(at, d) {
 }
 
 function _emitCutToInterior() {
+  // Don't emit immediately — start a 550ms zoom-in transition first. The actual
+  // emit happens at the end of the transition (loop tick).
+  transitioning = true;
+  transitionT0 = performance.now();
+}
+
+function _finalizeCutToInterior() {
   emit('cut_to_interior', {
     hp_self_after:  state.hp_self_pct,
     hp_enemy_after: state.hp_enemy_pct,
@@ -302,7 +319,7 @@ function _routeOursImpact(at, d) {
     floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
     shakeUntil = performance.now() + 380; shakeMag = 9;
     if (step === 'incoming') {
-      setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 900);
+      setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 400);
     }
   }
 }
@@ -324,8 +341,24 @@ function loop() {
     sy = (Math.random() * 2 - 1) * shakeMag * k;
   }
 
+  // Zoom transition (T1): scale around castle center with ease-in-out cubic.
+  let zoomScale = 1;
+  let fadeAlpha = 0;
+  if (transitioning) {
+    const tn = Math.min(1, (now - transitionT0) / TRANSITION_DUR);
+    const eased = tn < 0.5 ? 4 * tn * tn * tn : 1 - Math.pow(-2 * tn + 2, 3) / 2;
+    zoomScale = 1 + eased * 0.85;             // 1 → 1.85
+    fadeAlpha = Math.max(0, tn - 0.7) / 0.3;  // last 30%: fade to white 0 → 1
+  }
+
   ctx.save();
   ctx.translate(sx, sy);
+  if (zoomScale !== 1) {
+    const cx = W / 2, cy = BASE_Y - 40;
+    ctx.translate(cx, cy);
+    ctx.scale(zoomScale, zoomScale);
+    ctx.translate(-cx, -cy);
+  }
 
   _drawSky(ctx);
   _drawHillsFar(ctx);
@@ -338,8 +371,18 @@ function loop() {
 
   ctx.restore();
 
+  if (fadeAlpha > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${fadeAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
   drawTopHud(ctx);
   drawScriptOverlay(ctx, now / 1000);
+
+  if (transitioning && (now - transitionT0) >= TRANSITION_DUR) {
+    transitioning = false;
+    _finalizeCutToInterior();
+  }
 }
 
 // ── Drawing — backgrounds ────────────────────────────────────────────────────
@@ -613,7 +656,7 @@ function _drawRocketSprite(ctx, x, y, ang, size) {
 }
 
 function _drawBombSprite(ctx, x, y, ang) {
-  const size = 38;
+  const size = 56;
   if (isImageReady('BOMB')) {
     ctx.save();
     ctx.translate(x, y);
