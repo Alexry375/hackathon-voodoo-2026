@@ -1,9 +1,9 @@
 # Hackathon Voodoo × Unaite × Anthropic — Avril 2026
 
-**Track 2 — Playable Ad Pipeline.**
-On construit un **pipeline reproductible** qui transforme une vidéo de gameplay en *playable ad* (single HTML file ~30s). Le livrable, c'est l'outil — pas un seul beau playable.
+**Track 2 — Playable Ad Pipeline** (orientation actuelle, pas encore verrouillé).
+On envisage de construire un **pipeline reproductible** qui transforme une vidéo de gameplay en *playable ad* (single HTML file ~30s). Le livrable, c'est l'outil — pas un seul beau playable.
 
-## Pipeline cible
+## Exemple de pipeline
 
 ```
 vidéo gameplay → analyse Gemini → génération HTML/JS (Claude Code) → assets via Scenario → single HTML file
