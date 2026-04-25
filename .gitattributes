@@ -1,0 +1,4 @@
+# Append-only files: merge en gardant les deux côtés (zéro conflit Git)
+HANDOFF-*.md merge=union
+CHANGELOG.md merge=union
+*.log        merge=union
