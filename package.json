@@ -1,0 +1,14 @@
+{
+  "name": "castle-clashers-playable",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "embed": "node tools/embed-assets.mjs",
+    "build": "node tools/build.mjs",
+    "dev": "python3 -m http.server 8765"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "playwright": "^1.47.0"
+  }
+}

@@ -11,3 +11,5 @@ castle-clasher-v2/node_modules/
 # Editor / OS
 .DS_Store
 *.swp
+node_modules/
+dist/playable.html
