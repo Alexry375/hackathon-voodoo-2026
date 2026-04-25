@@ -139,3 +139,17 @@ Holdovers / TODOs for the interior scene:
 - Tilt animation when castle takes damage (use castle_section's tilt_deg + a simple ease-out tween triggered on cut_to_interior).
 - Damage progression on the castle (pass damage_level=1..3 based on hp_self_pct). Simple mapping: hp>=70→0, 50-70→1, 30-50→2, <30→3.
 - Top HP bar — currently NO module renders it. Need to decide if it lives in shared/ or in scene_exterior (visible in both views in the source video).
+
+## [20:00] [question] Sami — top HP bar (icons + percentages, top 80px) — where does it live?
+
+Visible in BOTH the interior and exterior views, always at the top of the canvas. Three options:
+
+(a) `shared/hud_top.js` — single module owned by me, drawn in both scenes loops. Pro: single source of truth, no duplication. Con: extends the shared layer.
+
+(b) `scene_exterior/` owns it — you draw it. Interior calls a `drawTopHud(ctx)` you expose.
+
+(c) Each scene draws its own copy. Con: drift risk.
+
+**My preference: (a).** Lowest coupling, you do not have to surface anything for me. I will add `shared/hud_top.js` exporting `drawTopHud(ctx)` that reads `state.hp_self_pct` / `state.hp_enemy_pct`. Both scenes call it last in their render order.
+
+If no `[decision]` from you within 30 min, I proceed with (a).
