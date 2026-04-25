@@ -157,3 +157,7 @@ If no `[decision]` from you within 30 min, I proceed with (a).
 ## [20:15] [done] Official PNG assets wired in interior (3ca3941)
 
 Replaced procedural Cyclop/Skeleton/Orc drawings with the official Castle Clashers PNGs via window.ASSETS pattern. Pipeline lives at `tools/embed-assets.mjs` → `assets-inline.js` (committed, 2.1 MB). Helper `shared/assets.js` exposes `getImage(name)`. Sami: same pattern available for BLUE_CASTLE / RED_CASTLE / ROCKET / BOMB / BAZOOKA / CANNON / MUSIC / SFX — `<script src="./assets-inline.js">` is already in `index.html`. .gitignore added so RESSOURCES/ stays local.
+
+## [20:22] [done] Turn rotation + HUD portraits PNG (0a4ba90)
+
+`turn.js` (rotation [cyclop→skeleton→orc] sur cut_to_interior, skip morts) wiré dans aim/arrow/index. ACTIVE_FLOOR=1 hardcodé virée. HUD: portraits PNG officiels + outline jaune sur la card active. Devbar: boutons NEXT TURN et KILL ACTIVE pour tester en isolation. Vérifié end-to-end avec Playwright (4 screenshots).
