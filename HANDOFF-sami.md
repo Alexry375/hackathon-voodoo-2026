@@ -36,3 +36,11 @@ Picked up the model-rule reversal in CLAUDE.md. All my sub-agents will be Opus, 
 ## [19:37] [status] Scaffold complete, pushed — starting real scene_exterior modules next
 
 `sami-v2` pushed with: `scene_exterior/index.js` placeholder + handshake stubs, `index.html` wiring both scenes on shared canvas `g`. All `[decision]` items from this sync are committed. Next 30 min: build out the real scene_exterior sub-modules — planning order `castles.js` → `projectile.js` → `enemy_ai.js` → `vfx.js` → `hud.js`. Will anchor every visual to B01 frames (using `castle-clasher-v2/showcase/frame_*s.jpg` + `tools/B01.report.md` for timestamp references).
+
+## [19:49] [decision] Asset source for scene_exterior = official Voodoo pack (cherry-picked from origin/sami)
+
+Cherry-picking `assets/Castle Clashers Assets/` from `origin/sami` into `sami-v2`: `Blue Castle.png`, `Red Castle.png`, `Background.png`, `Projectile_1.png`, `Projectile_2.png`, `Weapon_1.png`, `Weapon_2.png`, `Music.ogg`, `Sfx.wav`, plus the three `Character_*.psb` (Photoshop, will need conversion to PNG before use). Skipping `frames/clip2_*.png` — extracted frames not useful for rendering.
+
+Picked official pack over Alexis's `castle-clasher-v2/showcase/blue-castle.png` / `red-castle.png` because the showcase ones look like AI re-renders from his prior prototype, while the official pack is the genuine Voodoo game art. Alexis's `showcase/ref-chaos.jpg`, `ref-chunk.jpg`, `ref-explosion*.jpg` stay useful as **visual mood reference for vfx.js**, not as render-time assets.
+
+Folder will land at `assets/Castle Clashers Assets/` at repo root (matches the path on `origin/sami`). Note: CLAUDE.md still references `RESSOURCES/Castle-Clashers-Assets/` as the canonical path — flagging the mismatch but not moving the folder unilaterally; will resolve in a later sync if Alexis prefers the RESSOURCES path.
