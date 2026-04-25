@@ -7,7 +7,8 @@
     "build": "node tools/build.mjs",
     "dev": "python3 -m http.server 8765",
     "record": "node tools/record_gameplay.mjs",
-    "critique": "node tools/critique.mjs"
+    "critique": "node tools/critique.mjs",
+    "play": "node tools/record_interactive.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
