@@ -116,3 +116,26 @@ But the visual is wrong vs `frame_05s.jpg`:
 - Bottom has a **wooden base extending laterally** with tank treads partially visible
 
 Architecture stays. v1 iteration next: re-dispatch sub-agent with `frame_05s.jpg` as the canonical reference and explicit "this is what we got wrong" notes. Anchor coords from `getFloorAnchor` will need to alternate left/right per floor.
+
+## [19:55] [done] castle_section v1 + 4 parallel modules integrated (bf82ff7)
+
+v1 castle (commit d63a4c8): asymmetric layout matches frame_05s — broken left wall, full-height right with spire, 3 short alternating ledges, wooden base + tank tread gears. Some weathering still less rich than ref but solid foundation.
+
+Then 4 Opus sub-agents ran in PARALLEL, each owning one module file (zero file collisions thanks to scene-split architecture):
+- units.js — 3 character sprites + idle bob
+- arrow.js — bobbing white down-arrow indicator
+- aim.js — pointer drag + dotted ballistic curve + emits 'player_fire'
+- hud_cards.js — bottom plank with 3 checker-bordered cards
+
+Single integration commit in scene_interior/index.js (bf82ff7) wires them all in render order: bg → castle → units → arrow → aim_overlay → hud_cards. Screenshot `/tmp/interior_v1_full.png` is recognizably Castle Clashers vs frame_05s.
+
+Validates the scene-split + locked-contract approach: 4 parallel agents shipped clean modules with no merge conflicts. Sami can do the same on scene_exterior on his side.
+
+## [19:55] [info] What's still missing in scene_interior
+
+Holdovers / TODOs for the interior scene:
+- Turn-based unit selection (currently aim.js hardcodes ACTIVE_FLOOR=1, arrow.js hardcodes floor=1 too via index.js). Needs a turn manager that reads state.turn_index and picks the next alive unit.
+- RIP gravestone module (when state.units[i].alive flips to false, draw a gravestone at that ledge anchor). Not started — Sami's scene_exterior emits 'unit_killed' so we just need to render the gravestone in interior.
+- Tilt animation when castle takes damage (use castle_section's tilt_deg + a simple ease-out tween triggered on cut_to_interior).
+- Damage progression on the castle (pass damage_level=1..3 based on hp_self_pct). Simple mapping: hp>=70→0, 50-70→1, 30-50→2, <30→3.
+- Top HP bar — currently NO module renders it. Need to decide if it lives in shared/ or in scene_exterior (visible in both views in the source video).
