@@ -6,6 +6,7 @@
 import { subscribe, getState, ready_for_player_input } from '../shared/scene_manager.js';
 import { emit, on } from '../shared/events.js';
 import { state } from '../shared/state.js';
+import { loadCastleAssets, castleAssetsReady, drawCastles } from './castles.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -22,6 +23,8 @@ const EXTERIOR_STATES = new Set(['EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
 export function mount(c) {
   canvas = c;
   ctx = c.getContext('2d');
+
+  loadCastleAssets().catch(e => console.error('[scene_exterior] asset load failed:', e));
 
   subscribe((s) => {
     visible = EXTERIOR_STATES.has(s);
@@ -48,23 +51,29 @@ function loop() {
   rafId = requestAnimationFrame(loop);
   if (!ctx || !canvas) return;
 
-  ctx.fillStyle = '#0d1b2a';
+  ctx.fillStyle = '#7fb069';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#90e0ef';
-  ctx.font = 'bold 24px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('EXTERIOR — placeholder', canvas.width / 2, 80);
-  ctx.font = '14px sans-serif';
-  ctx.fillStyle = '#ccc';
-  ctx.fillText(`state ${getState()}   hp_self ${state.hp_self_pct}%   hp_enemy ${state.hp_enemy_pct}%   turn ${state.turn_index}`,
-               canvas.width / 2, 110);
+
+  if (castleAssetsReady()) {
+    // OBSERVE shows the player castle taking enemy fire; RESOLVE shows the enemy castle taking the player's shot.
+    const which = getState() === 'EXTERIOR_RESOLVE' ? 'red' : 'blue';
+    const hp_pct = which === 'blue' ? state.hp_self_pct : state.hp_enemy_pct;
+    drawCastles(ctx, { which, hp_pct, viewport: { w: canvas.width, h: canvas.height } });
+  }
 
   // TODO sub-modules will render here:
-  //   - castles.js       blue + red sprites + destruction-state swap
   //   - projectile.js    ballistic physics + impact
   //   - enemy_ai.js      auto-attack during EXTERIOR_OBSERVE → emit 'unit_killed' on hit
   //   - vfx.js           explosion / smoke / rain particles
   //   - hud.js           top HP% bars
+
+  // Dev overlay (remove once HUD lands).
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, canvas.width, 28);
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${getState()}  blue ${state.hp_self_pct}%  red ${state.hp_enemy_pct}%  turn ${state.turn_index}`, 8, 18);
 }
 
 // TODO enemy_ai.js will own the EXTERIOR_OBSERVE intro cinematic. When the intro
