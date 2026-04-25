@@ -1,0 +1,25 @@
+{
+  "aspects": [
+    {
+      "id": "tutorialization_and_onboarding",
+      "description": "Analyse de la main virtuelle et des éléments de guidage visuel pour le joueur.",
+      "prompt": "Analyse en détail le comportement de la main virtuelle et les aides visuelles (comme la ligne de visée en pointillés blancs). Comment ces éléments guident-ils le joueur intuitivement sans texte, et quelles sont les meilleures pratiques pour les reproduire efficacement dans un playable ad afin d'assurer une compréhension immédiate de l'interaction ?",
+      "priority": 5,
+      "reason": "Dans un playable ad, l'onboarding doit être instantané (moins de 3 secondes). Comprendre comment la vidéo guide l'utilisateur via la main virtuelle est crucial pour maximiser le taux d'engagement."
+    },
+    {
+      "id": "physics_and_trajectory",
+      "description": "Étude des différentes trajectoires de tir et de la physique des projectiles.",
+      "prompt": "Examine les différents types de tirs présentés (tir direct de la grosse roquette, tir en cloche prononcé du squelette, tir rasant du gobelin). Comment la physique (gravité, vélocité) affecte-t-elle ces projectiles, et comment la ligne de visée s'adapte-t-elle pour anticiper ces trajectoires spécifiques ?",
+      "priority": 4,
+      "reason": "La variété des tirs implique des paramètres physiques distincts. Il est nécessaire d'analyser ces variations pour configurer correctement le moteur physique (ou les animations scriptées) du playable ad."
+    },
+    {
+      "id": "progression_or_difficulty",
+      "description": "Analyse de la courbe de tension via la réduction des points de vie et l'équilibrage du combat.",
+      "prompt": "Analyse le rythme auquel les points de vie des deux châteaux diminuent tout au long de la vidéo (chute croisée jusqu'à 17% et 30%). Comment cette progression des dégâts crée-t-elle l'illusion d'un match serré et un sentiment d'urgence idéal pour retenir l'attention du joueur jusqu'à l'écran de fin ?",
+      "priority": 4,
+      "reason": "Un playable ad doit maintenir le suspense. Comprendre le pacing des dégâts permet de scripter une fausse difficulté qui donne l'impression au joueur qu'il est sur le point de gagner (ou de perdre), l'incitant à cliquer sur le Call to Action."
+    }
+  ]
+}

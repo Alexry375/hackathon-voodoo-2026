@@ -1,0 +1,174 @@
+{
+  "__racine__": {
+    "id": "__racine__",
+    "label": "Racine",
+    "profondeur": 0,
+    "parent_id": null,
+    "enfants_ids": [
+      "shooting_mechanics_and_controls",
+      "projectile_types_and_vfx",
+      "destruction_physics_and_enemies",
+      "ui_and_end_card"
+    ]
+  },
+  "shooting_mechanics_and_controls": {
+    "id": "shooting_mechanics_and_controls",
+    "label": "shooting_mechanics_and_controls",
+    "profondeur": 1,
+    "parent_id": "__racine__",
+    "enfants_ids": [
+      "shooting_mechanics_and_controls__slingshot_interaction",
+      "shooting_mechanics_and_controls__trajectory_line_visuals",
+      "shooting_mechanics_and_controls__aiming_dynamics",
+      "shooting_mechanics_and_controls__shooting_trigger"
+    ]
+  },
+  "projectile_types_and_vfx": {
+    "id": "projectile_types_and_vfx",
+    "label": "projectile_types_and_vfx",
+    "profondeur": 1,
+    "parent_id": "__racine__",
+    "enfants_ids": [
+      "projectile_types_and_vfx__character_selection_ui",
+      "projectile_types_and_vfx__projectile_physics_trajectories",
+      "projectile_types_and_vfx__in_flight_vfx",
+      "projectile_types_and_vfx__impact_destruction_vfx"
+    ]
+  },
+  "destruction_physics_and_enemies": {
+    "id": "destruction_physics_and_enemies",
+    "label": "destruction_physics_and_enemies",
+    "profondeur": 1,
+    "parent_id": "__racine__",
+    "enfants_ids": [
+      "destruction_physics_and_enemies__visual_degradation_effects",
+      "destruction_physics_and_enemies__structural_collapse_physics",
+      "destruction_physics_and_enemies__kamikaze_crows_behavior",
+      "destruction_physics_and_enemies__damage_indicators_ui"
+    ]
+  },
+  "ui_and_end_card": {
+    "id": "ui_and_end_card",
+    "label": "ui_and_end_card",
+    "profondeur": 1,
+    "parent_id": "__racine__",
+    "enfants_ids": [
+      "ui_and_end_card__top_hud_health_system",
+      "ui_and_end_card__character_selection_menu",
+      "ui_and_end_card__tutorial_aiming_mechanic",
+      "ui_and_end_card__end_screen_cta"
+    ]
+  },
+  "shooting_mechanics_and_controls__slingshot_interaction": {
+    "id": "shooting_mechanics_and_controls__slingshot_interaction",
+    "label": "slingshot_interaction",
+    "profondeur": 2,
+    "parent_id": "shooting_mechanics_and_controls",
+    "enfants_ids": []
+  },
+  "shooting_mechanics_and_controls__trajectory_line_visuals": {
+    "id": "shooting_mechanics_and_controls__trajectory_line_visuals",
+    "label": "trajectory_line_visuals",
+    "profondeur": 2,
+    "parent_id": "shooting_mechanics_and_controls",
+    "enfants_ids": []
+  },
+  "shooting_mechanics_and_controls__aiming_dynamics": {
+    "id": "shooting_mechanics_and_controls__aiming_dynamics",
+    "label": "aiming_dynamics",
+    "profondeur": 2,
+    "parent_id": "shooting_mechanics_and_controls",
+    "enfants_ids": []
+  },
+  "shooting_mechanics_and_controls__shooting_trigger": {
+    "id": "shooting_mechanics_and_controls__shooting_trigger",
+    "label": "shooting_trigger",
+    "profondeur": 2,
+    "parent_id": "shooting_mechanics_and_controls",
+    "enfants_ids": []
+  },
+  "destruction_physics_and_enemies__visual_degradation_effects": {
+    "id": "destruction_physics_and_enemies__visual_degradation_effects",
+    "label": "visual_degradation_effects",
+    "profondeur": 2,
+    "parent_id": "destruction_physics_and_enemies",
+    "enfants_ids": []
+  },
+  "destruction_physics_and_enemies__structural_collapse_physics": {
+    "id": "destruction_physics_and_enemies__structural_collapse_physics",
+    "label": "structural_collapse_physics",
+    "profondeur": 2,
+    "parent_id": "destruction_physics_and_enemies",
+    "enfants_ids": []
+  },
+  "destruction_physics_and_enemies__kamikaze_crows_behavior": {
+    "id": "destruction_physics_and_enemies__kamikaze_crows_behavior",
+    "label": "kamikaze_crows_behavior",
+    "profondeur": 2,
+    "parent_id": "destruction_physics_and_enemies",
+    "enfants_ids": []
+  },
+  "destruction_physics_and_enemies__damage_indicators_ui": {
+    "id": "destruction_physics_and_enemies__damage_indicators_ui",
+    "label": "damage_indicators_ui",
+    "profondeur": 2,
+    "parent_id": "destruction_physics_and_enemies",
+    "enfants_ids": []
+  },
+  "ui_and_end_card__top_hud_health_system": {
+    "id": "ui_and_end_card__top_hud_health_system",
+    "label": "top_hud_health_system",
+    "profondeur": 2,
+    "parent_id": "ui_and_end_card",
+    "enfants_ids": []
+  },
+  "ui_and_end_card__character_selection_menu": {
+    "id": "ui_and_end_card__character_selection_menu",
+    "label": "character_selection_menu",
+    "profondeur": 2,
+    "parent_id": "ui_and_end_card",
+    "enfants_ids": []
+  },
+  "ui_and_end_card__tutorial_aiming_mechanic": {
+    "id": "ui_and_end_card__tutorial_aiming_mechanic",
+    "label": "tutorial_aiming_mechanic",
+    "profondeur": 2,
+    "parent_id": "ui_and_end_card",
+    "enfants_ids": []
+  },
+  "ui_and_end_card__end_screen_cta": {
+    "id": "ui_and_end_card__end_screen_cta",
+    "label": "end_screen_cta",
+    "profondeur": 2,
+    "parent_id": "ui_and_end_card",
+    "enfants_ids": []
+  },
+  "projectile_types_and_vfx__character_selection_ui": {
+    "id": "projectile_types_and_vfx__character_selection_ui",
+    "label": "character_selection_ui",
+    "profondeur": 2,
+    "parent_id": "projectile_types_and_vfx",
+    "enfants_ids": []
+  },
+  "projectile_types_and_vfx__projectile_physics_trajectories": {
+    "id": "projectile_types_and_vfx__projectile_physics_trajectories",
+    "label": "projectile_physics_trajectories",
+    "profondeur": 2,
+    "parent_id": "projectile_types_and_vfx",
+    "enfants_ids": []
+  },
+  "projectile_types_and_vfx__in_flight_vfx": {
+    "id": "projectile_types_and_vfx__in_flight_vfx",
+    "label": "in_flight_vfx",
+    "profondeur": 2,
+    "parent_id": "projectile_types_and_vfx",
+    "enfants_ids": []
+  },
+  "projectile_types_and_vfx__impact_destruction_vfx": {
+    "id": "projectile_types_and_vfx__impact_destruction_vfx",
+    "label": "impact_destruction_vfx",
+    "profondeur": 2,
+    "parent_id": "projectile_types_and_vfx",
+    "enfants_ids": []
+  }
+}

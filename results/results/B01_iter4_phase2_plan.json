@@ -1,0 +1,32 @@
+{
+  "aspects": [
+    {
+      "id": "enemy_ai_and_scripted_responses",
+      "description": "Analyse du comportement du château ennemi et de ses ripostes pour scripter l'adversaire dans le playable.",
+      "prompt": "Analyse les séquences de tir du château rouge (0:08, 0:25, 0:35). Comment l'IA ennemie est-elle rythmée par rapport aux actions du joueur ? Propose une logique de scriptage (délais, ciblage, dégâts fixes) pour simuler cette riposte de manière déterministe et équilibrée dans un playable ad HTML5.",
+      "priority": 4,
+      "reason": "Dans un playable ad, l'IA doit être simple, prévisible et donner l'illusion du danger sans frustrer le joueur. Il faut définir comment coder ces ripostes."
+    },
+    {
+      "id": "particle_systems_and_vfx",
+      "description": "Étude détaillée des effets visuels (VFX) pour les reproduire de manière optimisée en HTML5.",
+      "prompt": "Détaille les différents effets de particules visibles dans la vidéo (traînées de fumée des roquettes, explosions violettes/enflammées, éclats d'énergie verte). Comment recréer ces VFX de manière performante (utilisation de spritesheets, systèmes de particules 2D légers) pour garantir un framerate élevé sur mobile ?",
+      "priority": 5,
+      "reason": "Le 'juice' visuel est essentiel pour la satisfaction du joueur, mais les particules peuvent ruiner les performances d'un playable web si elles ne sont pas pensées pour l'optimisation."
+    },
+    {
+      "id": "playable_pacing_and_compression",
+      "description": "Stratégie de compression du temps pour adapter une vidéo de 55 secondes en un playable ad de 20-30 secondes.",
+      "prompt": "La vidéo dure près d'une minute, ce qui est trop long pour retenir l'attention sur un playable ad standard. Analyse les temps morts, les transitions de caméra et les délais entre les tours. Propose un découpage et une accélération du rythme pour condenser l'expérience en 20 secondes tout en gardant l'essence du gameplay.",
+      "priority": 5,
+      "reason": "Le taux de rétention chute drastiquement après 15-20 secondes sur une publicité. Il est crucial d'adapter le rythme de la vidéo originale pour un format publicitaire interactif."
+    },
+    {
+      "id": "asset_optimization_and_fake_destruction",
+      "description": "Méthodes d'optimisation pour simuler la destruction des châteaux sans moteur physique lourd.",
+      "prompt": "La vidéo montre une destruction progressive des structures (tours qui s'effondrent, débris). Pour un playable ad HTML5 contraint en taille (souvent < 5MB), propose des techniques d'optimisation (ex: swap de sprites par paliers de dégâts, animations pré-rendues, masques de destruction) pour simuler ces dégâts de manière convaincante.",
+      "priority": 4,
+      "reason": "La destruction en temps réel avec un moteur physique (Rigidbodies) est trop lourde pour un playable ad. Il faut trouver des astuces de développement pour 'faker' ce rendu."
+    }
+  ]
+}

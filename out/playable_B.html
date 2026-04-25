@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Castle Clashers — Playable (B)</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden;
+               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+               user-select: none; -webkit-user-select: none; touch-action: none; }
+  #stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; touch-action: none; background: #87CEEB; }
+  #endcard {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+    background: rgba(0,0,0,0.6); color: #fff; text-align: center; padding: 32px; z-index: 10;
+  }
+  #endcard.show { display: flex; }
+  #endcard h1 { font-size: 28px; margin: 0; color: #F8E71C;
+                text-shadow: 0 4px 0 #000, 0 6px 16px rgba(0,0,0,0.7); }
+  #endcard .logo { font-size: 42px; font-weight: 900; letter-spacing: 2px;
+                   color: #F8E71C; text-shadow: 0 4px 0 #4A2A0A, 0 8px 16px rgba(0,0,0,0.6); }
+  #cta { background: linear-gradient(180deg,#7ED321,#4A8E10); color: #fff; border: none;
+         padding: 18px 48px; font-size: 24px; font-weight: 900; border-radius: 14px;
+         box-shadow: 0 6px 0 #2A5908, 0 10px 20px rgba(0,0,0,0.4); cursor: pointer;
+         letter-spacing: 1.5px; }
+  #cta:active { transform: translateY(4px); box-shadow: 0 2px 0 #2A5908; }
+  #hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+          color: #fff; font-weight: 700; font-size: 13px; letter-spacing: 0.3px;
+          text-shadow: 0 2px 4px rgba(0,0,0,0.8); pointer-events: none; z-index: 5;
+          background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 12px; text-align: center; }
+  #loader { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; background: #000; z-index: 20; }
+</style>
+</head>
+<body>
+<div id="loader">Loading…</div>
+<div id="stage">
+  <canvas id="game" width="375" height="667"></canvas>
+  <div id="hint">Pick the right unit to break through!</div>
+</div>
+<div id="endcard">
+  <div class="logo">CASTLE CLASHERS</div>
+  <h1>Outsmart Your Opponent!</h1>
+  <button id="cta">PLAY NOW</button>
+</div>
+
+<script>
+(() => {
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+function fit() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width = (W * s) + 'px';
+  canvas.style.height = (H * s) + 'px';
+}
+window.addEventListener('resize', fit); fit();
+
+// ---------- Asset loading ----------
+const ASSETS = {
+  bg:        'assets/Background.png',
+  blue:      'assets/Blue_Castle.png',
+  red:       'assets/Red_Castle.png',
+  skeleton:  'assets/Character_Skeleton.png',
+  orc:       'assets/Character_Orc.png',
+  rocket:    'assets/Projectile_1.png',
+  cannonball:'assets/Projectile_2.png',
+  weapon1:   'assets/Weapon_1.png',
+  weapon2:   'assets/Weapon_2.png',
+};
+const SOUNDS = { music: 'assets/Music.ogg', sfx: 'assets/Sfx.wav' };
+const img = {}, snd = {};
+
+function load() {
+  const ip = Object.entries(ASSETS).map(([k, src]) => new Promise((res, rej) => {
+    const i = new Image(); i.onload = () => { img[k] = i; res(); };
+    i.onerror = rej; i.src = src;
+  }));
+  const sp = Object.entries(SOUNDS).map(([k, src]) => new Promise((res) => {
+    const a = new Audio(); a.src = src; a.preload = 'auto';
+    a.oncanplaythrough = () => { snd[k] = a; res(); };
+    a.onerror = () => res();
+  }));
+  return Promise.all([...ip, ...sp]);
+}
+
+// ---------- Layout ----------
+const CARD_H = 130;
+const PLAY_AREA_H = H - CARD_H;
+const GROUND_Y = PLAY_AREA_H - 50;
+const GRAVITY = 0.45;
+
+const player = { cx: 70, by: GROUND_Y, w: 120, h: 160 };
+const enemy  = { cx: W - 70, by: GROUND_Y, w: 130, h: 175, destroyed: false };
+
+// Barrier between them — a stone wall blocking straight shots
+const barrier = {
+  x: W / 2 + 30, y: GROUND_Y - 110, w: 36, h: 110,
+  destroyed: false, shake: 0
+};
+
+// Weak point on enemy castle (visible behind/above barrier when arcing over)
+const weakPoint = { x: enemy.cx, y: enemy.by - enemy.h * 0.55, r: 22 };
+
+// Firing position (top of player castle)
+const firePos = { x: player.cx + 25, y: player.by - player.h + 30 };
+
+// Two cards
+const cards = [
+  {
+    id: 'rocket', label: 'ROCKET', sub: 'Straight shot',
+    char: 'skeleton', weapon: 'weapon1', proj: 'rocket',
+    x: 0, y: 0, w: 0, h: 0, // computed
+    color: '#4A90E2'
+  },
+  {
+    id: 'cannon', label: 'CANNON', sub: 'Arced shot',
+    char: 'orc', weapon: 'weapon2', proj: 'cannonball',
+    x: 0, y: 0, w: 0, h: 0,
+    color: '#7ED321'
+  }
+];
+function layoutCards() {
+  const gap = 12, pad = 16;
+  const cw = (W - pad * 2 - gap) / 2;
+  cards[0].x = pad;       cards[0].y = PLAY_AREA_H + 10; cards[0].w = cw; cards[0].h = CARD_H - 20;
+  cards[1].x = pad+cw+gap;cards[1].y = PLAY_AREA_H + 10; cards[1].w = cw; cards[1].h = CARD_H - 20;
+}
+layoutCards();
+
+// ---------- State ----------
+let projectile = null;
+let particles = [];
+let chunks = [];
+let phase = 'choose'; // choose | fly | win | miss | done
+let winTimer = 0;
+let attempts = 0;
+let highlightCorrect = false; // after a miss, pulse the cannon card
+let pulseT = 0;
+let musicStarted = false;
+
+// ---------- Audio ----------
+function playSfx() {
+  if (!snd.sfx) return;
+  try { snd.sfx.currentTime = 0; snd.sfx.play().catch(() => {}); } catch(e){}
+}
+function startMusic() {
+  if (musicStarted || !snd.music) return;
+  musicStarted = true;
+  snd.music.loop = true; snd.music.volume = 0.4;
+  snd.music.play().catch(() => { musicStarted = false; });
+}
+
+// ---------- Input ----------
+function pt(e) {
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: (t.clientX - r.left) * (W / r.width),
+           y: (t.clientY - r.top) * (H / r.height) };
+}
+function tap(e) {
+  startMusic();
+  if (phase !== 'choose') return;
+  const p = pt(e);
+  for (const c of cards) {
+    if (p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) {
+      fireFromCard(c);
+      break;
+    }
+  }
+  e.preventDefault();
+}
+canvas.addEventListener('mousedown', tap);
+canvas.addEventListener('touchstart', tap, { passive: false });
+
+function fireFromCard(card) {
+  attempts++;
+  phase = 'fly';
+  highlightCorrect = false;
+  // Aim at weak point. Compute initial velocity for either straight or arced.
+  const sx = firePos.x, sy = firePos.y;
+  const tx = weakPoint.x, ty = weakPoint.y;
+  let vx, vy;
+  if (card.id === 'rocket') {
+    // Straight, flat, fast — will hit barrier
+    const ang = Math.atan2(ty - sy, tx - sx);
+    const sp = 11;
+    vx = Math.cos(ang) * sp;
+    vy = Math.sin(ang) * sp;
+  } else {
+    // Arc over barrier — pick a high lob that lands on weakPoint
+    // Solve simple ballistic: choose flight time, derive vx, vy.
+    const t = 50; // frames
+    vx = (tx - sx) / t;
+    vy = (ty - sy - 0.5 * GRAVITY * t * t) / t;
+  }
+  projectile = {
+    x: sx, y: sy, vx, vy,
+    sprite: card.proj,
+    isCannon: card.id === 'cannon',
+  };
+  playSfx();
+}
+
+// ---------- Destruction ----------
+function spawnParticles(x, y, n, opts = {}) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = (opts.speedMin || 1) + Math.random() * ((opts.speedMax || 6) - (opts.speedMin || 1));
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * s,
+      vy: Math.sin(a) * s - (opts.lift || 2),
+      life: 30 + Math.random() * 30, max: 60,
+      r: 2 + Math.random() * (opts.radius || 5),
+      color: opts.colors ? opts.colors[Math.floor(Math.random() * opts.colors.length)] : '#FFA500',
+      g: opts.gravity != null ? opts.gravity : 0.18,
+    });
+  }
+}
+function startCollapse() {
+  const cols = 4, rows = 6;
+  const srcW = img.red.width, srcH = img.red.height;
+  const sw = srcW / cols, sh = srcH / rows;
+  const dx0 = enemy.cx - enemy.w / 2;
+  const dy0 = enemy.by - enemy.h;
+  const cw = enemy.w / cols, ch = enemy.h / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      chunks.push({
+        sx: c * sw, sy: r * sh, sw, sh,
+        x: dx0 + c * cw + cw / 2, y: dy0 + r * ch + ch / 2,
+        w: cw, h: ch,
+        vx: (Math.random() - 0.5) * 6,
+        vy: -3 - Math.random() * 5 - (rows - r) * 0.4,
+        rot: 0, vr: (Math.random() - 0.5) * 0.22,
+        delay: Math.floor(r * 3 + Math.random() * 8),
+      });
+    }
+  }
+  spawnParticles(weakPoint.x, weakPoint.y, 70, {
+    colors: ['#F8E71C','#FFA500','#D0021B','#fff'],
+    speedMin: 2, speedMax: 10, radius: 7, lift: 3
+  });
+  enemy.destroyed = true;
+}
+
+// ---------- Drawing ----------
+function drawBackground() {
+  const im = img.bg;
+  const scale = Math.max(W / im.width, PLAY_AREA_H / im.height);
+  const dw = im.width * scale, dh = im.height * scale;
+  ctx.drawImage(im, (W - dw) / 2, PLAY_AREA_H - dh, dw, dh);
+  // Bottom strip for cards
+  ctx.fillStyle = '#2A1A0A';
+  ctx.fillRect(0, PLAY_AREA_H, W, CARD_H);
+  ctx.fillStyle = '#3E2A1A';
+  ctx.fillRect(0, PLAY_AREA_H, W, 4);
+}
+function drawCastle(c, sprite, isEnemy) {
+  if (isEnemy && enemy.destroyed) return;
+  const dx = c.cx - c.w / 2, dy = c.by - c.h;
+  ctx.drawImage(sprite, dx, dy, c.w, c.h);
+}
+function drawBarrier() {
+  if (barrier.destroyed) return;
+  const sx = (Math.random() - 0.5) * barrier.shake;
+  const sy = (Math.random() - 0.5) * barrier.shake;
+  if (barrier.shake > 0.1) barrier.shake *= 0.85;
+  // Stone wall — drawn primitives
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.fillStyle = '#5A5A5A';
+  ctx.fillRect(barrier.x, barrier.y, barrier.w, barrier.h);
+  ctx.fillStyle = '#7A7A7A';
+  for (let r = 0; r < 5; r++) {
+    const yy = barrier.y + r * (barrier.h / 5);
+    ctx.fillRect(barrier.x + (r % 2 ? 6 : 0), yy + 2, barrier.w - (r % 2 ? 12 : 0), 4);
+  }
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+  ctx.strokeRect(barrier.x, barrier.y, barrier.w, barrier.h);
+  // Top crenellation
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = '#5A5A5A';
+    ctx.fillRect(barrier.x + i * (barrier.w / 3) + 2, barrier.y - 6, barrier.w / 3 - 4, 8);
+    ctx.strokeRect(barrier.x + i * (barrier.w / 3) + 2, barrier.y - 6, barrier.w / 3 - 4, 8);
+  }
+  ctx.restore();
+}
+function drawWeakPoint() {
+  if (enemy.destroyed) return;
+  const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 220);
+  const grd = ctx.createRadialGradient(weakPoint.x, weakPoint.y, 2, weakPoint.x, weakPoint.y, weakPoint.r * 2.4);
+  grd.addColorStop(0, `rgba(248,231,28,${pulse})`);
+  grd.addColorStop(0.5, `rgba(255,165,0,${pulse * 0.6})`);
+  grd.addColorStop(1, 'rgba(208,2,27,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(weakPoint.x, weakPoint.y, weakPoint.r * 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#F8E71C';
+  ctx.beginPath(); ctx.arc(weakPoint.x, weakPoint.y, weakPoint.r * 0.55 * pulse, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+}
+function drawProjectile(p) {
+  const im = img[p.sprite];
+  const ang = Math.atan2(p.vy, p.vx);
+  const size = p.isCannon ? 26 : 30;
+  const w = size * (im.width / im.height), h = size;
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(ang);
+  ctx.drawImage(im, -w / 2, -h / 2, w, h);
+  ctx.restore();
+}
+function drawCard(c) {
+  const isCorrect = c.id === 'cannon' && highlightCorrect;
+  pulseT += 0.05;
+  const glow = isCorrect ? 0.5 + 0.5 * Math.sin(pulseT * 3) : 0;
+  // Background
+  ctx.fillStyle = '#5A3A1A';
+  ctx.fillRect(c.x, c.y, c.w, c.h);
+  ctx.fillStyle = '#7A5A2A';
+  ctx.fillRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6);
+  // Color band
+  ctx.fillStyle = c.color;
+  ctx.fillRect(c.x + 3, c.y + c.h - 26, c.w - 6, 23);
+  // Glow if correct
+  if (isCorrect) {
+    ctx.strokeStyle = `rgba(248,231,28,${0.5 + glow * 0.5})`;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(c.x - 2, c.y - 2, c.w + 4, c.h + 4);
+  } else {
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+    ctx.strokeRect(c.x, c.y, c.w, c.h);
+  }
+  // Character portrait
+  const charImg = img[c.char];
+  const ph = c.h - 40;
+  const pw = ph * (charImg.width / charImg.height);
+  ctx.drawImage(charImg, c.x + (c.w - pw) / 2, c.y + 4, pw, ph);
+  // Label
+  ctx.fillStyle = '#fff';
+  ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(c.label, c.x + c.w / 2, c.y + c.h - 9);
+}
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function drawChunks() {
+  for (const c of chunks) {
+    if (c.delay > 0) continue;
+    ctx.save();
+    ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+    ctx.drawImage(img.red, c.sx, c.sy, c.sw, c.sh, -c.w / 2, -c.h / 2, c.w, c.h);
+    ctx.restore();
+  }
+}
+
+// ---------- Update ----------
+function update() {
+  if (projectile) {
+    const p = projectile;
+    p.x += p.vx; p.y += p.vy; p.vy += GRAVITY;
+
+    // Hit weak point
+    if (!enemy.destroyed && Math.hypot(p.x - weakPoint.x, p.y - weakPoint.y) < weakPoint.r + 12) {
+      startCollapse();
+      projectile = null;
+      phase = 'win'; winTimer = 0;
+    }
+    // Hit barrier
+    else if (!barrier.destroyed && p.x > barrier.x && p.x < barrier.x + barrier.w &&
+             p.y > barrier.y - 6 && p.y < barrier.y + barrier.h) {
+      barrier.shake = 8;
+      spawnParticles(p.x, p.y, 22, {
+        colors: ['#888','#aaa','#666'], speedMin: 1, speedMax: 5, radius: 5
+      });
+      projectile = null;
+      phase = 'miss';
+      setTimeout(() => {
+        if (phase === 'miss') {
+          phase = 'choose';
+          highlightCorrect = true;
+        }
+      }, 1100);
+    }
+    // Hit enemy castle wall (not weak point) — count as miss
+    else if (!enemy.destroyed && p.x > enemy.cx - enemy.w / 2 && p.x < enemy.cx + enemy.w / 2 &&
+             p.y > enemy.by - enemy.h && p.y < enemy.by) {
+      spawnParticles(p.x, p.y, 16, {
+        colors: ['#888','#FFA500'], speedMin: 1, speedMax: 4, radius: 4
+      });
+      projectile = null; phase = 'miss';
+      setTimeout(() => { if (phase === 'miss') { phase = 'choose'; highlightCorrect = true; } }, 900);
+    }
+    // Off screen
+    else if (p.x < -50 || p.x > W + 50 || p.y > GROUND_Y) {
+      projectile = null; phase = 'miss';
+      setTimeout(() => { if (phase === 'miss') { phase = 'choose'; highlightCorrect = true; } }, 700);
+    }
+  }
+
+  for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life--; }
+  particles = particles.filter(p => p.life > 0);
+
+  for (const c of chunks) {
+    if (c.delay > 0) { c.delay--; continue; }
+    c.x += c.vx; c.y += c.vy; c.vy += GRAVITY * 0.7;
+    c.rot += c.vr;
+    if (c.y + c.h / 2 > GROUND_Y) {
+      c.y = GROUND_Y - c.h / 2; c.vy *= -0.3; c.vx *= 0.7; c.vr *= 0.6;
+    }
+  }
+
+  if (phase === 'win') {
+    winTimer++;
+    if (winTimer === 50) {
+      spawnParticles(enemy.cx, enemy.by - 40, 35, {
+        colors: ['#F8E71C','#FFA500','#D0021B'],
+        speedMin: 3, speedMax: 9, radius: 6
+      });
+      playSfx();
+    }
+    if (winTimer > 140) {
+      phase = 'done';
+      document.getElementById('endcard').classList.add('show');
+    }
+  }
+}
+
+// ---------- Render ----------
+function render() {
+  drawBackground();
+  drawCastle(player, img.blue, false);
+  drawCastle(enemy,  img.red,  true);
+  drawChunks();
+  drawBarrier();
+  drawWeakPoint();
+  for (const c of cards) drawCard(c);
+  if (projectile) drawProjectile(projectile);
+  drawParticles();
+
+  if (phase === 'miss') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, PLAY_AREA_H / 2 - 38, W, 76);
+    ctx.fillStyle = '#fff'; ctx.font = '700 22px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Try the other unit!', W / 2, PLAY_AREA_H / 2 + 8);
+  }
+}
+
+function loop() { update(); render(); requestAnimationFrame(loop); }
+
+load().then(() => {
+  document.getElementById('loader').remove();
+  loop();
+}).catch(err => {
+  document.getElementById('loader').textContent = 'Asset load error: ' + err;
+});
+
+document.getElementById('cta').addEventListener('click', () => window.location.reload());
+})();
+</script>
+</body>
+</html>

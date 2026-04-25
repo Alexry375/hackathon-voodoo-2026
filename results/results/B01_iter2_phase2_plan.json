@@ -1,0 +1,32 @@
+{
+  "aspects": [
+    {
+      "id": "game_loop_and_turn_system",
+      "description": "Analyse du rythme au tour par tour et de la boucle de gameplay.",
+      "prompt": "Analyse la structure des tours de jeu dans la vidéo. Comment s'enchaînent les phases de visée/tir du joueur et les ripostes automatiques du château ennemi ? Détaille le timing et les transitions entre ces phases pour aider à scripter la machine à états (state machine) du playable ad.",
+      "priority": 5,
+      "reason": "Comprendre le rythme d'alternance entre le joueur et l'IA est essentiel pour programmer le flux (flow) du playable ad sans frustrer l'utilisateur."
+    },
+    {
+      "id": "visual_style_and_environment",
+      "description": "Direction artistique, conception des environnements et style graphique.",
+      "prompt": "Décris en détail la direction artistique du jeu. Analyse le décor de fond (forêt), le design atypique des châteaux (structures sur chenilles) et le style graphique global (mélange 2D/3D, palette de couleurs, aspect cartoon). Quelles sont les caractéristiques visuelles clés à reproduire pour les assets du playable ad ?",
+      "priority": 4,
+      "reason": "Une description précise du style visuel est indispensable pour briefer les artistes 2D/3D afin de recréer des assets fidèles et optimisés pour le web."
+    },
+    {
+      "id": "objectives_and_win_condition",
+      "description": "Évolution de l'objectif et conditions de fin de partie.",
+      "prompt": "Analyse comment l'objectif de destruction est communiqué au joueur tout au long de la vidéo. Bien que la vidéo se termine avant la destruction totale, comment la progression vers la victoire (ou la défaite) est-elle rythmée ? Propose une manière d'adapter et de raccourcir cette condition de victoire pour qu'elle soit satisfaisante dans un format publicitaire de 30 secondes.",
+      "priority": 5,
+      "reason": "Un playable ad nécessite une condition de victoire claire, rapide et gratifiante pour maximiser le taux de conversion (Call to Action)."
+    },
+    {
+      "id": "character_selection_mechanic",
+      "description": "Mécanique secondaire de sélection des unités en cours de partie.",
+      "prompt": "Concentre-toi sur la séquence (0:10 - 0:15) où un menu de sélection de personnages apparaît en bas de l'écran. Comment cette mécanique s'intègre-t-elle dans l'action ? Évalue s'il est pertinent de conserver cette étape de sélection dans un playable ad ou s'il vaut mieux l'automatiser pour fluidifier l'expérience utilisateur.",
+      "priority": 3,
+      "reason": "Définir le niveau de complexité des interactions permet de choisir entre un playable ad riche en options ou une expérience plus directe et guidée."
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "aspects": [
+    {
+      "id": "core_mechanic",
+      "description": "La mécanique principale de tir d'artillerie et de destruction de base.",
+      "prompt": "Analyse la boucle de gameplay principale. Décris le système de tir balistique (type Angry Birds) et l'échange de projectiles entre le château bleu du joueur et le château rouge ennemi.",
+      "priority": 5,
+      "reason": "C'est le cœur du jeu. Reproduire cette physique de tir et de destruction est indispensable pour le playable ad."
+    },
+    {
+      "id": "player_interaction",
+      "description": "Les actions du joueur pour viser et tirer.",
+      "prompt": "Détaille les interactions tactiles montrées par la main virtuelle. Comment le joueur sélectionne-t-il un personnage, trace-t-il la ligne de visée en pointillés, et déclenche-t-il le tir ?",
+      "priority": 5,
+      "reason": "Le playable ad doit offrir des contrôles tactiles fluides et intuitifs, exactement comme montrés dans la vidéo."
+    },
+    {
+      "id": "entities_and_objects",
+      "description": "Les différents personnages, leurs types de projectiles et les châteaux mobiles.",
+      "prompt": "Identifie chaque personnage (créature rouge, squelette, gobelin vert) et décris le comportement unique de leurs projectiles (roquette simple, roquettes multiples/cluster, boule de feu). Décris également la structure des châteaux sur chenilles.",
+      "priority": 4,
+      "reason": "La variété des munitions et leurs effets spécifiques apportent la dimension stratégique et fun à recréer dans la publicité."
+    },
+    {
+      "id": "feedback_and_juice",
+      "description": "Les effets visuels d'impact, les explosions et la destruction des décors.",
+      "prompt": "Analyse les retours visuels lors des attaques. Décris les explosions, la physique de destruction des châteaux (comment les parties se détachent ou s'effondrent) et les transformations des personnages en plein vol.",
+      "priority": 4,
+      "reason": "La satisfaction visuelle de la destruction est le principal levier d'engagement pour ce type de jeu casual."
+    },
+    {
+      "id": "ui_and_hud",
+      "description": "L'interface utilisateur en jeu et l'écran de fin (CTA).",
+      "prompt": "Décris tous les éléments d'interface : les barres de vie en pourcentage en haut, le menu de sélection de personnages en bas, les indicateurs de dégâts flottants, et la composition exacte de l'écran de fin (Call to Action).",
+      "priority": 3,
+      "reason": "L'UI permet de comprendre l'objectif (réduire la vie à 0) et l'écran de fin est crucial pour la conversion du joueur vers le store."
+    }
+  ]
+}

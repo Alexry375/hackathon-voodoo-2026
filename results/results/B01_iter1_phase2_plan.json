@@ -1,0 +1,32 @@
+{
+  "aspects": [
+    {
+      "id": "core_mechanic_and_interaction",
+      "description": "Mécanique de visée par glisser-relâcher (slingshot) et tir de projectiles.",
+      "prompt": "Analyse en détail la mécanique de tir : comment le joueur interagit-il (clic, glissement inverse, relâchement), comment la ligne de trajectoire en pointillés se comporte-t-elle visuellement, et quelles sont les différences de trajectoire (tendue, en cloche) selon les actions du joueur ?",
+      "priority": 5,
+      "reason": "C'est l'interaction principale du joueur (façon Angry Birds), indispensable à reproduire avec précision et fluidité pour le gameplay du playable ad."
+    },
+    {
+      "id": "entities_and_destruction",
+      "description": "Les châteaux mobiles, les personnages et la destruction physique des structures.",
+      "prompt": "Décris les différents personnages (monstre rouge, squelette, gobelin) et leurs types d'attaques spécifiques (roquette unique, volée, rafale d'énergie). Analyse également comment les châteaux sont structurés et comment ils se détruisent (physique des blocs, débris, basculement) lors des impacts.",
+      "priority": 5,
+      "reason": "La physique de destruction et la variété des attaques constituent le cœur de l'attrait visuel et de la satisfaction ludique du jeu."
+    },
+    {
+      "id": "camera_and_feedback",
+      "description": "Mouvements de caméra dynamiques et retours visuels (explosions, dégâts).",
+      "prompt": "Examine les transitions de caméra (zooms avant sur l'intérieur du château pour viser, dézooms pour voir l'action globale et les impacts). Détaille aussi les effets visuels (explosions, fumée) et les retours d'information (textes de dégâts flottants rouges).",
+      "priority": 4,
+      "reason": "Le dynamisme de la caméra et le 'juice' des impacts rendent l'action lisible, satisfaisante et captivante pour retenir l'attention dans une publicité."
+    },
+    {
+      "id": "ui_and_hud",
+      "description": "Interface utilisateur en jeu et écran de fin (Call to Action).",
+      "prompt": "Analyse les éléments d'interface : le design et le comportement des barres de vie en haut, l'apparition du menu de sélection de personnages en bas, et détaille la composition exacte de l'écran de fin (titre, personnages 3D, bouton PLAY).",
+      "priority": 3,
+      "reason": "L'UI permet au joueur de comprendre l'objectif (réduire la barre de vie adverse) et l'écran de fin est l'élément crucial pour la conversion finale du playable ad."
+    }
+  ]
+}
