@@ -9,6 +9,7 @@ import { state, killUnit } from '../shared/state.js';
 import { emit } from '../shared/events.js';
 import { getActiveUnitId } from '../scene_interior/turn.js';
 import { runScript } from './script.js';
+import { installAudioOnFirstTap } from '../shared/audio.js';
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('g'));
 mountInterior(canvas);
@@ -20,6 +21,9 @@ const mode = params.get('mode') || (location.pathname.includes('/dist/') ? 'prod
 // scene_manager.start() transitions to EXTERIOR_OBSERVE first, so we run it
 // BEFORE the mode-specific overrides that may force a different state.
 start();
+
+// Music kicks in on the player's first pointer (autoplay policy).
+installAudioOnFirstTap(canvas);
 
 if (mode === 'prod') {
   // Hide the dev affordances if the bundle was opened in a dev shell.

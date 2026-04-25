@@ -8,6 +8,7 @@
  */
 
 import { emit } from '../shared/events.js';
+import { playSfx } from '../shared/audio.js';
 import { getFloorAnchor } from './castle_section.js';
 import { getActiveFloor, getActiveUnitId } from './turn.js';
 
@@ -72,8 +73,21 @@ function _onUp(ev) {
   _aiming = false;
   try { _canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
   const unit_id = getActiveUnitId();
-  if (unit_id) emit('player_fire', { unit_id, angle_deg, power });
+  if (unit_id) {
+    const weapon_type = WEAPON_BY_UNIT[unit_id] || 'rocket';
+    playSfx({ rate: 0.85 + power * 0.4 });
+    emit('player_fire', { unit_id, angle_deg, power, weapon_type });
+  }
 }
+
+// Spec §3 Personnages: cyclop = roquette tendue, skeleton = rafale parabolique,
+// orc = rayon continu instantané. weapon_type is additive in the player_fire
+// payload — scene_exterior branches on it; scene_interior ignores.
+const WEAPON_BY_UNIT = /** @type {const} */ ({
+  cyclop:   'rocket',
+  skeleton: 'volley',
+  orc:      'beam',
+});
 
 function _onCancel() {
   _aiming = false;

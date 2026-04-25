@@ -4,6 +4,7 @@
 
 import { state, applyDamageToSelf, aliveUnits } from '../shared/state.js';
 import { emit } from '../shared/events.js';
+import { playSfx } from '../shared/audio.js';
 import * as vfx from './vfx.js';
 
 const ASSET_BASE = 'assets/Castle Clashers Assets/';
@@ -118,10 +119,12 @@ function resolveImpact(p) {
     // scene_manager listens to 'unit_killed' and calls killUnit itself — do not call directly.
     emit('unit_killed', { unit_id: p.unitId });
     try { vfx.triggerExplosion(p.x, p.y, { size: 'small' }); } catch (_) {}
+    playSfx({ volume: 0.8, rate: 1.1 });
   } else {
     applyDamageToSelf(-dmg);
     const size = dmg >= 11 ? 'big' : 'small';
     try { vfx.triggerExplosion(p.x, p.y, { size }); } catch (_) {}
+    playSfx({ volume: 0.9, rate: 0.65 });
   }
 }
 

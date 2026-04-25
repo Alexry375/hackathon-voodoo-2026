@@ -133,3 +133,30 @@ Working off `docs/MVP-audit.md` priorities. Order I plan to ship in:
 ## [21:40] [question] Camera sub-states — naming clash with current scene_manager?
 
 Current scene_manager has `EXTERIOR_OBSERVE` (pre-game enemy intro) + `EXTERIOR_RESOLVE` (player shot lands). Alexis suggests `EXTERIOR_OVERVIEW` / `FOLLOW_PROJECTILE` / `IMPACT_FOCUS` / `SNAP_BACK`. Plan: keep `INTERIOR_AIM` as the only "interior" state, replace `EXTERIOR_*` with the 4 new camera sub-states. Will land it as a single rewrite of `scene_manager.js` + matching subscribers in scene_exterior/index.js — no impact on `aim.js` / `script.js` / `turn.js` since they only listen to events, not to scene state names. Flagging in case Alexis sees a downstream he relies on.
+
+## [21:55] [done] MVP steps 1-3: audio + power-scaled damage + 3 weapon types
+
+Three contained additions, bundle still clean (2.09 MB):
+
+**1. `shared/audio.js`** — `startMusic()` (looping, vol .35), `playSfx({volume,rate})` (clones Audio per call so concurrent shots don't truncate), `installAudioOnFirstTap(canvas)` (one-shot pointerdown handler to satisfy autoplay policy). Wired in:
+- `aim.js` on shot release (rate scales with power)
+- `projectile.js` on rocket/volley impact (slow rate = boom)
+- `projectile.js` on beam launch (high rate = laser zap)
+- `enemy_ai.js` on enemy impact (slow + slightly higher pitch to differentiate)
+- `playable/entry.js` + `index.html` install on canvas
+
+**2. Power-scaled damage** — `projectile.js` replaces hardcoded `DAMAGE=18` with `lerp(8, 28, power)` per shot, threaded through to `cut_to_interior` payload.
+
+**3. 3 weapon types** — extends `player_fire` payload with `weapon_type: 'rocket'|'volley'|'beam'` (additive, doesn't break the locked event contract):
+- **rocket** (cyclop): single shot, low gravity (.001), bigger sprite, tendu trajectory
+- **volley** (skeleton): 3-shot burst staggered 90ms, higher gravity (.0028) → cloche, smaller sprite, ±1° angle jitter, damage split 0.45× per shot but **batched** so all 3 sub-shots resolve as a single `cut_to_interior` (turn rotation only advances once)
+- **beam** (orc): no ballistic flight — instant yellow gradient line from origin to enemy castle, 400ms render with fade, immediate explosion at target, 1.1× damage
+
+Batch tracker (`Map<batchId, {remaining, totalDamage}>`) ensures volley sub-shots accumulate damage and only the LAST impact emits the resolution. Beams are batch-of-1 implicit.
+
+`weapon_type` derivation lives in `aim.js` (`WEAPON_BY_UNIT` map). Spec §3 fidelity confirmed: cyclop=roquette, skeleton=rafale, orc=rayon (the spec calls it "Gobelin" but the official asset is `Character_Orc.psb` per Alexis's audit note — kept as `orc` in code).
+
+## [21:55] [info] Next up: camera ping-pong + brick destruction + enemy AI loop + damage numbers
+
+Steps 1-3 are independent of the camera architecture. Items 4-7 from my attack plan need the camera system landed first. About to start `shared/camera.js` + scene_manager sub-state rewrite.
+
