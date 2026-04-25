@@ -13,6 +13,8 @@ import { installAim, drawAimOverlay } from './aim.js';
 import { drawHudCards } from './hud_cards.js';
 import { drawRipStones } from './rip.js';
 import { getActiveFloor, getActiveUnitId } from './turn.js';
+import { drawTopHud } from '../shared/hud_top.js';
+import { drawScriptOverlay } from '../playable/script.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -74,4 +76,6 @@ function loop() {
   if (activeFloor !== null) drawArrow(ctx, t, activeFloor);
   drawAimOverlay(ctx);
   drawHudCards(ctx, getActiveUnitId());
+  drawTopHud(ctx);
+  drawScriptOverlay(ctx, t);
 }

@@ -7,6 +7,8 @@
 import { on, emit } from '../shared/events.js';
 import { state } from '../shared/state.js';
 import { subscribe } from '../shared/scene_manager.js';
+import { drawTopHud } from '../shared/hud_top.js';
+import { drawScriptOverlay } from '../playable/script.js';
 
 /** @param {HTMLCanvasElement} canvas */
 export function mount(canvas) {
@@ -40,5 +42,7 @@ export function mount(canvas) {
     ctx.font = '24px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('scene_exterior (stub — Sami)', canvas.width / 2, canvas.height / 2);
+    drawTopHud(ctx);
+    drawScriptOverlay(ctx, performance.now() / 1000);
   }
 }
