@@ -5,6 +5,7 @@
 import { state } from '../shared/state.js';
 import { WORLD } from '../shared/world.js';
 import { getImage, isImageReady } from '../shared/assets.js';
+import { drawBites } from './damage_overlay.js';
 
 // Sourced from window.ASSETS data URIs (assets-inline.js) so the bundled
 // single-file playable works without an http server.
@@ -28,7 +29,9 @@ export function drawWorld(ctx) {
   if (!castleAssetsReady()) return;
   _drawBackground(ctx);
   _drawCastle(ctx, 'blue', WORLD.blue_castle, state.hp_self_pct);
+  drawBites(ctx, 'blue');
   _drawCastle(ctx, 'red',  WORLD.red_castle,  state.hp_enemy_pct);
+  drawBites(ctx, 'red');
 }
 
 function _drawBackground(ctx) {

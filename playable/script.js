@@ -10,7 +10,7 @@
 
 import { on } from '../shared/events.js';
 import { state } from '../shared/state.js';
-import { _devForceState } from '../shared/scene_manager.js';
+import { _devForceState, getState } from '../shared/scene_manager.js';
 import { getFloorAnchor } from '../scene_interior/castle_section.js';
 import { getActiveFloor } from '../scene_interior/turn.js';
 import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_cursor.js';
@@ -126,6 +126,15 @@ function _paintOverlay(ctx, t, elapsed) {
   }
 
   if (game.phase === 'tutorial') {
+    // Only show the drag-aim hint when the player is actually allowed to aim.
+    // During EXTERIOR_OBSERVE / EXTERIOR_RESOLVE the camera is on the
+    // battlefield and a "drag here" cursor over an off-screen unit reads as
+    // a glitch.
+    if (getState() !== 'INTERIOR_AIM') {
+      hideHand();
+      drawHandCursor(ctx, t);
+      return;
+    }
     // animate the hand cursor on the active unit, demoing the drag-aim gesture
     const f = getActiveFloor();
     if (f !== null) {

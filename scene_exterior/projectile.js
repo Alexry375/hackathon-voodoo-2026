@@ -10,6 +10,7 @@ import { state } from '../shared/state.js';
 import { playSfx } from '../shared/audio.js';
 import { WORLD } from '../shared/world.js';
 import { getImage, isImageReady } from '../shared/assets.js';
+import { addBite } from './damage_overlay.js';
 
 const POST_IMPACT_MS = 150;
 const SMOKE_EVERY_MS = 40;
@@ -126,7 +127,7 @@ function _spawnBeam(payload) {
   });
   safeVfx('triggerExplosion', _TARGET_X, _TARGET_Y, { size: 'big' });
   playSfx({ volume: 0.9, rate: 1.4 });
-  _markImpact(_TARGET_X, _TARGET_Y);
+  _markImpact(_TARGET_X, _TARGET_Y, 'big');
 }
 
 function spawnFromPayload(payload) {
@@ -249,7 +250,7 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
         const size = p.weapon_type === 'volley' ? 'small' : 'big';
         safeVfx('triggerExplosion', p.x, p.y, { size });
         playSfx({ volume: 0.9, rate: p.weapon_type === 'volley' ? 1.1 : 0.7 });
-        _markImpact(p.x, p.y);
+        _markImpact(p.x, p.y, size);
       }
     } else {
       p.post_impact_ms += dt;
@@ -295,4 +296,7 @@ export function getRecentImpact(maxAgeMs = 800) {
   if (performance.now() - _lastImpact.t_ms > maxAgeMs) return null;
   return _lastImpact;
 }
-function _markImpact(x, y) { _lastImpact = { x, y, t_ms: performance.now() }; }
+function _markImpact(x, y, size = 'big') {
+  _lastImpact = { x, y, t_ms: performance.now() };
+  addBite(x, y, { size });
+}

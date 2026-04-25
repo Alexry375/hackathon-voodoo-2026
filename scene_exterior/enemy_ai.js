@@ -7,6 +7,7 @@ import { emit } from '../shared/events.js';
 import { playSfx } from '../shared/audio.js';
 import { WORLD } from '../shared/world.js';
 import { getImage, isImageReady } from '../shared/assets.js';
+import { addBite } from './damage_overlay.js';
 import * as vfx from './vfx.js';
 
 // Active wave state. Null when idle.
@@ -107,6 +108,7 @@ function resolveImpact(p) {
     const size = dmg >= 11 ? 'big' : 'small';
     try { vfx.triggerExplosion(p.x, p.y, { size }); } catch (_) {}
     playSfx({ volume: 0.9, rate: 0.65 });
+    addBite(p.x, p.y, { size });
   }
 }
 
