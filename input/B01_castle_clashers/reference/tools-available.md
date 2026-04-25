@@ -4,33 +4,61 @@
 
 ---
 
-## tools/analyze_video.py — appel Gemini sur vidéo
+## tools/analyze_video.py — appel Gemini via OpenRouter
 
 **Source** : copié depuis le repo parent (`/home/alexis/Global/Claude_Projects/hackathon_voodoo/tools/analyze_video.py`).
 
-**Dépendance Python** : `google-genai` (`pip install --user google-genai`)
+**Dépendance** : Python 3.9+ standard library uniquement (urllib + base64). Aucun SDK à installer.
 
-**Variable d'env** : `GEMINI_API_KEY` (ou `GOOGLE_API_KEY`). Déjà set dans `.env` à la racine du repo (gitignored). Pour la pickup automatiquement : `set -a; source .env; set +a` avant de lancer le script. Ou en CLI : `GOOGLE_API_KEY=$(grep GOOGLE_API_KEY .env | cut -d= -f2) python tools/analyze_video.py ...`.
+**Variable d'env** : `OPENROUTER_API_KEY`. Déjà set dans `.env` à la racine du repo (gitignored). Charge avec : `set -a; source .env; set +a` avant de lancer le script.
 
-**CAP DUR : 3 appels max sur tout le run pipeline.** Voir [`PROMPT.md`](../PROMPT.md). Cette clé est une clé perso de l'utilisateur, pas une clé Voodoo officielle. Économise.
+**Coût indicatif** : ~0.07 $ par appel (vidéo ~1 min, sortie ~5 K tokens). Pas de cap budgétaire strict — utilise Gemini librement quand tu as un doute structurant, c'est plus fiable que ton œil sur un GIF.
+
+**Modèle par défaut** : `google/gemini-3.1-pro-preview` (SOTA Google avril 2026, routé via OpenRouter → Google AI Studio).
 
 **Usage** :
 
 ```bash
 # Analyse complète, prompt par défaut (synthèse game design 2 passes)
 python tools/analyze_video.py input/<jeu>/input/source.mp4 \
-    --out SANDBOX/outputs/full.report.md \
-    --fps 2
+    --out SANDBOX/outputs/full.report.md
 
 # Avec prompt custom focal — RECOMMANDÉ pour les checks ciblés
 python tools/analyze_video.py SANDBOX/extracts/seg.mp4 \
     --prompt SANDBOX/prompts/check-mecanique-X.md \
     --out SANDBOX/outputs/check-mecanique-X.report.md \
-    --fps 4 \
-    --model gemini-3.1-pro-preview
+    --max-tokens 16000
+
+# Override modèle (ex: flash pour gagner ~10x sur le coût quand la qualité tient)
+python tools/analyze_video.py source.mp4 --model google/gemini-3-flash-preview
 ```
 
-**Note** : le upload vidéo prend ~10-30s + génération ~30-60s. Économise les appels en faisant des extraits courts.
+### Bonnes pratiques OpenRouter pour les vidéos
+
+OpenRouter ne propose **pas** de Files API à la Gemini : la vidéo part inline en base64 dans le payload HTTP. Conséquences pratiques :
+
+1. **Taille du payload** : la base64 gonfle de ~33 %. Au-delà de ~10 Mo de source, le script recompresse automatiquement en 540p / 4 fps / sans audio (`ffmpeg -vf scale=540:-2 -r 4 -an -crf 30`). Une vidéo de 60 s passe de ~70 Mo → ~1.7 Mo. Désactivable avec `--no-light` si tu veux la full-res.
+2. **Pas de réutilisation d'upload** : chaque appel repaye les `video_tokens`. Pour itérer sur plusieurs prompts focaux sur la même vidéo, prépare des extraits courts via `ffmpeg -ss MM:SS -t N -c copy SANDBOX/extracts/seg.mp4` puis réutilise-les.
+3. **Reasoning obligatoire** sur `gemini-3.1-pro-preview` : OpenRouter renvoie HTTP 400 si tu passes `"reasoning": {"enabled": false}`. Le script garde reasoning activé et dimensionne `max_tokens` à 16000 (ajustable via `--max-tokens`). Si le `finish_reason` revient à `"length"`, monte ce param.
+4. **MIME acceptés** : `video/mp4`, `video/mpeg`, `video/mov`, `video/webm`. YouTube URLs aussi acceptées via le provider Google AI Studio (pas Vertex).
+5. **Format payload** :
+   ```json
+   {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,..."}}
+   ```
+
+### Comment écrire un prompt focal
+
+Plus le prompt est ciblé, plus la réponse est précise. Format minimal dans `SANDBOX/prompts/<nom>.md` :
+
+```markdown
+Analyse cette vidéo. Concentre-toi exclusivement sur :
+
+[QUESTION PRÉCISE — ex: "le rythme du jeu : tour-par-tour strict, temps-réel, 
+ou hybride ? Justifie avec des timestamps précis"]
+
+Réponds en moins de 200 mots, avec timestamps [mm:ss] pour chaque observation.
+Si tu n'es pas sûr d'un point, dis-le.
+```
 
 ## tools/prompt_playable_v2.md — prompt Gemini par défaut
 

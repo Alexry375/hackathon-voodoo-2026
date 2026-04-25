@@ -114,7 +114,7 @@ Mets à jour `shots/_index.md` avec le tableau récap (phase / frame réf / comp
 
 ## 5.7. Note sur l'appel Gemini optionnel
 
-Le re-appel Gemini section 5.5 compte dans le **cap dur de 3 appels Gemini** sur tout le run. Considère que tu en utilises typiquement déjà 1-2 à l'étape 1 — donc tu n'as **probablement plus de budget** ici. À utiliser uniquement si tu vois une mécanique manifestement cassée et que tu n'arrives pas à diagnostiquer à l'œil.
+L'appel Gemini section 5.5 est **encouragé** si tu as un doute sur une mécanique narrative complexe à comparer à l'œil (climax, transition cinématique, séquence rapide). ~0.07 $ par appel via OpenRouter, pas de cap. À privilégier sur un extrait court (`ffmpeg -ss MM:SS -t 5`) avec un prompt focal — voir [`reference/tools-available.md`](../reference/tools-available.md).
 
 ## 5.8. Sortie attendue
 

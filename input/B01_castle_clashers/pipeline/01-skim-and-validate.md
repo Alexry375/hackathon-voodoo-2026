@@ -37,33 +37,31 @@ Les descriptions Antoine sont **généralement bonnes mais pas infaillibles**. T
 
 ### Quand lancer Gemini
 
-**CAP DUR : 3 appels Gemini sur l'intégralité du run pipeline**. Choisis chaque appel comme un investissement précieux. Tu peux par exemple répartir : 1 sur la structure de boucle, 1 sur une mécanique ambiguë, 1 sur une vérification finale. Ou tout à l'étape 1 si les divergences crient fort. C'est ton choix.
+**Premier appel obligatoire** : une analyse vidéo complète **avant** de répondre aux 6 questions de §1.4. C'est la seule façon fiable de locker la classification de rythme (tour-par-tour / temps-réel / hybride) et la structure des transitions caméra. Cas vécu : un run précédent a skippé cet appel et a classé "asynchrone temps-réel" un jeu qui était en réalité **tour-par-tour avec résolution physique en temps-réel** — toute l'archi qui en découle était fausse.
 
-Lance un appel Gemini si **un de ces signaux** est présent :
+**Appels suivants** : pas de cap budgétaire strict (~0.07 $ par appel via OpenRouter). Lance Gemini sur un extrait court chaque fois qu'un de ces signaux apparaît :
 
-- Deux fichiers d'`input/` se contredisent sur un point **structurant** (mécanique de tir, structure du tour, comportement ennemi). Pas pour un détail visuel.
-- Une description te semble bizarre ou imprécise sur un point qui change ton architecture (ex: "depuis le bord gauche" sans indication de quoi est à gauche, qui change la direction d'attaque)
-- Tu hésites entre 2 interprétations qui changent l'architecture du jeu (et seulement dans ce cas-là)
-
-**Ne lance pas Gemini pour** : un détail de palette, l'identité exacte d'un mob (lis la description), une couleur de VFX, une trajectoire mineure. Pour ces points : tranche par toi-même avec ton jugement + frames extraites via ffmpeg + lecture frame par frame.
+- Deux fichiers d'`input/` se contredisent sur un point structurant (mécanique de tir, comportement ennemi, structure du tour)
+- Une description te semble bizarre ou imprécise sur un point qui change ton architecture
+- Tu hésites entre 2 interprétations qui changent la scene-split ou le contrat events
+- Détail visuel non trivial à reproduire (trajectoires, feedback couleur, animations) — frame ffmpeg d'abord, puis Gemini focal si pas tranché
 
 ### Comment lancer Gemini
 
-Le script `tools/analyze_video.py` est dispo (sera copié dans le scaffold du run). Usage minimal :
+Le script `tools/analyze_video.py` est dispo (sera copié dans le scaffold du run). Voir [`reference/tools-available.md`](../reference/tools-available.md) pour les détails (format payload OpenRouter, recompression auto, paramètres).
 
 ```bash
-export GEMINI_API_KEY=...    # demande au user si absente
+set -a; source .env; set +a    # charge OPENROUTER_API_KEY
 
 # Analyse complète d'une vidéo (prompt par défaut = synthèse game design)
+# Recompression auto si > 10 Mo (540p / 4fps / no-audio)
 python tools/analyze_video.py input/<jeu>/input/source.mp4 \
-    --out SANDBOX/outputs/full-analysis.report.md \
-    --fps 2
+    --out SANDBOX/outputs/full-analysis.report.md
 
-# Analyse focalisée — utilise un prompt custom et un extrait court
+# Analyse focalisée — prompt custom + extrait court
 python tools/analyze_video.py SANDBOX/extracts/visee-perso-A.mp4 \
     --prompt SANDBOX/prompts/check-trajectoire-A.md \
-    --out SANDBOX/outputs/check-trajectoire-A.report.md \
-    --fps 4
+    --out SANDBOX/outputs/check-trajectoire-A.report.md
 ```
 
 ### Comment écrire un prompt Gemini focal
