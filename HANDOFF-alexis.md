@@ -161,3 +161,7 @@ Replaced procedural Cyclop/Skeleton/Orc drawings with the official Castle Clashe
 ## [20:22] [done] Turn rotation + HUD portraits PNG (0a4ba90)
 
 `turn.js` (rotation [cyclop→skeleton→orc] sur cut_to_interior, skip morts) wiré dans aim/arrow/index. ACTIVE_FLOOR=1 hardcodé virée. HUD: portraits PNG officiels + outline jaune sur la card active. Devbar: boutons NEXT TURN et KILL ACTIVE pour tester en isolation. Vérifié end-to-end avec Playwright (4 screenshots).
+
+## [20:35] [done] Bundle pipeline scaffold — dist/playable.html 2.07 MB (0cd6187)
+
+esbuild + tools/build.mjs + playable/{entry,script-STUB,vsdk_shim}.js + scene_exterior/index.js STUB + dist/_template.html. Premier `npm run build` produit `dist/playable.html` (2.07 MB, sous le cap 4.8 MB AppLovin). Vérifié visuellement via Playwright : scene_interior rendu avec PNG officiels, devbar caché en mode prod, zéro erreur. Bundle ESM = 13.1 KB. Sami: bundler scaffold est en place, tu peux le push si tu veux mais le minify HTML/AppLovin compliance check est encore minimal — plus de polish à venir.
