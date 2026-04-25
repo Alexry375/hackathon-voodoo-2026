@@ -1,0 +1,583 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Scene decor — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  h2{font-size:12px;margin:18px 0 6px;color:#9cc98b;font-weight:600;text-transform:uppercase;letter-spacing:.06em;}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:240px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid-layers{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+  .grid-tracks{display:grid;grid-template-columns:repeat(4,210px);gap:8px;margin-top:6px;}
+  .grid-anim{display:grid;grid-template-columns:repeat(3,360px);gap:8px;margin-top:6px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">référence — frame 27s (chenilles claires)</span>
+    <img class="ref" src="frame_27s.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — frame 47s (décor en chaos)</span>
+    <img class="ref" src="frame_47s.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — chunk (vue tank-château)</span>
+    <img class="ref" src="ref-chunk.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">source — Background.png 5084×1830</span>
+    <img class="ref" src="ref-background.png" alt="ref">
+  </div>
+</div>
+
+<h2>Section Parallax — 3 layers découpés (sky / hills / ground)</h2>
+<div class="grid-layers">
+  <div class="cell"><canvas id="lay0" width="540" height="120"></canvas><span class="t">layer SKY (vitesse 0.2x)</span></div>
+  <div class="cell"><canvas id="lay1" width="540" height="160"></canvas><span class="t">layer HILLS (0.5x)</span></div>
+  <div class="cell"><canvas id="lay2" width="540" height="120"></canvas><span class="t">layer GROUND (1.0x)</span></div>
+</div>
+
+<h1 style="margin-top:16px;">Parallax composite — 3 frames d'animation (montre le défilement)</h1>
+<div class="grid-anim">
+  <div class="cell"><canvas id="anim0" width="360" height="220"></canvas><span class="t">t = 0s (scrollX=0)</span></div>
+  <div class="cell"><canvas id="anim1" width="360" height="220"></canvas><span class="t">t = 0.5s (scrollX=400px)</span></div>
+  <div class="cell"><canvas id="anim2" width="360" height="220"></canvas><span class="t">t = 1.5s (scrollX=1200px)</span></div>
+</div>
+
+<h2>Section Tracks — 4 phases d'animation</h2>
+<div class="grid-tracks">
+  <div class="cell"><canvas id="trk0" width="200" height="100"></canvas><span class="t">phase = 0.00</span></div>
+  <div class="cell"><canvas id="trk1" width="200" height="100"></canvas><span class="t">phase = 0.25</span></div>
+  <div class="cell"><canvas id="trk2" width="200" height="100"></canvas><span class="t">phase = 0.50</span></div>
+  <div class="cell"><canvas id="trk3" width="200" height="100"></canvas><span class="t">phase = 0.75</span></div>
+</div>
+
+<h2>Scène composite finale — 540×800 (parallaxe + château sur chenilles)</h2>
+<canvas id="big" width="540" height="800"></canvas>
+
+<script>
+// ============================================================
+// SCENE DECOR — APIs:
+//   drawParallax(ctx, x, y, w, h, scrollX)
+//     scrollX cumulatif (px). Layers : sky (0.2x), hills (0.5x), ground (1.0x).
+//   drawTracks(ctx, cx, cy, w, h, phase)
+//     2 roues dentées + chaîne crantée. phase ∈ [0,1] boucle.
+// ============================================================
+
+const COL = {
+  ink:        '#160820',
+  trackMetal: '#3a3a3a',
+  trackDark:  '#1a1a1a',
+  trackHi:    '#5a5a5a',
+  mud:        '#8b6f4d',
+  mudDark:    '#5a4530',
+  green1:     '#9CC98B',
+  green2:     '#7BAE74',
+  green3:     '#C4DFA7',
+};
+
+const BG_PATH = 'file:///home/alexis/Global/Claude_Projects/hackathon_voodoo/castle-clasher-v2/showcase/ref-background.png';
+
+let BG_IMG = null;
+// 3 offscreen canvases : sky strip, hills strip, ground strip
+const STRIP = { sky: null, hills: null, ground: null };
+
+function loadBg(){
+  return new Promise(res=>{
+    const img = new Image();
+    img.onload  = ()=>{ BG_IMG = img; buildStrips(); res(); };
+    img.onerror = ()=>{ BG_IMG = null; res(); };
+    img.src = BG_PATH;
+  });
+}
+
+// Slice the source PNG into 3 horizontal bands and cache as offscreen canvases.
+// Source: 5084×1830 — bands : sky [0..600], hills [600..1300], ground [1300..1830]
+function buildStrips(){
+  if(!BG_IMG) return;
+  const W = BG_IMG.width, H = BG_IMG.height;
+  const bands = [
+    { key:'sky',    y0:0,    y1:Math.round(H*0.33) },
+    { key:'hills',  y0:Math.round(H*0.33), y1:Math.round(H*0.71) },
+    { key:'ground', y0:Math.round(H*0.71), y1:H },
+  ];
+  for(const b of bands){
+    const c = document.createElement('canvas');
+    c.width = W; c.height = b.y1 - b.y0;
+    c.getContext('2d').drawImage(BG_IMG, 0, b.y0, W, c.height, 0, 0, W, c.height);
+    STRIP[b.key] = c;
+  }
+}
+
+// ---- DRAW PARALLAX ----
+// Tile each strip horizontally with its own scroll speed. Mod by strip.width for seamless loop.
+function drawParallax(ctx, x, y, w, h, scrollX){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+  // fallback if BG missing : flat sky-green-ground
+  if(!STRIP.sky){
+    drawParallaxFallback(ctx, x, y, w, h, scrollX);
+    ctx.restore();
+    return;
+  }
+
+  // Vertical partition of viewport (matches the source image proportions roughly)
+  const skyH    = Math.round(h * 0.42);
+  const hillsH  = Math.round(h * 0.34);
+  const groundH = h - skyH - hillsH;
+
+  // Each layer scaled to fit its viewport-band height; horizontal scale is uniform.
+  // We pick a layer width (in viewport px) such that hills feel like distant
+  // and ground feels closer (slightly bigger). To keep simple we compute the
+  // displayed-tile width from each strip natural ratio scaled so its height matches the band.
+  const layers = [
+    { strip: STRIP.sky,    speed: 0.2, dy: y,                   dh: skyH },
+    { strip: STRIP.hills,  speed: 0.5, dy: y + skyH,            dh: hillsH },
+    { strip: STRIP.ground, speed: 1.0, dy: y + skyH + hillsH,   dh: groundH },
+  ];
+
+  for(const L of layers){
+    const ratio = L.strip.width / L.strip.height;
+    const tileW = L.dh * ratio;
+    const off = ((scrollX * L.speed) % tileW + tileW) % tileW;
+    // start one tile to the left of the left edge so it never gaps
+    let dx = x - off;
+    while(dx < x + w){
+      ctx.drawImage(L.strip, dx, L.dy, tileW, L.dh);
+      dx += tileW;
+    }
+  }
+  ctx.restore();
+}
+
+function drawParallaxFallback(ctx, x, y, w, h, scrollX){
+  drawParallaxGreen(ctx, x, y, w, h, scrollX);
+}
+
+// Synthetic palette-matched parallax (cartoon vert pastel, brief-compliant).
+// 3 layers : sky gradient + clouds 0.2x ; rolling hills 0.5x ; ground tufts 1.0x.
+function drawParallaxGreen(ctx, x, y, w, h, scrollX){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+  const skyH    = Math.round(h*0.38);
+  const hillsH  = Math.round(h*0.34);
+  const groundY = y + skyH + hillsH;
+  const groundH = h - skyH - hillsH;
+
+  // ---- SKY (gradient + drifting clouds @ 0.2x) ----
+  const sky = ctx.createLinearGradient(0, y, 0, y+skyH);
+  sky.addColorStop(0, '#bfe6f5');
+  sky.addColorStop(1, '#e6f5db');
+  ctx.fillStyle = sky;
+  ctx.fillRect(x, y, w, skyH);
+  // clouds : 4 fluffy clusters tiled
+  const cloudTile = 220;
+  const offS = ((scrollX*0.2) % cloudTile + cloudTile) % cloudTile;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 3;
+  for(let i=-1; i<=w/cloudTile+1; i++){
+    const cx0 = x + i*cloudTile - offS;
+    drawCloud(ctx, cx0+30,  y + 24, 22);
+    drawCloud(ctx, cx0+130, y + 50, 28);
+  }
+
+  // ---- DISTANT HILLS (mid layer, paler green @ 0.5x) ----
+  const hillsTile = 300;
+  const offH = ((scrollX*0.5) % hillsTile + hillsTile) % hillsTile;
+  ctx.fillStyle = COL.green3;
+  for(let i=-1; i<=w/hillsTile+1; i++){
+    const bx = x + i*hillsTile - offH;
+    drawHillBlob(ctx, bx,        y+skyH, hillsTile, hillsH+8, 0);
+  }
+  // mid-back hills
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 3;
+  for(let i=-1; i<=w/hillsTile+1; i++){
+    const bx = x + i*hillsTile - offH;
+    drawHillBlob(ctx, bx, y+skyH, hillsTile, hillsH+8, 1);
+  }
+
+  // ---- NEAR HILLS (darker green, slightly bigger @ 0.5x but offset) ----
+  const hills2Tile = 240;
+  const offH2 = ((scrollX*0.7) % hills2Tile + hills2Tile) % hills2Tile;
+  ctx.fillStyle = COL.green2;
+  for(let i=-1; i<=w/hills2Tile+1; i++){
+    const bx = x + i*hills2Tile - offH2;
+    drawHillBlob(ctx, bx, y+skyH+hillsH*0.45, hills2Tile, hillsH*0.7+10, 2);
+  }
+
+  // ---- GROUND (1.0x baseline) ----
+  ctx.fillStyle = COL.green1;
+  ctx.fillRect(x, groundY, w, groundH);
+  // path-like darker band on top edge
+  ctx.fillStyle = COL.green2;
+  ctx.fillRect(x, groundY, w, 4);
+  ctx.fillStyle = COL.ink;
+  ctx.fillRect(x, groundY-2, w, 2);
+  // tufts (grass clumps) @ 1.0x — tile 36px
+  const tuftTile = 36;
+  const offG = ((scrollX*1.0) % tuftTile + tuftTile) % tuftTile;
+  ctx.fillStyle = COL.green2;
+  for(let i=-1; i<=w/tuftTile+1; i++){
+    const tx = x + i*tuftTile - offG;
+    // tuft: 3 small triangles
+    ctx.beginPath();
+    ctx.moveTo(tx,    groundY+10);
+    ctx.lineTo(tx+5,  groundY+2);
+    ctx.lineTo(tx+10, groundY+10);
+    ctx.fill();
+  }
+  // foreground darker speed lines (sells motion)
+  ctx.fillStyle = 'rgba(22,8,32,0.18)';
+  for(let i=-1; i<=w/tuftTile+1; i++){
+    const tx = x + i*tuftTile - offG;
+    ctx.fillRect(tx, groundY + groundH*0.55, 18, 3);
+  }
+
+  ctx.restore();
+}
+
+function drawCloud(ctx, cx, cy, r){
+  ctx.beginPath();
+  ctx.arc(cx,        cy,      r,        0, Math.PI*2);
+  ctx.arc(cx + r*0.9,cy + r*0.15, r*0.85, 0, Math.PI*2);
+  ctx.arc(cx - r*0.85,cy + r*0.20, r*0.75, 0, Math.PI*2);
+  ctx.arc(cx + r*0.3, cy - r*0.45, r*0.65, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+}
+
+// Hill blob, deterministic per kind so neighbors tile without seam.
+function drawHillBlob(ctx, x, y, w, h, kind){
+  const fill = ctx.fillStyle;
+  ctx.beginPath();
+  ctx.moveTo(x, y+h);
+  if(kind===0){ // back range : 2 round bumps
+    ctx.lineTo(x, y+h*0.55);
+    ctx.quadraticCurveTo(x+w*0.25, y-h*0.05, x+w*0.50, y+h*0.45);
+    ctx.quadraticCurveTo(x+w*0.75, y+h*0.10, x+w,      y+h*0.55);
+  } else if(kind===1){ // black outline pass for kind=0 silhouette
+    ctx.lineTo(x, y+h*0.55);
+    ctx.quadraticCurveTo(x+w*0.25, y-h*0.05, x+w*0.50, y+h*0.45);
+    ctx.quadraticCurveTo(x+w*0.75, y+h*0.10, x+w,      y+h*0.55);
+    ctx.lineTo(x+w, y+h);
+    ctx.stroke();
+    return;
+  } else { // mid range : single fat bump
+    ctx.lineTo(x, y+h*0.65);
+    ctx.quadraticCurveTo(x+w*0.50, y-h*0.10, x+w, y+h*0.65);
+  }
+  ctx.lineTo(x+w, y+h);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 3;
+  ctx.stroke();
+}
+
+// ---- DRAW SINGLE LAYER (showcase only) ----
+function drawSingleLayer(ctx, x, y, w, h, key, scrollX, speed){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+  if(!STRIP[key]){
+    ctx.fillStyle = '#222'; ctx.fillRect(x,y,w,h);
+    ctx.fillStyle = '#888'; ctx.font='12px system-ui';
+    ctx.fillText('(strip "'+key+'" not loaded)', x+8, y+20);
+    ctx.restore(); return;
+  }
+  const strip = STRIP[key];
+  const ratio = strip.width / strip.height;
+  const tileW = h * ratio;
+  const off = ((scrollX * speed) % tileW + tileW) % tileW;
+  let dx = x - off;
+  while(dx < x + w){
+    ctx.drawImage(strip, dx, y, tileW, h);
+    dx += tileW;
+  }
+  ctx.restore();
+  // outline for clarity
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+  ctx.strokeRect(x,y,w,h);
+}
+
+// ---- DRAW TRACKS ----
+// Two toothed wheels + a closed loop chain wrapping them.
+// (cx,cy) = center, w = full width (wheel-to-wheel + radius), h = chain height.
+function drawTracks(ctx, cx, cy, w, h, phase){
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const wheelR    = h * 0.45;          // ~27 if h=60
+  const wheelDx   = (w - wheelR*2) / 2; // distance from center to each wheel center
+  const innerY    = -h*0.30;
+  const outerY    =  h*0.30;
+  const teethCount = 12;
+  const rotAngle   = phase * Math.PI*2;
+
+  // ----- mud splatter under tracks -----
+  ctx.save();
+  ctx.fillStyle = COL.mud;
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.ellipse(0, h*0.42, w*0.55, h*0.15, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = COL.mudDark;
+  for(let i=0;i<5;i++){
+    const a = i*1.7 + phase*0.5;
+    const px = (i-2)*w*0.18 + Math.cos(a)*4;
+    const py = h*0.42 + Math.sin(a)*2;
+    ctx.beginPath(); ctx.arc(px, py, 2 + (i%2)*1.5, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+
+  // ----- chain body (rounded rect "stadium" shape around wheels) -----
+  // outline ink
+  ctx.fillStyle = COL.ink;
+  roundedStadium(ctx, -w/2, -h/2, w, h, h/2);
+  ctx.fill();
+
+  // metal fill (slightly inset)
+  const inset = 4;
+  ctx.fillStyle = COL.trackMetal;
+  roundedStadium(ctx, -w/2+inset, -h/2+inset, w-inset*2, h-inset*2, (h-inset*2)/2);
+  ctx.fill();
+
+  // ----- chain teeth (cleats) — animated by phase, looped around perimeter -----
+  // We approximate the perimeter with 2 straight segments (top/bottom) + 2 half-circle caps.
+  // Distribute N teeth uniformly along the perimeter using arc-length.
+  const cleatCount = 14;
+  const straightLen = (w - h); // distance between wheel centers along x
+  const halfCircLen = Math.PI * (h/2);
+  const perim = 2*straightLen + 2*halfCircLen;
+  const cleatStep = perim / cleatCount;
+  const phaseOffset = phase * cleatStep;
+
+  ctx.fillStyle = COL.trackDark;
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 1.5;
+  for(let i=0;i<cleatCount;i++){
+    const s = ((i*cleatStep + phaseOffset) % perim + perim) % perim;
+    const p = perimPos(s, w, h, straightLen, halfCircLen);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.ang);
+    // small tooth: rectangle 6×8 sticking outward
+    ctx.fillRect(-4, -3, 8, 6);
+    ctx.strokeRect(-4, -3, 8, 6);
+    ctx.restore();
+  }
+
+  // ----- center divider line on chain (mechanical detail) -----
+  ctx.strokeStyle = COL.trackHi;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-w/2 + h/2, 0);
+  ctx.lineTo( w/2 - h/2, 0);
+  ctx.stroke();
+
+  // ----- wheels (left + right), rotating with phase -----
+  drawToothedWheel(ctx, -wheelDx, 0, wheelR, teethCount, rotAngle);
+  drawToothedWheel(ctx,  wheelDx, 0, wheelR, teethCount, rotAngle);
+
+  ctx.restore();
+}
+
+// stadium = rounded rect with semicircle caps
+function roundedStadium(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.arc(x+w-r, y+r, r, -Math.PI/2, Math.PI/2);
+  ctx.lineTo(x+r, y+h);
+  ctx.arc(x+r, y+r, r, Math.PI/2, -Math.PI/2);
+  ctx.closePath();
+}
+
+// position along stadium perimeter starting at top-left of straight, CW.
+function perimPos(s, w, h, straightLen, halfCircLen){
+  // 0..straightLen           : top straight, left→right, y = -h/2, ang=0
+  // straightLen..+halfCirc   : right cap, top→bottom, around (w/2 - h/2, 0)
+  // +straightLen             : bottom straight, right→left, y = h/2, ang=PI
+  // +halfCirc                : left cap, bottom→top, around (-w/2 + h/2, 0)
+  let cur = s;
+  if(cur < straightLen){
+    const x = -w/2 + h/2 + cur;
+    return { x, y: -h/2, ang: 0 };
+  }
+  cur -= straightLen;
+  if(cur < halfCircLen){
+    const a = -Math.PI/2 + (cur/halfCircLen)*Math.PI;
+    const cx = w/2 - h/2;
+    return { x: cx + Math.cos(a)*(h/2), y: Math.sin(a)*(h/2), ang: a + Math.PI/2 };
+  }
+  cur -= halfCircLen;
+  if(cur < straightLen){
+    const x = w/2 - h/2 - cur;
+    return { x, y: h/2, ang: Math.PI };
+  }
+  cur -= straightLen;
+  const a = Math.PI/2 + (cur/halfCircLen)*Math.PI;
+  const cx = -w/2 + h/2;
+  return { x: cx + Math.cos(a)*(h/2), y: Math.sin(a)*(h/2), ang: a + Math.PI/2 };
+}
+
+function drawToothedWheel(ctx, cx, cy, r, teeth, ang){
+  ctx.save();
+  ctx.translate(cx, cy);
+  // outer ink ring
+  ctx.fillStyle = COL.ink;
+  ctx.beginPath(); ctx.arc(0, 0, r+2, 0, Math.PI*2); ctx.fill();
+  // hub disk
+  ctx.fillStyle = COL.trackDark;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+  // teeth ring (rotates)
+  ctx.save();
+  ctx.rotate(ang);
+  ctx.fillStyle = COL.ink;
+  for(let i=0;i<teeth;i++){
+    const a = i/teeth*Math.PI*2;
+    const tx = Math.cos(a)*r, ty = Math.sin(a)*r;
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(a);
+    ctx.fillRect(-2, -3, 5, 6);
+    ctx.restore();
+  }
+  ctx.restore();
+  // inner hub
+  ctx.fillStyle = COL.trackHi;
+  ctx.beginPath(); ctx.arc(0, 0, r*0.42, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = COL.ink;
+  ctx.beginPath(); ctx.arc(0, 0, r*0.18, 0, Math.PI*2); ctx.fill();
+  // 3 spokes (rotate with ang) so the eye reads movement
+  ctx.save();
+  ctx.rotate(ang);
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 2;
+  for(let i=0;i<3;i++){
+    const a = i/3*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(Math.cos(a)*r*0.85, Math.sin(a)*r*0.85);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // outline
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+// ---- mock castle silhouette to sit on top of tracks ----
+function drawMockCastle(ctx, cx, cy, w, h, color){
+  ctx.save();
+  // body
+  ctx.fillStyle = color;
+  ctx.fillRect(cx-w/2, cy-h, w, h);
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 4;
+  ctx.strokeRect(cx-w/2, cy-h, w, h);
+  // crenellations
+  const n = 5, cw = w/n;
+  ctx.fillStyle = color;
+  for(let i=0;i<n;i++){
+    if(i%2===0){
+      ctx.fillRect(cx-w/2 + i*cw, cy-h - 14, cw, 14);
+      ctx.strokeRect(cx-w/2 + i*cw, cy-h - 14, cw, 14);
+    }
+  }
+  // door
+  ctx.fillStyle = COL.ink;
+  ctx.fillRect(cx-12, cy-32, 24, 32);
+  // tower
+  ctx.fillStyle = color;
+  ctx.fillRect(cx-w/2 - 14, cy-h-22, 22, h+22);
+  ctx.strokeRect(cx-w/2 - 14, cy-h-22, 22, h+22);
+  ctx.fillStyle = '#D83232';
+  ctx.beginPath();
+  ctx.moveTo(cx-w/2 - 3, cy-h-22);
+  ctx.lineTo(cx-w/2 - 3, cy-h-40);
+  ctx.lineTo(cx-w/2 + 14, cy-h-32);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function paintBg(c, color){
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color || '#9CC98B';
+  ctx.fillRect(0,0,c.width,c.height);
+}
+
+async function render(){
+  await loadBg();
+
+  // ---- Section Parallax: 3 isolated layers ----
+  const layCfg = [
+    { id:'lay0', key:'sky',    spd:0.2 },
+    { id:'lay1', key:'hills',  spd:0.5 },
+    { id:'lay2', key:'ground', spd:1.0 },
+  ];
+  layCfg.forEach(L=>{
+    const c = document.getElementById(L.id);
+    paintBg(c, '#1a1a1a');
+    drawSingleLayer(c.getContext('2d'), 0, 0, c.width, c.height, L.key, 60, L.spd);
+  });
+
+  // ---- Parallax composite: 3 frames @ different scrollX ----
+  // Big jumps so the parallax is readable on the page.
+  const animCfg = [
+    { id:'anim0', sx: 0    },
+    { id:'anim1', sx: 400  },
+    { id:'anim2', sx: 1200 },
+  ];
+  animCfg.forEach(A=>{
+    const c = document.getElementById(A.id);
+    paintBg(c, '#9CC98B');
+    drawParallaxGreen(c.getContext('2d'), 0, 0, c.width, c.height, A.sx);
+  });
+
+  // ---- Tracks: 4 phases ----
+  for(let i=0;i<4;i++){
+    const c = document.getElementById('trk'+i);
+    paintBg(c, '#9CC98B');
+    drawTracks(c.getContext('2d'), c.width/2, c.height/2 + 6, 180, 60, i*0.25);
+  }
+
+  // ---- Composite scene 540×800 ----
+  // Brief-compliant palette : use the synthetic green parallax (the source PNG
+  // is wintry/blue and clashes with the cartoon vert pastel mandate).
+  const big = document.getElementById('big');
+  const ctx = big.getContext('2d');
+  drawParallaxGreen(ctx, 0, 0, big.width, big.height, 90);
+
+  // Player castle (left, blue) advancing right ; enemy (right, red) advancing left.
+  const groundLine = big.height - 140;
+  // soft contact shadows
+  ctx.fillStyle = 'rgba(22,8,32,0.28)';
+  ctx.beginPath(); ctx.ellipse(180, groundLine + 70, 140, 12, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(big.width-180, groundLine + 70, 140, 12, 0, 0, Math.PI*2); ctx.fill();
+
+  // Player castle (blue) — bigger, left-of-center
+  drawMockCastle(ctx, 180, groundLine + 30, 160, 150, '#3B9EDB');
+  drawTracks(ctx, 180, groundLine + 60, 220, 72, 0.4);
+
+  // Enemy castle (red) — bigger too, right-of-center
+  drawMockCastle(ctx, big.width-180, groundLine + 30, 160, 150, '#D83232');
+  drawTracks(ctx, big.width-180, groundLine + 60, 220, 72, 0.85);
+
+  console.log('render done');
+}
+
+render();
+</script>
+</body></html>

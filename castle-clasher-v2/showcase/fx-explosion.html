@@ -1,0 +1,430 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>FX explosion — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:200px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid{display:grid;grid-template-columns:repeat(5,160px);gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">ref — frame 22s (BIG impact violet)</span>
+    <img class="ref" src="ref-explosion.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">ref — frame 51s (SMALL standard)</span>
+    <img class="ref" src="ref-explosion-small.jpg" alt="ref small">
+  </div>
+  <div class="col">
+    <span class="label">ref — frame 12s (chunk)</span>
+    <img class="ref" src="ref-chunk.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">ref — frame 40s (chaos)</span>
+    <img class="ref" src="ref-chaos.jpg" alt="ref">
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">BIG — kind='big' (WOW moment, ~600ms, baseR ~60)</h1>
+<div class="grid">
+  <div class="cell"><canvas id="b0" width="160" height="160"></canvas><span class="t">t=0% (naissance)</span></div>
+  <div class="cell"><canvas id="b1" width="160" height="160"></canvas><span class="t">t=20%</span></div>
+  <div class="cell"><canvas id="b2" width="160" height="160"></canvas><span class="t">t=40% (peak)</span></div>
+  <div class="cell"><canvas id="b3" width="160" height="160"></canvas><span class="t">t=70% (dissipation)</span></div>
+  <div class="cell"><canvas id="b4" width="160" height="160"></canvas><span class="t">t=100% (fin)</span></div>
+</div>
+
+<h1 style="margin-top:18px;">SMALL — kind='small' (impact standard, ~400ms, baseR ~25)</h1>
+<div class="grid">
+  <div class="cell"><canvas id="s0" width="160" height="160"></canvas><span class="t">t=0% (naissance)</span></div>
+  <div class="cell"><canvas id="s1" width="160" height="160"></canvas><span class="t">t=20%</span></div>
+  <div class="cell"><canvas id="s2" width="160" height="160"></canvas><span class="t">t=40% (peak)</span></div>
+  <div class="cell"><canvas id="s3" width="160" height="160"></canvas><span class="t">t=70% (dissipation)</span></div>
+  <div class="cell"><canvas id="s4" width="160" height="160"></canvas><span class="t">t=100% (fin)</span></div>
+</div>
+
+<h1 style="margin-top:18px;">scène composite — 5 small (impacts standards) + 1 big (critique) côte-à-côte</h1>
+<canvas id="composite" width="720" height="360"></canvas>
+
+<h1 style="margin-top:18px;">stress test — 9 small simultanés (lisibilité d'ensemble)</h1>
+<canvas id="stress" width="720" height="280"></canvas>
+
+<script>
+// ============================================================
+// FX EXPLOSION — drawExplosion(ctx, cx, cy, t, seed, kind='big')
+//   kind ∈ 'big' | 'small'
+//   t ∈ [0,1] — 0=spawn, 1=fin de vie.
+//   Lifetime gameplay : big ~600ms / small ~400ms
+// ============================================================
+
+function rng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
+
+function drawExplosion(ctx, cx, cy, t, seed, kind){
+  if(t<0||t>1) return;
+  if(kind==='small') return drawExplosionSmall(ctx, cx, cy, t, seed);
+  return drawExplosionBig(ctx, cx, cy, t, seed);
+}
+
+// ------------------------------------------------------------
+// BIG — POW violet dramatique (≈50 ops, "wow moment")
+// ------------------------------------------------------------
+function drawExplosionBig(ctx, cx, cy, t, seed){
+  const r = rng(seed);
+  const grow = 1 - Math.pow(1 - Math.min(1, t/0.25), 3);
+  const baseR = 14 + 46*grow;
+  const fade = t < 0.55 ? 1 : Math.max(0, 1 - (t-0.55)/0.45);
+  const earlyFade = t < 0.35 ? 1 : Math.max(0, 1 - (t-0.35)/0.30);
+  const shardFade = t < 0.7 ? 1 : Math.max(0, 1 - (t-0.7)/0.3);
+
+  // 0) white inner flash
+  if(t<0.25){
+    const flashA = (1 - t/0.25);
+    ctx.save();
+    ctx.globalAlpha = flashA*0.7;
+    const flash = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR*1.1);
+    flash.addColorStop(0, 'rgba(255,255,255,1)');
+    flash.addColorStop(0.5, 'rgba(255,210,240,0.5)');
+    flash.addColorStop(1, 'rgba(255,180,230,0)');
+    ctx.fillStyle = flash;
+    ctx.fillRect(cx-baseR*1.2, cy-baseR*1.2, baseR*2.4, baseR*2.4);
+    ctx.restore();
+  }
+
+  // 1) violet aura
+  ctx.save();
+  ctx.globalAlpha = 0.8*fade;
+  const halo = ctx.createRadialGradient(cx, cy, baseR*0.15, cx, cy, baseR*2.2);
+  halo.addColorStop(0, 'rgba(140, 50, 180, 0.9)');
+  halo.addColorStop(0.35, 'rgba(90, 25, 135, 0.65)');
+  halo.addColorStop(0.7, 'rgba(55, 12, 90, 0.3)');
+  halo.addColorStop(1, 'rgba(30, 5, 55, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx-baseR*2.3, cy-baseR*2.3, baseR*4.6, baseR*4.6);
+  ctx.restore();
+
+  // 2) white spike rays
+  if(earlyFade>0){
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.globalAlpha = earlyFade;
+    ctx.fillStyle = '#ffffff';
+    const rays = 9;
+    const baseAng = (seed*0.13)%(Math.PI*2);
+    for(let i=0;i<rays;i++){
+      ctx.save();
+      const jitter = (r()-0.5)*0.18;
+      ctx.rotate(baseAng + i*Math.PI*2/rays + jitter);
+      const len = baseR*(2.0 + r()*0.7);
+      const w = baseR*0.10*(1 - t*0.4);
+      ctx.beginPath();
+      ctx.moveTo(0, -w);
+      ctx.lineTo(len, 0);
+      ctx.lineTo(0, w);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // 3) magenta dagger spikes
+  if(earlyFade>0){
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.globalAlpha = earlyFade;
+    const spikes = 8;
+    const off = (seed*0.07)%(Math.PI*2) + Math.PI/spikes;
+    for(let i=0;i<spikes;i++){
+      ctx.save();
+      ctx.rotate(off + i*Math.PI*2/spikes + (r()-0.5)*0.22);
+      const len = baseR*(1.7 + r()*0.6);
+      const w = baseR*0.12;
+      ctx.fillStyle = '#5a0e6e';
+      ctx.beginPath();
+      ctx.moveTo(0,-w); ctx.lineTo(len,0); ctx.lineTo(0,w); ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ff3d8a';
+      ctx.beginPath();
+      ctx.moveTo(0,-w*0.45); ctx.lineTo(len*0.85,0); ctx.lineTo(0,w*0.45); ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // 4) lumpy black cloud
+  ctx.save();
+  ctx.globalAlpha = 0.95*fade;
+  ctx.fillStyle = '#160820';
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR*0.62, 0, Math.PI*2);
+  ctx.fill();
+  const lobes = 7;
+  for(let i=0;i<lobes;i++){
+    const a = i/lobes*Math.PI*2 + r()*0.7;
+    const d = baseR*(0.45 + r()*0.3);
+    const lr = baseR*(0.32 + r()*0.22);
+    ctx.beginPath();
+    ctx.arc(cx+Math.cos(a)*d, cy+Math.sin(a)*d, lr, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#05010a';
+  for(let i=0;i<3;i++){
+    const a = r()*Math.PI*2;
+    const d = baseR*0.18*r();
+    ctx.beginPath();
+    ctx.arc(cx+Math.cos(a)*d, cy+Math.sin(a)*d, baseR*(0.22+r()*0.14), 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 5) magenta POW star
+  if(t<0.55){
+    ctx.save();
+    ctx.translate(cx,cy);
+    const starFade = 1 - t/0.55;
+    ctx.globalAlpha = starFade;
+    ctx.strokeStyle = '#ff2d6f';
+    ctx.lineWidth = Math.max(1.5, baseR*0.045);
+    ctx.lineJoin = 'round';
+    const pts = 5, rOut = baseR*0.32, rIn = baseR*0.13;
+    ctx.beginPath();
+    for(let i=0;i<=pts*2;i++){
+      const ang = i*Math.PI/pts - Math.PI/2;
+      const rad = i%2===0?rOut:rIn;
+      const x = Math.cos(ang)*rad, y = Math.sin(ang)*rad;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 6) angular black shards
+  ctx.save();
+  ctx.fillStyle = '#0a0410';
+  ctx.globalAlpha = shardFade;
+  const shards = 9;
+  for(let i=0;i<shards;i++){
+    const a = i/shards*Math.PI*2 + r()*0.6;
+    const d = baseR*(0.95 + t*0.9 + r()*0.4);
+    const sx = cx+Math.cos(a)*d, sy = cy+Math.sin(a)*d;
+    const sz = baseR*0.08*(1+r()*0.8);
+    ctx.save();
+    ctx.translate(sx,sy);
+    ctx.rotate(a*1.7 + r()*Math.PI);
+    ctx.beginPath();
+    ctx.moveTo(0,-sz); ctx.lineTo(sz*0.8,0); ctx.lineTo(0,sz*1.2); ctx.lineTo(-sz*0.5,sz*0.2);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // 7) sparks
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1-t*1.1);
+  for(let i=0;i<16;i++){
+    const a = r()*Math.PI*2;
+    const d = baseR*(0.85 + t*1.3 + r()*0.7);
+    const x = cx+Math.cos(a)*d, y = cy+Math.sin(a)*d;
+    ctx.fillStyle = i%3===0 ? '#ff5fa0' : '#ffffff';
+    const sz = 1 + r()*1.8;
+    ctx.beginPath();
+    ctx.arc(x, y, sz, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ------------------------------------------------------------
+// SMALL — puff de fumée + sparks dorés (~25 ops, standard hit)
+// Palette : gris-blanc clair (pas noir), sparks dorés/orangés, débris pierre clairs.
+// Pas d'étoile rouge, pas de rayons blancs nets, halo jaune très léger.
+// ------------------------------------------------------------
+function drawExplosionSmall(ctx, cx, cy, t, seed){
+  const r = rng(seed);
+  // grow + plateau plus rapide (impact court)
+  const grow = 1 - Math.pow(1 - Math.min(1, t/0.20), 3);
+  const baseR = 8 + 17*grow;            // ~25 max — 40% du big
+  const fade  = t < 0.50 ? 1 : Math.max(0, 1 - (t-0.50)/0.50);
+  const earlyFade = t < 0.30 ? 1 : Math.max(0, 1 - (t-0.30)/0.25);
+  const shardFade = t < 0.65 ? 1 : Math.max(0, 1 - (t-0.65)/0.35);
+
+  // 0) flash jaune bref (punch initial, pas blanc pur pour rester chaud)
+  if(t<0.15){
+    const fa = (1 - t/0.15);
+    ctx.save();
+    ctx.globalAlpha = fa*0.45;
+    const fl = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR*0.85);
+    fl.addColorStop(0, 'rgba(255,245,200,1)');
+    fl.addColorStop(0.6, 'rgba(255,215,110,0.45)');
+    fl.addColorStop(1, 'rgba(255,190,80,0)');
+    ctx.fillStyle = fl;
+    ctx.fillRect(cx-baseR, cy-baseR, baseR*2, baseR*2);
+    ctx.restore();
+  }
+
+  // 1) halo jaune léger (warm glow, pas violet)
+  ctx.save();
+  ctx.globalAlpha = 0.50*fade;
+  const halo = ctx.createRadialGradient(cx, cy, baseR*0.2, cx, cy, baseR*1.7);
+  halo.addColorStop(0,   'rgba(255,225,80,0.55)');
+  halo.addColorStop(0.5, 'rgba(255,180,70,0.22)');
+  halo.addColorStop(1,   'rgba(255,160,60,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx-baseR*1.8, cy-baseR*1.8, baseR*3.6, baseR*3.6);
+  ctx.restore();
+
+  // 2) puff de fumée gris (lobes mid-tone pour rester visible sur fond clair)
+  ctx.save();
+  ctx.globalAlpha = 0.94*fade;
+  // dark-mid base donne contraste sur mur gris clair
+  ctx.fillStyle = '#5e5e5e';
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR*0.72, 0, Math.PI*2);
+  ctx.fill();
+  // mid-tone lobes
+  ctx.fillStyle = '#8a8a8a';
+  const lobes = 6;
+  for(let i=0;i<lobes;i++){
+    const a = i/lobes*Math.PI*2 + r()*0.6;
+    const d = baseR*(0.45 + r()*0.30);
+    const lr = baseR*(0.36 + r()*0.22);
+    ctx.beginPath();
+    ctx.arc(cx+Math.cos(a)*d, cy+Math.sin(a)*d, lr, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // light highlight lobes (top side, asymétrique pour volume)
+  ctx.fillStyle = '#cfcfcf';
+  for(let i=0;i<3;i++){
+    const a = -Math.PI*0.5 + (r()-0.5)*1.4;
+    const d = baseR*(0.30 + r()*0.25);
+    const lr = baseR*(0.22 + r()*0.16);
+    ctx.beginPath();
+    ctx.arc(cx+Math.cos(a)*d, cy+Math.sin(a)*d, lr, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 3) sparks dorés en éventail — longs, prominents, élément signature
+  if(earlyFade>0){
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.globalAlpha = earlyFade;
+    ctx.lineCap = 'round';
+    const nSp = 10;
+    const baseAng = (seed*0.11)%(Math.PI*2);
+    for(let i=0;i<nSp;i++){
+      const a = baseAng + i*Math.PI*2/nSp + (r()-0.5)*0.30;
+      const inner = baseR*(0.60 + r()*0.20);
+      const outer = baseR*(1.55 + t*0.9 + r()*0.55);
+      ctx.strokeStyle = (i%2===0) ? '#ffeb3b' : '#ff9933';
+      ctx.lineWidth = Math.max(1.2, baseR*0.09*(1 - t*0.4));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*inner, Math.sin(a)*inner);
+      ctx.lineTo(Math.cos(a)*outer, Math.sin(a)*outer);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 4) débris pierre clairs (petits cailloux qui partent)
+  ctx.save();
+  ctx.globalAlpha = shardFade;
+  ctx.fillStyle = '#cfcfcf';
+  ctx.strokeStyle = '#7a7a7a';
+  ctx.lineWidth = 1;
+  const debris = 5;
+  for(let i=0;i<debris;i++){
+    const a = i/debris*Math.PI*2 + r()*0.8;
+    const d = baseR*(1.0 + t*1.1 + r()*0.4);
+    const sx = cx+Math.cos(a)*d, sy = cy+Math.sin(a)*d;
+    const sz = baseR*0.10*(0.7+r()*0.7);
+    ctx.save();
+    ctx.translate(sx,sy);
+    ctx.rotate(a*1.3 + r()*Math.PI);
+    ctx.beginPath();
+    ctx.moveTo(-sz,-sz*0.6); ctx.lineTo(sz*0.9,-sz*0.4); ctx.lineTo(sz*0.6,sz*0.8); ctx.lineTo(-sz*0.7,sz*0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // 5) micro-points dorés (étincelles fines en suspension)
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - t*1.2);
+  for(let i=0;i<8;i++){
+    const a = r()*Math.PI*2;
+    const d = baseR*(0.7 + t*1.0 + r()*0.5);
+    const x = cx+Math.cos(a)*d, y = cy+Math.sin(a)*d;
+    ctx.fillStyle = (i%2===0) ? '#ffeb3b' : '#fff2a0';
+    const sz = 0.8 + r()*1.1;
+    ctx.beginPath();
+    ctx.arc(x, y, sz, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---- render BIG lifecycle
+const lifeFracs = [0.02, 0.20, 0.40, 0.70, 0.99];
+lifeFracs.forEach((t,i)=>{
+  const c = document.getElementById('b'+i);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  drawExplosion(ctx, 80, 80, t, 42, 'big');
+});
+
+// ---- render SMALL lifecycle
+lifeFracs.forEach((t,i)=>{
+  const c = document.getElementById('s'+i);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  drawExplosion(ctx, 80, 80, t, 42, 'small');
+});
+
+// ---- composite : 5 small + 1 big
+{
+  const c = document.getElementById('composite');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  // mock wall
+  ctx.fillStyle = '#cfcfcf'; ctx.fillRect(120,60,460,260);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 4; ctx.strokeRect(120,60,460,260);
+  for(let y=80;y<320;y+=24) for(let x=130;x<580;x+=40){
+    ctx.strokeRect(x+(y/24%2===0?0:20)-10, y, 30, 22);
+  }
+  // 5 smalls répartis
+  drawExplosion(ctx, 170, 110, 0.15, 11, 'small');
+  drawExplosion(ctx, 230, 250, 0.40, 23, 'small');
+  drawExplosion(ctx, 300, 150, 0.70, 31, 'small');
+  drawExplosion(ctx, 380, 280, 0.25, 47, 'small');
+  drawExplosion(ctx, 530, 130, 0.55, 71, 'small');
+  // 1 big au centre-droit (wow moment)
+  drawExplosion(ctx, 460, 200, 0.35, 99, 'big');
+}
+
+// ---- stress : 9 smalls
+{
+  const c = document.getElementById('stress');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  ctx.fillStyle = '#cfcfcf'; ctx.fillRect(40,40,640,200);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3; ctx.strokeRect(40,40,640,200);
+  const positions = [
+    [90,90,0.10,1],[200,80,0.30,2],[310,100,0.55,3],
+    [420,90,0.20,4],[530,80,0.65,5],[640,100,0.40,6],
+    [150,200,0.50,7],[360,210,0.15,8],[560,200,0.75,9]
+  ];
+  positions.forEach(([x,y,t,s])=> drawExplosion(ctx,x,y,t,s*13,'small'));
+}
+</script>
+</body></html>

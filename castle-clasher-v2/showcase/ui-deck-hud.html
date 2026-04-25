@@ -1,0 +1,494 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>UI deck + HUD — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:240px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid-cards{display:grid;grid-template-columns:repeat(4,170px);gap:10px;margin-top:8px;}
+  .grid-hud{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">référence — frame 05s (HUD + deck + drag)</span>
+    <img class="ref" src="frame_05s.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — frame 29s (mid-game)</span>
+    <img class="ref" src="frame_29s.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — frame 47s (cards bottom)</span>
+    <img class="ref" src="frame_47s.jpg" alt="ref">
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">cards — 4 états (idle / hover / dragging / cooldown)</h1>
+<div class="grid-cards">
+  <div class="cell"><canvas id="card0" width="150" height="170"></canvas><span class="t">idle</span></div>
+  <div class="cell"><canvas id="card1" width="150" height="170"></canvas><span class="t">hover</span></div>
+  <div class="cell"><canvas id="card2" width="150" height="170"></canvas><span class="t">dragging</span></div>
+  <div class="cell"><canvas id="card3" width="150" height="170"></canvas><span class="t">cooldown 60%</span></div>
+</div>
+
+<h1 style="margin-top:18px;">HUD top — 2 états</h1>
+<div class="grid-hud">
+  <div class="cell"><canvas id="hud0" width="540" height="90"></canvas><span class="t">full HP both</span></div>
+  <div class="cell"><canvas id="hud1" width="540" height="90"></canvas><span class="t">mid-game (player 56% / enemy 35%)</span></div>
+</div>
+
+<h1 style="margin-top:18px;">scène composite — vue jeu portrait 540×960 (HUD top + zone + deck bottom)</h1>
+<canvas id="big" width="540" height="960"></canvas>
+
+<script>
+// ============================================================
+// UI DECK + HUD — APIs:
+//   drawCard(ctx, x, y, w, h, opts)
+//     opts: { kind:'orc'|'skeleton'|'cyclop', state:'idle'|'hover'|'dragging'|'cooldown', cooldownT?:[0..1] }
+//   drawHud(ctx, x, y, w, h, opts)
+//     opts: { playerHp:[0..1], enemyHp:[0..1], playerPct, enemyPct }
+// ============================================================
+
+const COL = {
+  blue:    '#3B9EDB',
+  red:     '#D83232',
+  ink:     '#160820',
+  white:   '#ffffff',
+  darkSq:  '#2a2a2a',
+  liteSq:  '#cfcfcf',
+  magenta: '#ff2d6f',
+};
+
+// ---- portrait images (PNG) cached ----
+const PORTRAITS = {};
+const PORTRAIT_PATHS = {
+  orc:      'file:///home/alexis/Global/Claude_Projects/hackathon_voodoo/RESSOURCES/characters_png/orc.png',
+  skeleton: 'file:///home/alexis/Global/Claude_Projects/hackathon_voodoo/RESSOURCES/characters_png/skeleton.png',
+  cyclop:   'file:///home/alexis/Global/Claude_Projects/hackathon_voodoo/RESSOURCES/characters_png/cyclop.png',
+};
+function loadPortraits(){
+  return Promise.all(Object.entries(PORTRAIT_PATHS).map(([k,p])=>new Promise(res=>{
+    const img = new Image();
+    img.onload = ()=>{ PORTRAITS[k]=img; res(); };
+    img.onerror = ()=>{ PORTRAITS[k]=null; res(); };
+    img.src = p;
+  })));
+}
+
+// ---- vector fallback portrait if PNG missing ----
+function drawVectorPortrait(ctx, cx, cy, r, kind){
+  ctx.save();
+  if(kind==='orc'){
+    // body
+    ctx.fillStyle = '#7a2222';
+    ctx.fillRect(cx-r*0.55, cy+r*0.05, r*1.1, r*0.85);
+    // head
+    ctx.fillStyle = COL.red;
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.25, r*0.55, 0, Math.PI*2); ctx.fill();
+    // tusks
+    ctx.fillStyle = COL.white;
+    ctx.fillRect(cx-r*0.18, cy, r*0.10, r*0.25);
+    ctx.fillRect(cx+r*0.08, cy, r*0.10, r*0.25);
+    // eyes
+    ctx.fillStyle = '#ffeb3b';
+    ctx.fillRect(cx-r*0.28, cy-r*0.32, r*0.16, r*0.10);
+    ctx.fillRect(cx+r*0.12, cy-r*0.32, r*0.16, r*0.10);
+  } else if(kind==='skeleton'){
+    ctx.fillStyle = COL.ink;
+    ctx.fillRect(cx-r*0.55, cy+r*0.10, r*1.1, r*0.80);
+    ctx.fillStyle = '#e8e0d8';
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.25, r*0.50, 0, Math.PI*2); ctx.fill();
+    // eye sockets
+    ctx.fillStyle = COL.ink;
+    ctx.beginPath(); ctx.arc(cx-r*0.18, cy-r*0.25, r*0.10, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+r*0.18, cy-r*0.25, r*0.10, 0, Math.PI*2); ctx.fill();
+    // glow eyes
+    ctx.fillStyle = '#ffeb3b';
+    ctx.beginPath(); ctx.arc(cx-r*0.18, cy-r*0.25, r*0.05, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+r*0.18, cy-r*0.25, r*0.05, 0, Math.PI*2); ctx.fill();
+  } else if(kind==='cyclop'){
+    ctx.fillStyle = '#5a8c2a';
+    ctx.fillRect(cx-r*0.6, cy+r*0.05, r*1.2, r*0.85);
+    ctx.fillStyle = '#7ab83a';
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.20, r*0.60, 0, Math.PI*2); ctx.fill();
+    // horns
+    ctx.fillStyle = '#5a3a1a';
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.55, cy-r*0.45); ctx.lineTo(cx-r*0.30, cy-r*0.75); ctx.lineTo(cx-r*0.25, cy-r*0.40);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx+r*0.55, cy-r*0.45); ctx.lineTo(cx+r*0.30, cy-r*0.75); ctx.lineTo(cx+r*0.25, cy-r*0.40);
+    ctx.closePath(); ctx.fill();
+    // single eye
+    ctx.fillStyle = COL.white;
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.20, r*0.18, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = COL.ink;
+    ctx.beginPath(); ctx.arc(cx, cy-r*0.20, r*0.09, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---- rounded rect helper ----
+function rrect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+// ---- DRAW CARD ----
+function drawCard(ctx, x, y, w, h, opts){
+  const kind  = opts.kind || 'orc';
+  const state = opts.state || 'idle';
+  const cdT   = (opts.cooldownT==null) ? 0.6 : opts.cooldownT;
+
+  ctx.save();
+
+  // hover/dragging: scale up around center
+  let scale = 1;
+  if(state==='hover')    scale = 1.04;
+  if(state==='dragging') scale = 1.10;
+  if(scale!==1){
+    const cx = x + w/2, cy = y + h/2;
+    ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy);
+  }
+
+  // dragging glow magenta behind (radial halo)
+  if(state==='dragging'){
+    ctx.save();
+    const cx = x + w/2, cy = y + h/2;
+    const rr = Math.max(w, h) * 0.85;
+    const halo = ctx.createRadialGradient(cx, cy, rr*0.45, cx, cy, rr);
+    halo.addColorStop(0, 'rgba(255,45,111,0.85)');
+    halo.addColorStop(0.6, 'rgba(255,45,111,0.35)');
+    halo.addColorStop(1, 'rgba(255,45,111,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx-rr, cy-rr, rr*2, rr*2);
+    ctx.restore();
+  }
+
+  // ---- card body fill (parchment-like cream) ----
+  ctx.fillStyle = '#f0e6d2';
+  rrect(ctx, x, y, w, h, 10);
+  ctx.fill();
+
+  // ---- portrait area background (sky blue gradient like CR) ----
+  const padX = 8, padTop = 8;
+  const portraitH = h * 0.62;
+  const px = x + padX, py = y + padTop, pw = w - padX*2, ph = portraitH;
+
+  // clip portrait area
+  ctx.save();
+  rrect(ctx, px, py, pw, ph, 6); ctx.clip();
+  // sky-ish vertical gradient
+  const sky = ctx.createLinearGradient(0, py, 0, py+ph);
+  sky.addColorStop(0, '#7ec8e8');
+  sky.addColorStop(1, '#3b6da0');
+  ctx.fillStyle = sky;
+  ctx.fillRect(px, py, pw, ph);
+
+  // portrait
+  const img = PORTRAITS[kind];
+  if(img){
+    // fit into portrait area
+    const ar = img.width/img.height;
+    let dw = pw*0.92, dh = dw/ar;
+    if(dh > ph*0.95){ dh = ph*0.95; dw = dh*ar; }
+    const dx = px + (pw-dw)/2;
+    const dy = py + (ph-dh) - 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  } else {
+    drawVectorPortrait(ctx, px+pw/2, py+ph*0.55, Math.min(pw, ph)*0.42, kind);
+  }
+  ctx.restore();
+
+  // portrait outline
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 3;
+  rrect(ctx, px, py, pw, ph, 6); ctx.stroke();
+
+  // ---- checker frame strip below portrait ----
+  const stripY = py + ph + 4;
+  const stripH = 14;
+  const sqN = 10;
+  const sqW = (w - padX*2) / sqN;
+  for(let i=0;i<sqN;i++){
+    ctx.fillStyle = i%2===0 ? COL.darkSq : COL.liteSq;
+    ctx.fillRect(x + padX + i*sqW, stripY, sqW+0.5, stripH);
+  }
+  // strip outline
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + padX, stripY, w - padX*2, stripH);
+
+  // ---- cost gem bottom-left ----
+  const gemR = 14;
+  const gx = x + padX + gemR + 2;
+  const gy = stripY + stripH + 14;
+  ctx.fillStyle = COL.magenta;
+  ctx.beginPath(); ctx.arc(gx, gy, gemR, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(gx, gy, gemR, 0, Math.PI*2); ctx.stroke();
+  // cost number
+  ctx.fillStyle = COL.white;
+  ctx.font = 'italic 900 16px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3; ctx.strokeStyle = COL.ink;
+  ctx.strokeText('3', gx, gy+1);
+  ctx.fillText('3', gx, gy+1);
+
+  // ---- card outer outline (heavy comic stroke) ----
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 4;
+  rrect(ctx, x, y, w, h, 10); ctx.stroke();
+
+  // ---- HOVER: bright magenta ring (no scale handled above) ----
+  if(state==='hover'){
+    ctx.strokeStyle = COL.magenta;
+    ctx.lineWidth = 3;
+    rrect(ctx, x+2, y+2, w-4, h-4, 8); ctx.stroke();
+  }
+
+  // ---- COOLDOWN: dim + clock sweep ----
+  if(state==='cooldown'){
+    ctx.save();
+    rrect(ctx, x, y, w, h, 10); ctx.clip();
+    ctx.fillStyle = 'rgba(10,5,20,0.55)';
+    ctx.fillRect(x, y, w, h);
+    // clock sweep on portrait area
+    const ccx = px + pw/2, ccy = py + ph/2;
+    const cR = Math.max(pw, ph) * 0.9;
+    ctx.fillStyle = 'rgba(10,5,20,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(ccx, ccy);
+    const startA = -Math.PI/2;
+    const endA   = startA + cdT*Math.PI*2;
+    ctx.arc(ccx, ccy, cR, startA, endA);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // pct text
+    ctx.fillStyle = COL.white;
+    ctx.font = 'italic 900 22px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = COL.ink;
+    const txt = Math.round((1-cdT)*100) + '%';
+    ctx.strokeText(txt, x+w/2, py+ph/2);
+    ctx.fillText(txt, x+w/2, py+ph/2);
+  }
+
+  ctx.restore();
+}
+
+// ---- DRAW HUD ----
+function drawHud(ctx, x, y, w, h, opts){
+  const pHp = Math.max(0, Math.min(1, opts.playerHp));
+  const eHp = Math.max(0, Math.min(1, opts.enemyHp));
+  const pPct = (opts.playerPct!=null) ? opts.playerPct : Math.round(pHp*100);
+  const ePct = (opts.enemyPct !=null) ? opts.enemyPct  : Math.round(eHp*100);
+
+  ctx.save();
+
+  // bandeau noir
+  ctx.fillStyle = COL.ink;
+  rrect(ctx, x, y, w, h, 8); ctx.fill();
+  ctx.strokeStyle = COL.white;
+  ctx.lineWidth = 3;
+  rrect(ctx, x, y, w, h, 8); ctx.stroke();
+
+  // dimensions
+  const pad = 10;
+  const iconR = (h - pad*2) * 0.42;
+  const iconLeftCx  = x + pad + iconR;
+  const iconRightCx = x + w - pad - iconR;
+  const cy = y + h/2;
+
+  // VS center reservation
+  const vsW = 64;
+  const vsX = x + (w - vsW)/2;
+
+  // bar zones
+  const barH = 26;
+  const barY = cy - barH/2 + 2;
+  const barLeftX  = iconLeftCx + iconR + 8;
+  const barLeftW  = (vsX - 6) - barLeftX;
+  const barRightX = vsX + vsW + 6;
+  const barRightW = (iconRightCx - iconR - 8) - barRightX;
+
+  // ---- player castle icon (left) ----
+  drawCastleIcon(ctx, iconLeftCx, cy+2, iconR, COL.blue);
+  // ---- enemy castle icon (right) ----
+  drawCastleIcon(ctx, iconRightCx, cy+2, iconR, COL.red);
+
+  // ---- player HP bar (left, blue, fills from left) ----
+  drawHpBar(ctx, barLeftX, barY, barLeftW, barH, pHp, COL.blue, 'left');
+  // ---- enemy HP bar (right, red, fills from right) ----
+  drawHpBar(ctx, barRightX, barY, barRightW, barH, eHp, COL.red, 'right');
+
+  // ---- pct centered ON the bars (white with thick stroke) ----
+  ctx.textBaseline = 'middle';
+  ctx.font = 'italic 900 14px system-ui';
+  ctx.lineWidth = 4; ctx.strokeStyle = COL.ink;
+  ctx.fillStyle = COL.white;
+  ctx.textAlign = 'center';
+  ctx.strokeText(pPct+'%', barLeftX + barLeftW/2, barY + barH/2 + 1);
+  ctx.fillText  (pPct+'%', barLeftX + barLeftW/2, barY + barH/2 + 1);
+  ctx.strokeText(ePct+'%', barRightX + barRightW/2, barY + barH/2 + 1);
+  ctx.fillText  (ePct+'%', barRightX + barRightW/2, barY + barH/2 + 1);
+
+  // ---- VS center (last so it's on top) — big red letters with thick black stroke ----
+  ctx.save();
+  ctx.translate(x + w/2, cy + 2);
+  ctx.font = 'italic 900 42px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // shadow under
+  ctx.lineWidth = 8; ctx.strokeStyle = COL.ink; ctx.lineJoin = 'round';
+  ctx.strokeText('VS', 0, 2);
+  // red fill
+  ctx.fillStyle = COL.red;
+  ctx.fillText('VS', 0, 0);
+  // inner highlight
+  ctx.lineWidth = 1.5; ctx.strokeStyle = COL.white;
+  ctx.strokeText('VS', 0, 0);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawCastleIcon(ctx, cx, cy, r, color){
+  ctx.save();
+  // shield outline
+  ctx.fillStyle = COL.ink;
+  ctx.beginPath(); ctx.arc(cx, cy, r+2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  // castle silhouette
+  ctx.fillStyle = COL.white;
+  const cw = r*1.3, ch = r*0.95;
+  const baseY = cy + ch*0.45;
+  // base
+  ctx.fillRect(cx-cw/2, baseY-ch*0.5, cw, ch*0.5);
+  // crenellations
+  const crenW = cw/5;
+  for(let i=0;i<5;i++){
+    if(i%2===0) ctx.fillRect(cx-cw/2+i*crenW, baseY-ch*0.7, crenW, ch*0.22);
+  }
+  // door
+  ctx.fillStyle = COL.ink;
+  ctx.fillRect(cx-crenW*0.4, baseY-ch*0.35, crenW*0.8, ch*0.35);
+  ctx.restore();
+}
+
+function drawHpBar(ctx, x, y, w, h, hp, color, side){
+  // outer black
+  ctx.fillStyle = COL.ink;
+  rrect(ctx, x-2, y-2, w+4, h+4, 5); ctx.fill();
+  // empty track
+  ctx.fillStyle = '#3a2640';
+  rrect(ctx, x, y, w, h, 4); ctx.fill();
+  // fill
+  const fw = w * hp;
+  ctx.save();
+  rrect(ctx, x, y, w, h, 4); ctx.clip();
+  if(side==='right'){
+    ctx.fillStyle = color;
+    ctx.fillRect(x + (w - fw), y, fw, h);
+    // hi-light
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.fillRect(x + (w - fw), y+1, fw, h*0.30);
+  } else {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, fw, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.fillRect(x, y+1, fw, h*0.30);
+  }
+  ctx.restore();
+  // outline
+  ctx.strokeStyle = COL.white;
+  ctx.lineWidth = 1.5;
+  rrect(ctx, x, y, w, h, 4); ctx.stroke();
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function paintBg(c, color){
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color || '#9CC98B';
+  ctx.fillRect(0,0,c.width,c.height);
+}
+
+async function render(){
+  await loadPortraits();
+
+  // 4 cards
+  const states = [
+    { kind:'orc',      state:'idle' },
+    { kind:'skeleton', state:'hover' },
+    { kind:'cyclop',   state:'dragging' },
+    { kind:'orc',      state:'cooldown', cooldownT: 0.60 },
+  ];
+  states.forEach((opts, i)=>{
+    const c = document.getElementById('card'+i);
+    paintBg(c, '#9CC98B');
+    drawCard(c.getContext('2d'), 8, 6, 134, 158, opts);
+  });
+
+  // HUD states
+  const h0 = document.getElementById('hud0'); paintBg(h0, '#9CC98B');
+  drawHud(h0.getContext('2d'), 8, 8, 524, 74, { playerHp:1.0, enemyHp:1.0 });
+  const h1 = document.getElementById('hud1'); paintBg(h1, '#9CC98B');
+  drawHud(h1.getContext('2d'), 8, 8, 524, 74, { playerHp:0.56, enemyHp:0.35 });
+
+  // composite scene
+  const big = document.getElementById('big');
+  const ctx = big.getContext('2d');
+  // dungeon-ish background (gradient stone)
+  const g = ctx.createLinearGradient(0, 0, 0, big.height);
+  g.addColorStop(0, '#3a2848');
+  g.addColorStop(0.5, '#5a3a4a');
+  g.addColorStop(1, '#2a1828');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, big.width, big.height);
+  // floor stripes
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  for(let i=0;i<10;i++){
+    ctx.fillRect(0, 200 + i*70, big.width, 35);
+  }
+  // mock castles silhouette
+  ctx.fillStyle = '#1a1020';
+  ctx.fillRect(40, 160, 90, 70);
+  ctx.fillRect(big.width-130, 160, 90, 70);
+
+  // HUD top
+  drawHud(ctx, 10, 12, big.width-20, 84, { playerHp:0.72, enemyHp:0.48 });
+
+  // Bottom deck plate (behind cards)
+  const cardW = 150, cardH = 170;
+  const totalW = cardW*3 + 20;
+  const startX = (big.width - totalW)/2;
+  const cardY = big.height - cardH - 24;
+  // plate
+  ctx.fillStyle = COL.ink;
+  ctx.fillRect(0, cardY - 16, big.width, big.height - (cardY - 16));
+  ctx.strokeStyle = COL.white; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, cardY-16); ctx.lineTo(big.width, cardY-16); ctx.stroke();
+
+  drawCard(ctx, startX,             cardY, cardW, cardH, { kind:'orc',      state:'idle' });
+  drawCard(ctx, startX + cardW+10,  cardY, cardW, cardH, { kind:'skeleton', state:'hover' });
+  drawCard(ctx, startX + (cardW+10)*2, cardY, cardW, cardH, { kind:'cyclop', state:'idle' });
+
+  console.log('render done');
+}
+
+render();
+</script>
+</body></html>

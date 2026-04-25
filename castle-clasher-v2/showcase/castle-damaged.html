@@ -1,0 +1,424 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Castle damaged — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:200px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid{display:grid;grid-template-columns:repeat(5,180px);gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col"><span class="label">ref — palette VFX</span><img class="ref" src="ref-explosion.jpg"></div>
+  <div class="col"><span class="label">ref — chunk (22s)</span><img class="ref" src="ref-chunk.jpg"></div>
+  <div class="col"><span class="label">ref — chaos (40s)</span><img class="ref" src="ref-chaos.jpg"></div>
+  <div class="col"><span class="label">frame 47s — chaos final</span><img class="ref" src="frame_47s.jpg"></div>
+  <div class="col"><span class="label">frame 27s — mid-game</span><img class="ref" src="frame_27s.jpg"></div>
+</div>
+
+<h1 style="margin-top:18px;">5 états de dégradation — château bleu (100% → 0%)</h1>
+<div class="grid">
+  <div class="cell"><canvas id="c0" width="180" height="260"></canvas><span class="t">100% — intact</span></div>
+  <div class="cell"><canvas id="c1" width="180" height="260"></canvas><span class="t">75% — premiers impacts</span></div>
+  <div class="cell"><canvas id="c2" width="180" height="260"></canvas><span class="t">50% — fissures + trous</span></div>
+  <div class="cell"><canvas id="c3" width="180" height="260"></canvas><span class="t">25% — amputé + incliné</span></div>
+  <div class="cell"><canvas id="c4" width="180" height="260"></canvas><span class="t">0% — ruine</span></div>
+</div>
+
+<h1 style="margin-top:18px;">scène composite — 2 châteaux face-à-face (joueur 50% / ennemi 25%)</h1>
+<canvas id="big" width="540" height="400"></canvas>
+
+<script>
+// ============================================================
+// CASTLE DAMAGED — drawCastle(ctx, cx, cy, w, h, hpFrac, opts)
+//   (cx,cy) = pivot point au sol (centre bas du château)
+//   (w,h)   = taille rendue
+//   hpFrac ∈ [0,1] (1 intact, 0 ruine)
+//   opts: { side:'blue'|'red', t?: ms, seed?: number }
+// ============================================================
+
+const CASTLE_PATHS = {
+  blue: 'blue-castle.png',
+  red:  'red-castle.png',
+};
+const CASTLE_IMG = { blue:null, red:null };
+
+function loadCastles(){
+  return Promise.all(Object.entries(CASTLE_PATHS).map(([k,p])=>new Promise(res=>{
+    const img = new Image();
+    img.onload  = ()=>{ CASTLE_IMG[k]=img; res(); };
+    img.onerror = ()=>{ CASTLE_IMG[k]=null; res(); };
+    img.src = p;
+  })));
+}
+
+// Deterministic PRNG
+function rng(seed){let s=seed|0||1;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
+
+// Pre-baked damage patterns per seed (so the same château at the same hp shows same cracks)
+function bakeDamage(seed, w, h){
+  const r = rng(seed);
+  // crack polylines
+  const cracks = [];
+  for(let i=0;i<18;i++){
+    const startX = 0.18 + r()*0.64;
+    const startY = 0.22 + r()*0.55;
+    const segs = 2 + (r()*4|0);
+    let x = startX, y = startY;
+    let ang = (r()-0.5)*Math.PI;
+    const pts = [[x,y]];
+    for(let s=0;s<segs;s++){
+      ang += (r()-0.5)*1.3;
+      const len = 0.03 + r()*0.07;
+      x += Math.cos(ang)*len;
+      y += Math.sin(ang)*len*0.8 + 0.012;
+      pts.push([x,y]);
+    }
+    cracks.push({
+      pts,
+      depth: r(),
+      thick: 0.5 + r()*1.4,
+    });
+  }
+  // holes — small irregular patches (much smaller than before)
+  const holes = [];
+  for(let i=0;i<14;i++){
+    holes.push({
+      x: 0.20 + r()*0.60,
+      y: 0.30 + r()*0.50,
+      r: 0.018 + r()*0.030,        // 3.2 → 8.6 px sur 180 → bien plus discret
+      depth: r(),
+      lobes: 2 + (r()*3|0),
+      seed: r()*1000,
+    });
+  }
+  // missing chunks (silhouette amputée) — bord uniquement, francs.
+  // Forcer au moins 1 chunk de chaque côté pour avoir un château reconnaissable mais clairement amputé.
+  const chunks = [
+    { side:'L', y: 0.30 + r()*0.10, r: 0.07 + r()*0.03, depth: 0.55 + r()*0.10 },
+    { side:'R', y: 0.40 + r()*0.10, r: 0.08 + r()*0.04, depth: 0.55 + r()*0.10 },
+    { side:'T', y: 0.30 + r()*0.30, r: 0.06 + r()*0.04, depth: 0.65 + r()*0.10 },
+    { side:'L', y: 0.55 + r()*0.15, r: 0.05 + r()*0.05, depth: 0.78 + r()*0.10 },
+    { side:'R', y: 0.20 + r()*0.10, r: 0.05 + r()*0.04, depth: 0.78 + r()*0.10 },
+  ];
+  return { cracks, holes, chunks };
+}
+const DAMAGE_CACHE = new Map();
+function getDamage(seed, w, h){
+  const key = seed + '|' + w + '|' + h;
+  let d = DAMAGE_CACHE.get(key);
+  if(!d){ d = bakeDamage(seed, w, h); DAMAGE_CACHE.set(key, d); }
+  return d;
+}
+
+function drawCastle(ctx, cx, cy, w, h, hpFrac, opts){
+  opts = opts || {};
+  const side = opts.side || 'blue';
+  const t = opts.t || 0;
+  const seed = opts.seed || 7;
+  const img = CASTLE_IMG[side];
+  hpFrac = Math.max(0, Math.min(1, hpFrac));
+  const dmg = 1 - hpFrac; // 0 intact → 1 ruine
+
+  // Damage thresholds
+  const showCrackThin    = dmg > 0.10;             // 75%+
+  const showCrackHeavy   = dmg > 0.30;             // 50%+
+  const showHoles        = dmg > 0.30;             // 50%+
+  const showSoot         = dmg > 0.20;             // 75%+ légèrement
+  const showChunks       = dmg > 0.55;             // 25%+
+  const showDust         = dmg > 0.45;             // 25%+
+  const showRubble       = dmg > 0.85;             // 0%
+
+  // tilt angle: 0%→0, 25%→7, 50%→3, 75%→1, 100%→18
+  // ramp: small wobble between 50→25, then strong at 0
+  // 0%→0  25%→0.6  50%→2  75%→7  100%→18
+  let tiltDeg;
+  if(dmg < 0.25)      tiltDeg = dmg*2.4;             // 0..0.6
+  else if(dmg < 0.50) tiltDeg = 0.6 + (dmg-0.25)*5.6;// 0.6..2
+  else if(dmg < 0.75) tiltDeg = 2 + (dmg-0.50)*20;   // 2..7
+  else                tiltDeg = 7 + (dmg-0.75)*44;   // 7..18
+  const tilt = tiltDeg * Math.PI/180;
+  // sway léger lié à t (petite oscillation perma)
+  const sway = (showDust ? Math.sin(t*0.003)*0.012*dmg : 0);
+
+  // château top-left dans le repère "tilt" autour du pivot bas
+  const x0 = cx - w/2;
+  const y0 = cy - h;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tilt + sway);
+  // Slight vertical squish at very low HP — effondrement
+  if(dmg > 0.85){
+    const sq = 1 - (dmg-0.85) * 0.55;  // up to 8% compression at 0%
+    ctx.scale(1.04, sq);
+  }
+  ctx.translate(-cx, -cy);
+
+  // ---- Persistent dust halo behind château (low HP only) ----
+  if(showDust){
+    const dustA = Math.min(1, (dmg-0.45)/0.55) * 0.95;
+    // halo low + wide (au pied du château)
+    const hx = cx, hy = cy - h*0.30;
+    const drx = w * (1.05 + dmg*0.35);
+    const dry = h * (0.55 + dmg*0.20);
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.scale(drx/dry, 1);
+    const grd = ctx.createRadialGradient(0, 0, dry*0.10, 0, 0, dry);
+    grd.addColorStop(0,    `rgba(140, 50, 180, ${0.55*dustA})`);
+    grd.addColorStop(0.40, `rgba(90, 25, 135, ${0.40*dustA})`);
+    grd.addColorStop(0.75, `rgba(60, 15, 95, ${0.18*dustA})`);
+    grd.addColorStop(1,    'rgba(30,5,55,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(-dry, -dry, dry*2, dry*2);
+    ctx.restore();
+  }
+
+  // ---- Castle base PNG ----
+  if(img){
+    // we draw the image, then overlay damage, clipping to the image alpha
+    // strategy: draw image, then draw damage with composite source-atop so
+    // overlays only land on opaque pixels (the silhouette).
+    ctx.drawImage(img, x0, y0, w, h);
+
+    // Damage overlay clipped to silhouette via source-atop
+    if(showCrackThin || showHoles || showSoot){
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      const dmgInfo = getDamage(seed, w, h);
+
+      // 1) soot smears (purple-ink) — broad localized darkening
+      if(showSoot){
+        const sootA = Math.min(1, (dmg-0.30)/0.5);
+        ctx.fillStyle = `rgba(50,15,80, ${0.40*sootA})`;
+        const r = rng(seed*3+1);
+        const nSoot = 3 + Math.round(dmg*4);
+        for(let i=0;i<nSoot;i++){
+          const sx = x0 + (0.15 + r()*0.7)*w;
+          const sy = y0 + (0.20 + r()*0.55)*h;
+          const sr = w*(0.10 + r()*0.10);
+          const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+          grd.addColorStop(0, `rgba(50,15,80, ${0.55*sootA})`);
+          grd.addColorStop(1, 'rgba(50,15,80, 0)');
+          ctx.fillStyle = grd;
+          ctx.fillRect(sx-sr, sy-sr, sr*2, sr*2);
+        }
+      }
+
+      // 2) holes — dark organic patches in the masonry
+      if(showHoles){
+        const holeA = Math.min(1, (dmg-0.30)/0.4);
+        ctx.fillStyle = '#0a0410';
+        const visible = dmgInfo.holes.filter(h0 => h0.depth < holeA);
+        for(const h0 of visible){
+          const hx = x0 + h0.x*w, hy = y0 + h0.y*h;
+          const baseR = h0.r * w;
+          // central blob
+          ctx.beginPath();
+          ctx.arc(hx, hy, baseR, 0, Math.PI*2);
+          ctx.fill();
+          // organic lobes
+          const r2 = rng(h0.seed|0);
+          for(let l=0;l<h0.lobes;l++){
+            const a = l/h0.lobes*Math.PI*2 + r2()*0.6;
+            const d = baseR*0.6;
+            const lr = baseR*(0.45 + r2()*0.35);
+            ctx.beginPath();
+            ctx.arc(hx+Math.cos(a)*d, hy+Math.sin(a)*d, lr, 0, Math.PI*2);
+            ctx.fill();
+          }
+          // tiny magenta ember at hole edge for drama
+          if(h0.depth < 0.3 && dmg > 0.5){
+            ctx.fillStyle = 'rgba(255,45,111,0.55)';
+            ctx.beginPath();
+            ctx.arc(hx + baseR*0.4, hy - baseR*0.2, baseR*0.18, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#0a0410';
+          }
+        }
+      }
+
+      // 3) cracks — black thin polylines
+      if(showCrackThin){
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const crackA = Math.min(1, dmg/0.7);
+        for(const c of dmgInfo.cracks){
+          if(c.depth > crackA) continue;
+          // thicker if heavy crack threshold passed AND crack is "deep"
+          const heavy = showCrackHeavy && c.depth < 0.55;
+          ctx.lineWidth = (heavy ? 2.2 : 1.0) * c.thick;
+          ctx.beginPath();
+          for(let i=0;i<c.pts.length;i++){
+            const px = x0 + c.pts[i][0]*w;
+            const py = y0 + c.pts[i][1]*h;
+            if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+          }
+          ctx.stroke();
+          // accent on heavy: thin white highlight along one side for chip
+          if(heavy){
+            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+            ctx.strokeStyle = '#1a1a1a';
+          }
+        }
+      }
+
+      ctx.restore();
+    }
+
+    // 4) chunks missing (carve away silhouette) — destination-out
+    if(showChunks){
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      const dmgInfo = getDamage(seed, w, h);
+      const chunkA = Math.min(1, (dmg-0.55)/0.35);
+      for(const ch of dmgInfo.chunks){
+        if(ch.depth - 0.5 > chunkA) continue; // gradual reveal
+        let cxC, cyC;
+        if(ch.side==='L'){ cxC = x0 + 0.05*w; cyC = y0 + ch.y*h; }
+        else if(ch.side==='R'){ cxC = x0 + 0.95*w; cyC = y0 + ch.y*h; }
+        else { cxC = x0 + ch.y*w; cyC = y0 + 0.10*h; }
+        const cr = ch.r * w * (0.8 + chunkA*0.6);
+        ctx.beginPath();
+        ctx.arc(cxC, cyC, cr, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Re-stroke the carved edges with a dark inner border so chunks read
+      // as torn/burnt rather than transparent. We do this by re-drawing
+      // small dark arcs just inside each chunk edge using source-atop.
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = 'rgba(10,5,20,0.55)';
+      const dmgInfo2 = getDamage(seed, w, h);
+      const chunkA2 = Math.min(1, (dmg-0.55)/0.35);
+      for(const ch of dmgInfo2.chunks){
+        if(ch.depth - 0.5 > chunkA2) continue;
+        let cxC, cyC;
+        if(ch.side==='L'){ cxC = x0 + 0.05*w; cyC = y0 + ch.y*h; }
+        else { cxC = x0 + 0.95*w; cyC = y0 + ch.y*h; }
+        const cr = ch.r * w * (0.8 + chunkA2*0.6);
+        ctx.beginPath();
+        ctx.arc(cxC, cyC, cr*1.05, 0, Math.PI*2);
+        ctx.arc(cxC, cyC, cr*0.85, 0, Math.PI*2, true);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  } else {
+    // Fallback rectangle if image missing
+    ctx.fillStyle = '#cfcfcf';
+    ctx.fillRect(x0+w*0.15, y0+h*0.20, w*0.70, h*0.78);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 4;
+    ctx.strokeRect(x0+w*0.15, y0+h*0.20, w*0.70, h*0.78);
+  }
+
+  // ---- Rubble pile at base (0% only) ----
+  if(showRubble){
+    const a = Math.min(1, (dmg-0.85)/0.15);
+    ctx.save();
+    ctx.fillStyle = `rgba(20,8,32, ${0.85*a})`;
+    const rb = rng(seed*7+5);
+    for(let i=0;i<8;i++){
+      const rx = cx + (rb()-0.5)*w*0.95;
+      const ry = cy - rb()*8;
+      const rw = w*(0.05 + rb()*0.10);
+      const rh = h*(0.015 + rb()*0.025);
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, rw, rh, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  // ---- Foreground sparks/embers (low HP, animate over t) ----
+  if(showDust){
+    const a = Math.min(1, (dmg-0.40)/0.6);
+    const r = rng((seed*11 + (t*0.05|0)) | 0);
+    const n = 3 + Math.round(dmg*5);
+    ctx.save();
+    for(let i=0;i<n;i++){
+      const ang = r()*Math.PI*2;
+      const dist = w*(0.30 + r()*0.30);
+      const px = cx + Math.cos(ang)*dist;
+      const py = cy - h*0.55 + Math.sin(ang)*dist*0.6;
+      ctx.fillStyle = (i%4===0) ? 'rgba(255,45,111,0.85)' : 'rgba(255,255,255,0.7)';
+      ctx.globalAlpha = a * (0.5 + r()*0.5);
+      const sz = 1 + r()*1.6;
+      ctx.beginPath(); ctx.arc(px, py, sz, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function paintBg(c){
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B';
+  ctx.fillRect(0,0,c.width,c.height);
+}
+
+async function render(){
+  await loadCastles();
+
+  // 5 states
+  const fracs = [1.0, 0.75, 0.50, 0.25, 0.0];
+  fracs.forEach((hp, i)=>{
+    const c = document.getElementById('c'+i);
+    paintBg(c);
+    // ground line shadow
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath();
+    ctx.ellipse(c.width/2, c.height-22, c.width*0.36, 8, 0, 0, Math.PI*2);
+    ctx.fill();
+    // pivot at bottom-center of castle area
+    drawCastle(ctx, c.width/2, c.height-26, 150, 215, hp, { side:'blue', t: 1200, seed: 7 });
+  });
+
+  // composite
+  const big = document.getElementById('big');
+  const ctx = big.getContext('2d');
+  paintBg(big);
+  // ground stripe
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  ctx.fillRect(0, big.height-40, big.width, 40);
+  // ombres au sol
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.ellipse(140, big.height-36, 100, 10, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(big.width-140, big.height-36, 100, 10, 0, 0, Math.PI*2); ctx.fill();
+  // joueur (blue) — 50%
+  drawCastle(ctx, 140, big.height-40, 180, 260, 0.50, { side:'blue', t: 1500, seed: 12 });
+  // ennemi (red) — 25%, façant à gauche (on se contente du sprite tel quel ; au gameplay flip)
+  drawCastle(ctx, big.width-140, big.height-40, 180, 260, 0.25, { side:'red', t: 2400, seed: 33 });
+
+  // VS label léger
+  ctx.save();
+  ctx.font = 'italic 900 28px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 6; ctx.strokeStyle = '#160820'; ctx.lineJoin='round';
+  ctx.strokeText('VS', big.width/2, big.height/2);
+  ctx.fillStyle = '#D83232';
+  ctx.fillText('VS', big.width/2, big.height/2);
+  ctx.restore();
+
+  console.log('render done');
+}
+
+render();
+</script>
+</body></html>

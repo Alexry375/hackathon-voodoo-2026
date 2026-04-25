@@ -1,0 +1,384 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>End-card PLAY NOW — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:240px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .scenes{display:flex;gap:16px;margin-top:8px;}
+  .scene{display:flex;flex-direction:column;gap:4px;}
+  .grid{display:grid;grid-template-columns:repeat(3,270px);gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">référence — palette POW (ref-explosion)</span>
+    <img class="ref" src="ref-explosion.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — intensité visuelle (ref-chunk)</span>
+    <img class="ref" src="ref-chunk.jpg" alt="ref">
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">end-card fullscreen — taille jeu portrait 540×960</h1>
+<div class="scenes">
+  <div class="scene">
+    <span class="label">VICTORY (joueur gagne — palette violet/magenta hot)</span>
+    <canvas id="sceneVictory" width="540" height="960"></canvas>
+  </div>
+  <div class="scene">
+    <span class="label">DEFEAT (joueur perd — sombre, CTA "TRY AGAIN")</span>
+    <canvas id="sceneDefeat" width="540" height="960"></canvas>
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">animation pulse du bouton PLAY (loop 800ms : 1.0 → 1.06 → 1.0)</h1>
+<div class="grid">
+  <div class="cell"><canvas id="p0" width="270" height="100"></canvas><span class="t">t=0ms (scale=1.0)</span></div>
+  <div class="cell"><canvas id="p1" width="270" height="100"></canvas><span class="t">t=400ms (scale=1.06 peak)</span></div>
+  <div class="cell"><canvas id="p2" width="270" height="100"></canvas><span class="t">t=800ms (scale=1.0 retour)</span></div>
+</div>
+
+<script>
+// ============================================================
+// END-CARD — itérer ici. API stable :
+//   drawEndCard(ctx, x, y, w, h, opts)
+//   opts: { result:'victory'|'defeat', t?:ms, cta?:string }
+//   getCtaRect(x, y, w, h) -> {x, y, w, h}  (hitbox bouton)
+// ============================================================
+
+// PRNG déterministe
+function rng(seed){let s=seed;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
+
+// --------- helpers comic text ---------
+function comicText(ctx, txt, cx, cy, size, opts){
+  const o = opts || {};
+  const fill = o.fill || '#ffffff';
+  const stroke = o.stroke || '#160820';
+  const strokeW = o.strokeW || Math.max(6, size*0.18);
+  const italic = o.italic !== false;
+  const weight = o.weight || 900;
+  ctx.save();
+  ctx.font = `${italic?'italic ':''}${weight} ${size}px "Arial Black", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.lineWidth = strokeW;
+  ctx.strokeStyle = stroke;
+  ctx.strokeText(txt, cx, cy);
+  ctx.fillStyle = fill;
+  ctx.fillText(txt, cx, cy);
+  ctx.restore();
+}
+
+// rounded rect path
+function rrPath(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+// CTA hitbox (used both for drawing & for game tap detection)
+function getCtaRect(x, y, w, h){
+  const bw = Math.min(w*0.86, 480);
+  const bh = Math.max(110, h*0.13);
+  const bx = x + (w - bw)/2;
+  const by = y + h*0.55;
+  return { x: bx, y: by, w: bw, h: bh };
+}
+
+function drawCtaButton(ctx, rect, label, t){
+  // pulse: 1.0 → 1.06 → 1.0 sur 800ms (sin demi-cycle, peak à 400ms)
+  const phase = ((t||0) % 800) / 800;
+  const pulse = Math.sin(phase * Math.PI); // 0..1..0
+  const s = 1 + 0.06 * pulse;
+  const cx = rect.x + rect.w/2;
+  const cy = rect.y + rect.h/2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+  ctx.translate(-cx, -cy);
+
+  // halo magenta radial derrière (intensifié au peak)
+  ctx.save();
+  const haloR = Math.max(rect.w, rect.h) * (0.95 + 0.18*pulse);
+  const halo = ctx.createRadialGradient(cx, cy, rect.h*0.2, cx, cy, haloR);
+  const haloA = 0.55 + 0.30*pulse;
+  halo.addColorStop(0, `rgba(255,80,150,${haloA})`);
+  halo.addColorStop(0.5, `rgba(255,45,111,${haloA*0.5})`);
+  halo.addColorStop(1, 'rgba(255,45,111,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx-haloR, cy-haloR, haloR*2, haloR*2);
+  ctx.restore();
+
+  // ombre portée
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,2,16,0.55)';
+  rrPath(ctx, rect.x+6, rect.y+10, rect.w, rect.h, rect.h*0.32);
+  ctx.fill();
+  ctx.restore();
+
+  // corps bouton (gradient rose vif)
+  const bg = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y+rect.h);
+  bg.addColorStop(0, '#ff5a92');
+  bg.addColorStop(0.55, '#ff2d6f');
+  bg.addColorStop(1, '#c8155a');
+  ctx.fillStyle = bg;
+  rrPath(ctx, rect.x, rect.y, rect.w, rect.h, rect.h*0.32);
+  ctx.fill();
+
+  // outline noir-violet TRÈS épais
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#160820';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // glossy highlight haut
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  rrPath(ctx, rect.x+rect.h*0.18, rect.y+rect.h*0.12, rect.w-rect.h*0.36, rect.h*0.32, rect.h*0.18);
+  const gloss = ctx.createLinearGradient(0, rect.y, 0, rect.y+rect.h*0.5);
+  gloss.addColorStop(0, 'rgba(255,255,255,0.8)');
+  gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss;
+  ctx.fill();
+  ctx.restore();
+
+  // texte
+  comicText(ctx, label, cx, cy+2, rect.h*0.46, {
+    fill:'#ffffff', stroke:'#160820', strokeW: Math.max(5, rect.h*0.085), italic:true, weight:900
+  });
+
+  ctx.restore();
+}
+
+// confettis / étoiles POW (déterministes)
+function drawConfetti(ctx, x, y, w, h, t, seed){
+  const r = rng(seed);
+  ctx.save();
+  const N = 28;
+  for(let i=0;i<N;i++){
+    const px = x + r()*w;
+    const py = y + r()*h*0.85;
+    const sz = 4 + r()*8;
+    const rot = r()*Math.PI*2 + (t||0)*0.001;
+    const palette = ['#ff2d6f','#ffeb3b','#ffffff','#ff3d8a','#9b3dff'];
+    const col = palette[i%palette.length];
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(rot);
+    ctx.fillStyle = col;
+    ctx.fillRect(-sz/2, -sz*0.25, sz, sz*0.5);
+    ctx.restore();
+  }
+  // petites étoiles POW blanches
+  for(let i=0;i<6;i++){
+    const px = x + r()*w;
+    const py = y + r()*h*0.9;
+    const rad = 6 + r()*10;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.strokeStyle = '#ffeb3b';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    for(let k=0;k<4;k++){
+      ctx.rotate(Math.PI/4);
+      ctx.beginPath();
+      ctx.moveTo(-rad,0); ctx.lineTo(rad,0);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawEndCard(ctx, x, y, w, h, opts){
+  const o = opts || {};
+  const result = o.result || 'victory';
+  const t = o.t || 0;
+  const isWin = result === 'victory';
+  const cta = o.cta || (isWin ? 'PLAY NOW' : 'TRY AGAIN');
+
+  ctx.save();
+
+  // 1) overlay sombre semi-transparent (gradient pour focus central)
+  const ov = ctx.createRadialGradient(x+w/2, y+h*0.45, w*0.1, x+w/2, y+h*0.5, w*0.85);
+  if(isWin){
+    ov.addColorStop(0, 'rgba(70,20,90,0.45)');
+    ov.addColorStop(0.6, 'rgba(22,8,32,0.72)');
+    ov.addColorStop(1, 'rgba(8,2,16,0.88)');
+  } else {
+    ov.addColorStop(0, 'rgba(40,8,20,0.50)');
+    ov.addColorStop(0.6, 'rgba(15,4,18,0.78)');
+    ov.addColorStop(1, 'rgba(4,1,8,0.90)');
+  }
+  ctx.fillStyle = ov;
+  ctx.fillRect(x, y, w, h);
+
+  // confettis (uniquement victory) — derrière le titre
+  if(isWin){
+    drawConfetti(ctx, x, y+h*0.05, w, h*0.55, t, 42);
+  }
+
+  // 2) titre
+  const titleCx = x + w/2;
+  const titleCy = y + h*0.25;
+  const titleSize = w*0.20;
+  const title = isWin ? 'VICTORY!' : 'DEFEAT!';
+
+  // halo derrière le titre
+  ctx.save();
+  const tHalo = ctx.createRadialGradient(titleCx, titleCy, 10, titleCx, titleCy, w*0.55);
+  if(isWin){
+    tHalo.addColorStop(0,'rgba(255,235,59,0.45)');
+    tHalo.addColorStop(0.5,'rgba(255,45,111,0.25)');
+    tHalo.addColorStop(1,'rgba(255,45,111,0)');
+  } else {
+    tHalo.addColorStop(0,'rgba(150,30,60,0.4)');
+    tHalo.addColorStop(1,'rgba(0,0,0,0)');
+  }
+  ctx.fillStyle = tHalo;
+  ctx.fillRect(x, titleCy-w*0.55, w, w*1.1);
+  ctx.restore();
+
+  // titre rotation slight pour comic feel
+  ctx.save();
+  ctx.translate(titleCx, titleCy);
+  ctx.rotate(isWin ? -0.05 : 0.04);
+  comicText(ctx, title, 0, 0, titleSize, {
+    fill: isWin ? '#ffeb3b' : '#ff2d4f',
+    stroke: '#160820',
+    strokeW: titleSize*0.16,
+    italic: true, weight: 900
+  });
+  // sub-fill comic shadow under
+  ctx.restore();
+
+  // 3) sous-titre
+  const subCy = y + h*0.40;
+  const subSize = w*0.068;
+  const sub = isWin ? 'WANT MORE CHAOS?' : 'READY FOR REVENGE?';
+  comicText(ctx, sub, titleCx, subCy, subSize, {
+    fill:'#ffffff', stroke:'#160820', strokeW: subSize*0.32, italic:true, weight:900
+  });
+
+  // accent sous le sous-titre
+  ctx.save();
+  ctx.strokeStyle = isWin ? '#ffeb3b' : '#ff5a6f';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  const accW = w*0.18;
+  ctx.beginPath();
+  ctx.moveTo(titleCx-accW, subCy+subSize*0.85);
+  ctx.lineTo(titleCx+accW, subCy+subSize*0.85);
+  ctx.stroke();
+  ctx.restore();
+
+  // 4) bouton CTA pulsant
+  const rect = getCtaRect(x, y, w, h);
+  drawCtaButton(ctx, rect, cta, t);
+
+  // 5) hint "tap to install" sous le bouton
+  const hintCy = rect.y + rect.h + 44;
+  comicText(ctx, isWin ? 'FREE INSTALL · NO ADS' : 'ONE TAP · INSTANT FUN', titleCx, hintCy, w*0.040, {
+    fill:'#ffeb3b', stroke:'#160820', strokeW: 4, italic:true, weight:900
+  });
+
+  // chevron flèche down vers bouton (microcue de tap) — au-dessus du bouton
+  ctx.save();
+  const arrCy = rect.y - 22;
+  const arrPulse = Math.sin((((t||0)%800)/800) * Math.PI);
+  ctx.globalAlpha = 0.5 + 0.5*arrPulse;
+  ctx.strokeStyle = '#ffeb3b';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(titleCx-14, arrCy-8);
+  ctx.lineTo(titleCx, arrCy+6);
+  ctx.lineTo(titleCx+14, arrCy-8);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// expose
+window.drawEndCard = drawEndCard;
+window.getCtaRect = getCtaRect;
+window.drawCtaButton = drawCtaButton;
+
+// =========== render ===========
+
+// fake gameplay background derrière l'overlay (pour montrer la transparence)
+function fakeBackground(ctx, w, h, mood){
+  // ciel
+  const sky = ctx.createLinearGradient(0,0,0,h);
+  if(mood==='win'){
+    sky.addColorStop(0,'#7fb8e0'); sky.addColorStop(1,'#bfe3a8');
+  } else {
+    sky.addColorStop(0,'#5a4a70'); sky.addColorStop(1,'#806a5a');
+  }
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,w,h);
+  // sol
+  ctx.fillStyle = mood==='win' ? '#9CC98B' : '#6a7a5a';
+  ctx.fillRect(0, h*0.7, w, h*0.3);
+  // château silhouette
+  ctx.fillStyle = mood==='win' ? '#5a3a8a' : '#3a2a3a';
+  ctx.fillRect(w*0.15, h*0.45, w*0.25, h*0.28);
+  ctx.fillRect(w*0.6, h*0.5, w*0.25, h*0.23);
+  // créneaux
+  for(let i=0;i<5;i++){
+    ctx.fillRect(w*0.15+i*w*0.05, h*0.42, w*0.025, w*0.04);
+  }
+  // soleil/lune
+  ctx.fillStyle = mood==='win' ? '#ffeb3b' : '#cfb8a8';
+  ctx.beginPath(); ctx.arc(w*0.78, h*0.18, w*0.06, 0, Math.PI*2); ctx.fill();
+}
+
+// Victory scene
+{
+  const c = document.getElementById('sceneVictory');
+  const ctx = c.getContext('2d');
+  fakeBackground(ctx, c.width, c.height, 'win');
+  drawEndCard(ctx, 0, 0, c.width, c.height, {result:'victory', t:400, cta:'PLAY NOW'});
+}
+
+// Defeat scene
+{
+  const c = document.getElementById('sceneDefeat');
+  const ctx = c.getContext('2d');
+  fakeBackground(ctx, c.width, c.height, 'lose');
+  drawEndCard(ctx, 0, 0, c.width, c.height, {result:'defeat', t:400, cta:'TRY AGAIN'});
+}
+
+// Pulse animation cells (270×100)
+[0, 400, 800].forEach((tt, i) => {
+  const c = document.getElementById('p'+i);
+  const ctx = c.getContext('2d');
+  // bg sombre comme overlay
+  ctx.fillStyle = '#160820';
+  ctx.fillRect(0,0,c.width,c.height);
+  // bouton occupant ~80% de la cellule
+  const rect = { x: 25, y: 18, w: c.width-50, h: c.height-36 };
+  drawCtaButton(ctx, rect, 'PLAY NOW', tt);
+});
+</script>
+</body></html>

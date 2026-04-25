@@ -1,0 +1,487 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>FX chunks — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:240px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid{display:grid;grid-template-columns:repeat(5,180px);gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">référence PRINCIPALE — frame 12s (chunk en vol)</span>
+    <img class="ref" src="ref-chunk.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — frame 40s (chaos)</span>
+    <img class="ref" src="ref-chaos.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">référence — frame 47s (chunks tombants)</span>
+    <img class="ref" src="frame_47s.jpg" alt="ref">
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">cycle de vie d'UN chunk — détaché → chute → impact (0% → 100%)</h1>
+<div class="grid">
+  <div class="cell"><canvas id="c0" width="180" height="220"></canvas><span class="t">t=0% (juste détaché)</span></div>
+  <div class="cell"><canvas id="c1" width="180" height="220"></canvas><span class="t">t=20% (en vol)</span></div>
+  <div class="cell"><canvas id="c2" width="180" height="220"></canvas><span class="t">t=40% (mid-air, traînée)</span></div>
+  <div class="cell"><canvas id="c3" width="180" height="220"></canvas><span class="t">t=70% (proche sol)</span></div>
+  <div class="cell"><canvas id="c4" width="180" height="220"></canvas><span class="t">t=100% (impact sol)</span></div>
+</div>
+
+<h1 style="margin-top:18px;">scène composite — château abîmé + 3 chunks à différents stades</h1>
+<canvas id="big" width="640" height="380"></canvas>
+
+<script>
+// ============================================================
+// FX CHUNKS — drawChunk(ctx, cx, cy, t, seed, opts)
+// (cx,cy) = point d'origine du détachement
+// t ∈ [0,1] où 0=détaché, 1=touche le sol
+// opts: { width, height, vx, spinDir (1|-1), kind ('wall'|'roof') }
+// Lifetime ~1200ms côté gameplay
+// ============================================================
+
+function rng(seed){let s=seed||1;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
+
+function drawChunk(ctx, cx, cy, t, seed, opts){
+  if(t<0||t>1) return;
+  opts = opts||{};
+  const W = opts.width  || 56;
+  const H = opts.height || 56;
+  const vx = (opts.vx==null?70:opts.vx);
+  const spinDir = opts.spinDir||1;
+  const kind = opts.kind||'wall';
+  const r = rng(seed);
+
+  // Trajectoire physique
+  // x = cx + vx*t  (vx est en px total parcourus à t=1)
+  // y : parabole — monte, retombe, atterrit à cy + fallTarget
+  const px = cx + vx * t;
+  const initialVy = -25;       // léger saut au détachement
+  const fallTarget = 140;      // atterrit ~140 px plus bas
+  const py = cy + initialVy*t + (fallTarget - initialVy) * t*t;
+  const angle = spinDir * t * 4*Math.PI;
+
+  // ---------- TRAÎNÉE DE DÉBRIS / POUSSIÈRE (panache violet le long de la trajectoire)
+  if(t > 0.04){
+    const trailR = rng(seed+7);
+    const samples = 9;
+    for(let i=1;i<=samples;i++){
+      const tt = Math.max(0, t - i*0.055);
+      if(tt<=0) continue;
+      const tpx = cx + vx*tt;
+      const tpy = cy + initialVy*tt + (fallTarget - initialVy) * tt*tt;
+      const ageK = i/samples;            // 0 = juste derrière, 1 = ancien
+      const a = (1 - ageK) * Math.min(1, t*3) * 1.0;
+
+      // poussière violette diffuse — taille croissante avec l'âge (panache)
+      ctx.save();
+      ctx.globalAlpha = a*0.7;
+      const puffR = 11 + ageK*22;
+      const g = ctx.createRadialGradient(tpx, tpy, 0, tpx, tpy, puffR);
+      g.addColorStop(0, 'rgba(160,60,200,0.85)');
+      g.addColorStop(0.45, 'rgba(90,15,135,0.45)');
+      g.addColorStop(1, 'rgba(30,5,55,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(tpx-puffR, tpy-puffR, puffR*2, puffR*2);
+      ctx.restore();
+
+      // masse sombre lumpy seulement sur les premiers samples (proche du chunk)
+      if(ageK < 0.45){
+        ctx.save();
+        ctx.globalAlpha = a*0.55;
+        ctx.fillStyle = '#160820';
+        const lobes = 2;
+        for(let j=0;j<lobes;j++){
+          const ang = trailR()*Math.PI*2;
+          const d = puffR*0.2*trailR();
+          const lr = puffR*(0.22 + trailR()*0.14);
+          ctx.beginPath();
+          ctx.arc(tpx+Math.cos(ang)*d, tpy+Math.sin(ang)*d, lr, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // micro-débris + sparks
+      ctx.save();
+      ctx.globalAlpha = a;
+      const k = 3 + (trailR()*3|0);
+      for(let j=0;j<k;j++){
+        const ang = trailR()*Math.PI*2;
+        const d = trailR()*puffR*0.9;
+        const sx = tpx + Math.cos(ang)*d;
+        const sy = tpy + Math.sin(ang)*d;
+        const sz = 1.2 + trailR()*2.2;
+        ctx.fillStyle = (j%4===0) ? '#ff3d8a' : (j%4===1 ? '#ffffff' : '#0a0410');
+        ctx.beginPath();
+        ctx.arc(sx, sy, sz, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ---------- AURA VIOLETTE autour du chunk en vol
+  if(t < 0.95){
+    ctx.save();
+    const auraR = Math.max(W,H)*1.05;
+    // pic d'intensité au début (chunk vient juste d'être éjecté), décroît ensuite
+    const auraA = 0.85 * (1 - t*0.6);
+    ctx.globalAlpha = Math.max(0, auraA);
+    const ag = ctx.createRadialGradient(px, py, 0, px, py, auraR);
+    ag.addColorStop(0, 'rgba(160,60,200,0.85)');
+    ag.addColorStop(0.45, 'rgba(90,15,135,0.45)');
+    ag.addColorStop(1, 'rgba(30,5,55,0)');
+    ctx.fillStyle = ag;
+    ctx.fillRect(px-auraR, py-auraR, auraR*2, auraR*2);
+    ctx.restore();
+  }
+
+  // ---------- LE CHUNK (translate + rotate)
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(angle);
+
+  drawChunkBody(ctx, W, H, kind, seed);
+
+  ctx.restore();
+
+  // ---------- IMPACT AU SOL (t > 0.85): mini explosion poussière violette
+  if(t > 0.85){
+    const it = (t - 0.85) / 0.15;   // 0..1
+    drawGroundImpact(ctx, px, py + H*0.5, it, seed);
+  }
+
+  // ---------- SPARKS d'IMPACT INCIPIENT (t entre 0.65 et 0.85): quelques étincelles avant le sol
+  if(t > 0.65 && t < 0.92){
+    const it = (t - 0.65) / 0.27;
+    ctx.save();
+    ctx.globalAlpha = 1 - Math.abs(it-0.5)*1.5;
+    const sR = rng(seed+33);
+    for(let i=0;i<8;i++){
+      const ang = -Math.PI/2 + (sR()-0.5)*Math.PI*0.9;
+      const len = 8 + sR()*22;
+      const sx = px + Math.cos(ang)*len;
+      const sy = py + H*0.4 + Math.sin(ang)*len;
+      ctx.fillStyle = i%2===0 ? '#ffffff' : '#ff3d8a';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1+sR()*1.6, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// ----- corps du chunk : briques cartoon, traits noirs épais -----
+function drawChunkBody(ctx, W, H, kind, seed){
+  const r = rng(seed+101);
+  const hw = W/2, hh = H/2;
+
+  // Silhouette du chunk (path brisé : un rectangle aux bords cassés)
+  // Construit un polygone avec arêtes "cassées" pour signaler une fracture
+  const pts = [];
+  // top edge (cassée)
+  const topPts = 4;
+  for(let i=0;i<=topPts;i++){
+    const x = -hw + (W*i/topPts);
+    const y = -hh + (r()-0.5)*H*0.18;
+    pts.push([x,y]);
+  }
+  // right edge
+  const rPts = 3;
+  for(let i=1;i<=rPts;i++){
+    const y = -hh + (H*i/rPts);
+    const x = hw + (r()-0.5)*W*0.10;
+    pts.push([x,y]);
+  }
+  // bottom edge (plus régulière — base)
+  const botPts = 3;
+  for(let i=1;i<=botPts;i++){
+    const x = hw - (W*i/botPts);
+    const y = hh + (r()-0.5)*H*0.06;
+    pts.push([x,y]);
+  }
+  // left edge (cassée)
+  const lPts = 3;
+  for(let i=1;i<lPts;i++){
+    const y = hh - (H*i/lPts);
+    const x = -hw + (r()-0.5)*W*0.18;
+    pts.push([x,y]);
+  }
+
+  // ombre portée (offset, sombre violet)
+  ctx.save();
+  ctx.translate(3,4);
+  ctx.fillStyle = 'rgba(10,4,16,0.45)';
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // pierre claire (couleur de base #cfcfcf)
+  ctx.fillStyle = '#cfcfcf';
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.closePath();
+  ctx.fill();
+
+  // (optionnel) bande de "base brique" si chunk de type 'wall' avec base — sinon pierre seule
+  // On l'inclut sur ~22% du chunk pour évoquer la base brun.
+  ctx.save();
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.closePath();
+  ctx.clip();
+  const hasBase = (kind==='wall');
+  if(hasBase){
+    ctx.fillStyle = '#8b6f4d';
+    ctx.fillRect(-hw-2, hh - H*0.22, W+4, H*0.30);
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-hw-2, hh - H*0.22);
+    ctx.lineTo( hw+2, hh - H*0.22);
+    ctx.stroke();
+  }
+
+  // motifs briques pierre claire (zone haute)
+  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = '#1a1a1a';
+  const brickH = H*0.20;
+  const brickW = W*0.36;
+  const stoneBottom = hasBase ? (hh - H*0.22) : hh;
+  for(let row=0; row<4; row++){
+    const y = -hh + brickH*(row+0.5);
+    if(y + brickH/2 > stoneBottom) break;
+    const offset = row%2===0 ? 0 : brickW/2;
+    for(let col=-2; col<=2; col++){
+      const x = col*brickW + offset - brickW/2;
+      ctx.strokeRect(x, y - brickH/2, brickW*0.92, brickH*0.88);
+    }
+  }
+  // 1 rangée briques base marron (si présent)
+  if(hasBase){
+    for(let col=-2; col<=2; col++){
+      const x = col*brickW*0.75 - brickW*0.35;
+      ctx.strokeRect(x, hh - H*0.18, brickW*0.7, H*0.14);
+    }
+  }
+  ctx.restore();
+
+  // toit noir pointu (si kind === 'roof') — triangle dépassant en haut
+  if(kind==='roof'){
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(-hw*0.85, -hh + 2);
+    ctx.lineTo(0, -hh - H*0.55);
+    ctx.lineTo( hw*0.85, -hh + 2);
+    ctx.closePath();
+    ctx.fill();
+    // contour
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // CONTOUR PRINCIPAL épais noir (signature comic)
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 3.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+  ctx.closePath();
+  ctx.stroke();
+
+  // arêtes de fracture: éclats magenta + spikes blancs dépassant des bords cassés
+  ctx.save();
+  // spikes blancs nets (énergie qui s'échappe de la fracture — top edge cassé)
+  ctx.fillStyle = '#ffffff';
+  for(let i=0;i<topPts;i++){
+    const [x,y] = pts[i];
+    if(r() < 0.55){
+      const len = 6 + r()*10;
+      const w = 1.6;
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(-Math.PI/2 + (r()-0.5)*0.6);
+      ctx.beginPath();
+      ctx.moveTo(0,0); ctx.lineTo(w, -len*0.6); ctx.lineTo(0, -len); ctx.lineTo(-w, -len*0.6); ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  // dagger magenta plus longs sur quelques bords cassés
+  ctx.fillStyle = '#ff3d8a';
+  for(let i=0;i<3;i++){
+    const idx = (r()*topPts)|0;
+    const [x,y] = pts[idx];
+    const len = 8 + r()*8;
+    const w = 2;
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(-Math.PI/2 + (r()-0.5)*0.9);
+    ctx.beginPath();
+    ctx.moveTo(0,0); ctx.lineTo(w, -len*0.6); ctx.lineTo(0, -len); ctx.lineTo(-w, -len*0.6); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  // points magenta sur les arêtes
+  ctx.fillStyle = '#ff3d8a';
+  for(let i=0;i<4;i++){
+    const idx = (r()*pts.length)|0;
+    const [x,y] = pts[idx];
+    const sz = 1.8 + r()*2;
+    ctx.beginPath();
+    ctx.arc(x, y, sz, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ----- mini explosion poussière à l'impact -----
+function drawGroundImpact(ctx, gx, gy, it, seed){
+  const r = rng(seed+999);
+  const grow = 1 - Math.pow(1-it, 2);
+  const R = 26 + 32*grow;
+  const fade = 1 - it*0.7;
+
+  // halo violet
+  ctx.save();
+  ctx.globalAlpha = 0.85*fade;
+  const halo = ctx.createRadialGradient(gx, gy, 0, gx, gy, R*1.4);
+  halo.addColorStop(0, 'rgba(140,50,180,0.9)');
+  halo.addColorStop(0.5, 'rgba(90,15,135,0.45)');
+  halo.addColorStop(1, 'rgba(30,5,55,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(gx-R*1.5, gy-R*1.5, R*3, R*3);
+  ctx.restore();
+
+  // masse sombre lumpy (demi-cercle, écrasée au sol)
+  ctx.save();
+  ctx.globalAlpha = 0.95*fade;
+  ctx.fillStyle = '#160820';
+  ctx.beginPath();
+  ctx.ellipse(gx, gy, R*0.85, R*0.45, 0, 0, Math.PI*2);
+  ctx.fill();
+  // lobes
+  for(let i=0;i<6;i++){
+    const a = -Math.PI + (i/5)*Math.PI;  // demi-cercle au-dessus du sol
+    const d = R*(0.5 + r()*0.3);
+    const lr = R*(0.25 + r()*0.18);
+    ctx.beginPath();
+    ctx.arc(gx + Math.cos(a)*d, gy + Math.sin(a)*d*0.55, lr, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // spikes blancs courts (rays)
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.fillStyle = '#ffffff';
+  for(let i=0;i<7;i++){
+    const a = -Math.PI + (i/6)*Math.PI + (r()-0.5)*0.2;
+    const len = R*(0.9 + r()*0.5);
+    const w = R*0.06;
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.rotate(a);
+    ctx.beginPath();
+    ctx.moveTo(0,-w); ctx.lineTo(len,0); ctx.lineTo(0,w); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // débris/sparks
+  ctx.save();
+  ctx.globalAlpha = fade;
+  for(let i=0;i<10;i++){
+    const a = -Math.PI + r()*Math.PI;
+    const d = R*(0.7 + r()*0.7);
+    const x = gx + Math.cos(a)*d;
+    const y = gy + Math.sin(a)*d*0.5;
+    ctx.fillStyle = i%3===0 ? '#ff3d8a' : (i%3===1 ? '#ffffff' : '#0a0410');
+    ctx.beginPath();
+    ctx.arc(x, y, 1.2 + r()*1.8, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---- Render lifecycle 5 frames ----
+// Pour les vignettes : on positionne (cx,cy) en haut à gauche pour que le chunk
+// reste visible pendant qu'il chute à droite.
+const lifeFracs = [0.0, 0.20, 0.40, 0.70, 1.0];
+lifeFracs.forEach((t,i)=>{
+  const c = document.getElementById('c'+i);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B';
+  ctx.fillRect(0,0,c.width,c.height);
+  // ligne de sol
+  ctx.fillStyle = '#7AAE6B';
+  ctx.fillRect(0, c.height-22, c.width, 22);
+  // origine (cx,cy) en haut-gauche, vx modéré, fallTarget=150 → atterrit vers bas-droite
+  drawChunk(ctx, 35, 45, t, 7, { width:54, height:58, vx: 95, spinDir: 1, kind: i%2===0?'wall':'roof' });
+});
+
+// ---- composite ----
+{
+  const c = document.getElementById('big');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  // sol
+  ctx.fillStyle = '#7AAE6B'; ctx.fillRect(0, c.height-40, c.width, 40);
+
+  // château abîmé
+  ctx.save();
+  ctx.translate(280, 110);
+  // base brique marron
+  ctx.fillStyle = '#8b6f4d'; ctx.fillRect(-90, 130, 180, 50);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 4; ctx.strokeRect(-90, 130, 180, 50);
+  // mur principal
+  ctx.fillStyle = '#cfcfcf';
+  ctx.beginPath();
+  ctx.moveTo(-90, 130);
+  ctx.lineTo(-90, -10);
+  ctx.lineTo(-30, -10);
+  // fracture
+  ctx.lineTo(-10, 20); ctx.lineTo(20, 5); ctx.lineTo(40, 35); ctx.lineTo(70, 25);
+  ctx.lineTo(90, 60);
+  ctx.lineTo(90, 130);
+  ctx.closePath();
+  ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = '#1a1a1a'; ctx.stroke();
+  // briques
+  ctx.lineWidth = 2;
+  for(let row=0; row<5; row++){
+    const y = -10 + row*28;
+    if(y>120) break;
+    const off = row%2===0?0:25;
+    for(let col=-2; col<3; col++){
+      ctx.strokeRect(-90 + col*50 + off, y, 48, 26);
+    }
+  }
+  // toit pointu noir (intact)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.moveTo(-90, -10); ctx.lineTo(-60, -90); ctx.lineTo(-30, -10); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // 3 chunks à différents stades, partant du château
+  drawChunk(ctx, 360, 110, 0.18, 11, { width:62, height:66, vx: 70,   spinDir: 1, kind:'wall' });
+  drawChunk(ctx, 340,  80, 0.55, 23, { width:72, height:76, vx: 150,  spinDir:-1, kind:'roof' });
+  drawChunk(ctx, 350, 130, 0.92, 47, { width:54, height:58, vx: 100,  spinDir: 1, kind:'wall' });
+}
+</script>
+</body></html>

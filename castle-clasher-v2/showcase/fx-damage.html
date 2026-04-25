@@ -1,0 +1,194 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>FX damage text — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:240px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid{display:grid;grid-template-columns:repeat(5,160px);gap:8px;margin-top:8px;}
+  .grid4{display:grid;grid-template-columns:repeat(4,160px);gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">ref — palette POW (étoile rouge cœur)</span>
+    <img class="ref" src="ref-explosion.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">ref — chaos post-impact</span>
+    <img class="ref" src="ref-chunk.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">ref — frame 18s (damage in-game)</span>
+    <img class="ref" src="frame_18s.jpg" alt="ref">
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">cycle de vie — un dégât "-140" rouge POW (0% → 100%)</h1>
+<div class="grid">
+  <div class="cell"><canvas id="c0" width="160" height="160"></canvas><span class="t">t=0% (spawn, overshoot)</span></div>
+  <div class="cell"><canvas id="c1" width="160" height="160"></canvas><span class="t">t=20% (settle)</span></div>
+  <div class="cell"><canvas id="c2" width="160" height="160"></canvas><span class="t">t=50% (mid-rise)</span></div>
+  <div class="cell"><canvas id="c3" width="160" height="160"></canvas><span class="t">t=80% (fade in)</span></div>
+  <div class="cell"><canvas id="c4" width="160" height="160"></canvas><span class="t">t=100% (gone)</span></div>
+</div>
+
+<h1 style="margin-top:18px;">variantes de tier — taille / couleur / "!" critique</h1>
+<div class="grid4">
+  <div class="cell"><canvas id="v0" width="160" height="160"></canvas><span class="t">-44 blanc (normal)</span></div>
+  <div class="cell"><canvas id="v1" width="160" height="160"></canvas><span class="t">-140 rouge POW (≥100)</span></div>
+  <div class="cell"><canvas id="v2" width="160" height="160"></canvas><span class="t">-280! rouge crit gros</span></div>
+  <div class="cell"><canvas id="v3" width="160" height="160"></canvas><span class="t">-12 blanc petit</span></div>
+</div>
+
+<h1 style="margin-top:18px;">scène composite — 6 dégâts simultanés sur mur pierre (chaos d'impact)</h1>
+<canvas id="big" width="540" height="320"></canvas>
+
+<script>
+// ============================================================
+// FX DAMAGE TEXT — itérer ici. API drawDamage(ctx,cx,cy,t,value,opts)
+// (cx,cy) = point d'impact (spawn). t∈[0,1], lifetime ~700ms.
+// opts: { color: 'white'|'red'|'yellow', critical: bool }
+// Comic-book look : outline noir-violet épais, italic bold, overshoot+rise+fade.
+// ============================================================
+
+function drawDamage(ctx, cx, cy, t, value, opts){
+  if(t<0 || t>1) return;
+  opts = opts || {};
+  const critical = !!opts.critical || value >= 100;
+  // ----- couleur: white par défaut, red si critical/≥100, yellow si opts.color
+  let fill = '#ffffff';
+  if(opts.color === 'red' || critical) fill = '#ff2d6f';
+  else if(opts.color === 'yellow') fill = '#ffeb3b';
+  else if(opts.color === 'white') fill = '#ffffff';
+
+  // ----- size by tier
+  let size = 32;
+  if(critical) size = 42;
+  else if(value < 20) size = 28;
+
+  // ----- easing
+  // overshoot: 0.75 → 1.30 (at t≈0.08) → 1.0 (at t≈0.20) → 1.0
+  // (start visible immediately, snappy punch-in)
+  let scale;
+  if(t < 0.08){
+    scale = 0.75 + (1.30 - 0.75) * (t/0.08);
+  } else if(t < 0.20){
+    scale = 1.30 - (1.30 - 1.0) * ((t-0.08)/0.12);
+  } else {
+    scale = 1.0;
+  }
+  // rise (ease-out)
+  const yOffset = -t * 45;
+  // alpha: full until 0.6, then linear fade
+  const alpha = t < 0.6 ? 1 : Math.max(0, 1 - (t-0.6)/0.4);
+  // jiggle horizontal (premiers 30%)
+  const jiggle = t < 0.3 ? Math.sin(t*40) * 1.5 * (1 - t/0.3) : 0;
+
+  const text = '-' + value + (critical ? '!' : '');
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx + jiggle, cy + yOffset);
+  ctx.scale(scale, scale);
+  ctx.font = `900 italic ${size}px "Arial Black", "Impact", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+
+  // ----- halo magenta derrière les criticals (compact, contrasté)
+  if(critical){
+    const haloR = size * 0.85;
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+    halo.addColorStop(0, 'rgba(255,80,150,0.95)');
+    halo.addColorStop(0.55, 'rgba(255,45,111,0.4)');
+    halo.addColorStop(1, 'rgba(255,45,111,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(-haloR, -haloR, haloR*2, haloR*2);
+  }
+
+  // ----- shadow drop subtile
+  ctx.save();
+  ctx.translate(2, 2);
+  ctx.fillStyle = 'rgba(22,8,32,0.5)';
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+
+  // ----- crit : pré-stroke blanc + stroke noir-violet (effet double-outline comic)
+  if(critical){
+    ctx.lineWidth = 11;
+    ctx.strokeStyle = '#ffffff';
+    ctx.strokeText(text, 0, 0);
+  }
+  // ----- stroke principal épais
+  ctx.lineWidth = critical ? 7 : 7;
+  ctx.strokeStyle = '#160820';
+  ctx.strokeText(text, 0, 0);
+  // ----- fill
+  ctx.fillStyle = fill;
+  ctx.fillText(text, 0, 0);
+
+  ctx.restore();
+}
+
+// ---- helper: paint green bg
+function bg(c){
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B';
+  ctx.fillRect(0,0,c.width,c.height);
+  return ctx;
+}
+
+// ---- lifecycle (un -140 rouge POW)
+const lifeFracs = [0.02, 0.20, 0.50, 0.80, 0.99];
+lifeFracs.forEach((t,i)=>{
+  const c = document.getElementById('c'+i);
+  const ctx = bg(c);
+  drawDamage(ctx, 80, 100, t, 140, {});
+});
+
+// ---- variantes
+{
+  const ctx = bg(document.getElementById('v0'));
+  drawDamage(ctx, 80, 90, 0.25, 44, { color: 'white' });
+}
+{
+  const ctx = bg(document.getElementById('v1'));
+  drawDamage(ctx, 80, 90, 0.25, 140, {});
+}
+{
+  const ctx = bg(document.getElementById('v2'));
+  drawDamage(ctx, 80, 90, 0.25, 280, { critical: true });
+}
+{
+  const ctx = bg(document.getElementById('v3'));
+  drawDamage(ctx, 80, 90, 0.25, 12, { color: 'white' });
+}
+
+// ---- composite scene: stone wall + 6 damage texts at varied ages/positions
+{
+  const c = document.getElementById('big');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  // mock stone wall
+  ctx.fillStyle = '#cfcfcf'; ctx.fillRect(180,80,180,200);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 4; ctx.strokeRect(180,80,180,200);
+  for(let y=100;y<280;y+=24) for(let x=190;x<360;x+=40){
+    ctx.strokeRect(x+(y/24%2===0?0:20)-10, y, 30, 22);
+  }
+  // 6 floating damages at different ages/values/positions
+  drawDamage(ctx, 220, 200, 0.12, 44, {});
+  drawDamage(ctx, 270, 240, 0.35, 140, {});
+  drawDamage(ctx, 330, 195, 0.55, 18, {});
+  drawDamage(ctx, 245, 150, 0.22, 280, { critical: true });
+  drawDamage(ctx, 350, 260, 0.45, 66, { color: 'yellow' });
+  drawDamage(ctx, 200, 270, 0.78, 12, {});
+}
+</script>
+</body></html>

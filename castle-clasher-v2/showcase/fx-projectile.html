@@ -1,0 +1,425 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>FX projectile — showcase</title>
+<style>
+  body{margin:0;background:#1a1a1a;color:#eee;font:14px/1.4 system-ui;padding:16px;}
+  h1{font-size:14px;margin:0 0 8px;color:#bbb;font-weight:500;}
+  .row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;gap:6px;}
+  .label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;}
+  img.ref{width:220px;height:auto;border:1px solid #333;border-radius:4px;}
+  canvas{background:#9CC98B;border:1px solid #333;border-radius:4px;display:block;}
+  .grid{display:grid;grid-template-columns:repeat(5,200px);gap:8px;margin-top:8px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,200px);gap:8px;margin-top:8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .cell .t{font-size:10px;color:#666;}
+</style></head>
+<body>
+<div class="row">
+  <div class="col">
+    <span class="label">palette — ref-explosion.jpg</span>
+    <img class="ref" src="ref-explosion.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">PRINCIPALE — frame 07s (rocket trail)</span>
+    <img class="ref" src="frame_07s.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">frame 18s (projectiles en vol)</span>
+    <img class="ref" src="frame_18s.jpg" alt="ref">
+  </div>
+  <div class="col">
+    <span class="label">ref-chaos (multi-projectiles)</span>
+    <img class="ref" src="ref-chaos.jpg" alt="ref">
+  </div>
+</div>
+
+<h1 style="margin-top:18px;">cycle de vie — rocket de canon (gauche) à cible (droite), 5 instants</h1>
+<div class="grid">
+  <div class="cell"><canvas id="c0" width="200" height="200"></canvas><span class="t">t=0% (muzzle flash)</span></div>
+  <div class="cell"><canvas id="c1" width="200" height="200"></canvas><span class="t">t=25% (montée)</span></div>
+  <div class="cell"><canvas id="c2" width="200" height="200"></canvas><span class="t">t=50% (apex)</span></div>
+  <div class="cell"><canvas id="c3" width="200" height="200"></canvas><span class="t">t=75% (descente)</span></div>
+  <div class="cell"><canvas id="c4" width="200" height="200"></canvas><span class="t">t=100% (impact)</span></div>
+</div>
+
+<h1 style="margin-top:18px;">3 kinds — rocket / bomb / laser figés à t=50%</h1>
+<div class="grid3">
+  <div class="cell"><canvas id="kr" width="200" height="200"></canvas><span class="t">rocket</span></div>
+  <div class="cell"><canvas id="kb" width="200" height="200"></canvas><span class="t">bomb</span></div>
+  <div class="cell"><canvas id="kl" width="200" height="200"></canvas><span class="t">laser</span></div>
+</div>
+
+<h1 style="margin-top:18px;">scène composite 540×320 — 4 projectiles en arc, kinds variés</h1>
+<canvas id="big" width="540" height="320"></canvas>
+
+<script>
+// ============================================================
+// FX PROJECTILE — drawProjectile(ctx, sx, sy, tx, ty, t, seed, kind)
+// kind ∈ 'rocket' | 'bomb' | 'laser'
+// t ∈ [0,1], lifetime ~700-1000ms
+// Trajectoire : parabole gravitée pour rocket/bomb, droite pour laser
+// ============================================================
+
+function rng(seed){let s=seed||1;return()=>{s=(s*9301+49297)%233280;return s/233280;};}
+
+// Position le long de la trajectoire à instant tt, avec sa tangente
+function trajectory(sx, sy, tx, ty, tt, kind){
+  if(kind==='laser'){
+    return {
+      x: sx + (tx-sx)*tt,
+      y: sy + (ty-sy)*tt,
+      ang: Math.atan2(ty-sy, tx-sx)
+    };
+  }
+  // arc parabolique : x linéaire, y = lerp + dip vers le haut
+  const x = sx + (tx-sx)*tt;
+  const lin = sy + (ty-sy)*tt;
+  const dist = Math.hypot(tx-sx, ty-sy);
+  const arc = dist*0.35; // hauteur de la cloche (px au-dessus de la corde)
+  const dip = -4*arc*tt*(1-tt); // négatif = vers le haut (canvas y-down)
+  const y = lin + dip;
+  // tangente : dérivée (dx/dt, dy/dt)
+  const dx = (tx-sx);
+  const dy = (ty-sy) + (-4*arc)*(1-2*tt);
+  return { x, y, ang: Math.atan2(dy, dx) };
+}
+
+function drawProjectile(ctx, sx, sy, tx, ty, t, seed, kind){
+  if(t<0||t>1) return;
+  kind = kind || 'rocket';
+  const r = rng(seed);
+  const pos = trajectory(sx, sy, tx, ty, t, kind);
+
+  // ---- Smoke trail : 12 puffs denses en arrière dans le temps
+  // Trail densité haute → nappe continue (chaque puff overlap son voisin)
+  if(kind!=='laser'){
+    const PUFFS = 14;
+    const STEP = 0.022;
+    ctx.save();
+    for(let i=PUFFS; i>=1; i--){
+      const dt = i*STEP;
+      const tt = t - dt;
+      if(tt < 0) continue;
+      const pp = trajectory(sx, sy, tx, ty, tt, kind);
+      const ageFrac = i/PUFFS;
+      // alpha forte près du projectile, fade lent (cf. ref 07s : nappe continue)
+      const baseA = Math.pow(1 - ageFrac, 0.9) * 0.85 + 0.1;
+      // size grandit avec l'âge ; assez gros pour overlap fort = nappe continue
+      const sz = 7 + ageFrac*13;
+      // jitter perpendiculaire à la tangente, contenu (max 35% de sz)
+      const perp = pp.ang + Math.PI/2;
+      const off = (r()-0.5)*sz*0.35;
+      const jx = Math.cos(perp)*off;
+      const jy = Math.sin(perp)*off;
+      if(kind==='rocket'){
+        // ROCKET trail = nappe chaude (rouge/orange) qui fade en gris
+        // proche : rouge-orange dense ; loin : gris-rosé pâle
+        let r1, g1, b1;
+        if(ageFrac < 0.3){
+          // chaud : orange vif
+          r1=255; g1=120; b1=50;
+        } else if(ageFrac < 0.6){
+          // rouge sombre
+          r1=170; g1=60; b1=55;
+        } else {
+          // gris foncé saturé (pas blanc)
+          r1=85; g1=80; b1=90;
+        }
+        ctx.fillStyle = `rgba(${r1},${g1},${b1},${baseA})`;
+        ctx.beginPath();
+        ctx.arc(pp.x+jx, pp.y+jy, sz, 0, Math.PI*2);
+        ctx.fill();
+        // highlight intérieur jaune pour les puffs proches
+        if(ageFrac < 0.4){
+          ctx.fillStyle = `rgba(255,220,120,${baseA*0.7})`;
+          ctx.beginPath();
+          ctx.arc(pp.x+jx*0.4, pp.y+jy*0.4, sz*0.45, 0, Math.PI*2);
+          ctx.fill();
+        }
+      } else {
+        // BOMB trail = fumée grise classique
+        ctx.fillStyle = `rgba(110,108,115,${baseA*0.85})`;
+        ctx.beginPath();
+        ctx.arc(pp.x+jx, pp.y+jy, sz, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(185,182,190,${baseA*0.55})`;
+        ctx.beginPath();
+        ctx.arc(pp.x+jx*0.5 - 2, pp.y+jy*0.5 - 2, sz*0.6, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---- Body
+  if(kind==='rocket'){
+    drawRocket(ctx, pos.x, pos.y, pos.ang, t, r);
+  } else if(kind==='bomb'){
+    drawBomb(ctx, pos.x, pos.y, t, r, seed);
+  } else if(kind==='laser'){
+    drawLaser(ctx, sx, sy, tx, ty, pos.x, pos.y, pos.ang, t);
+  }
+
+  // ---- Muzzle flash (rocket/bomb only, t<0.1)
+  if(t<0.12 && kind!=='laser'){
+    const fa = 1 - t/0.12;
+    ctx.save();
+    ctx.globalAlpha = fa;
+    // halo violet
+    const ang0 = Math.atan2(ty-sy, tx-sx);
+    const fx = sx + Math.cos(ang0)*8;
+    const fy = sy + Math.sin(ang0)*8;
+    const halo = ctx.createRadialGradient(fx, fy, 0, fx, fy, 26);
+    halo.addColorStop(0, 'rgba(255,255,255,1)');
+    halo.addColorStop(0.3, 'rgba(255,200,100,0.85)');
+    halo.addColorStop(0.7, 'rgba(140,50,180,0.4)');
+    halo.addColorStop(1, 'rgba(90,15,135,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(fx-26, fy-26, 52, 52);
+    // 4 petites pointes blanches
+    ctx.fillStyle = '#fff';
+    ctx.translate(fx, fy);
+    ctx.rotate(ang0);
+    for(let i=0;i<4;i++){
+      ctx.save();
+      ctx.rotate(i*Math.PI/2);
+      ctx.beginPath();
+      ctx.moveTo(0,-2); ctx.lineTo(14,0); ctx.lineTo(0,2); ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+}
+
+function drawRocket(ctx, x, y, ang, t, r){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  // proportion roquette : longue, pointue. Plus grande pour lisibilité comic
+  const L = 30, W = 11;
+  // ailerons noirs arrière
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.moveTo(-L*0.5, -W*0.6);
+  ctx.lineTo(-L*0.3, -W*0.5);
+  ctx.lineTo(-L*0.3,  W*0.5);
+  ctx.lineTo(-L*0.5,  W*0.6);
+  ctx.closePath();
+  ctx.fill();
+  // ailerons sup/inf
+  ctx.beginPath();
+  ctx.moveTo(-L*0.45, -W*0.5);
+  ctx.lineTo(-L*0.25, -W*1.1);
+  ctx.lineTo(-L*0.15, -W*0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-L*0.45,  W*0.5);
+  ctx.lineTo(-L*0.25,  W*1.1);
+  ctx.lineTo(-L*0.15,  W*0.5);
+  ctx.closePath();
+  ctx.fill();
+  // corps principal rouge — ogive
+  ctx.fillStyle = '#c73838';
+  ctx.beginPath();
+  ctx.moveTo(-L*0.35, -W*0.5);
+  ctx.lineTo( L*0.35, -W*0.5);
+  ctx.lineTo( L*0.5,  0);
+  ctx.lineTo( L*0.35,  W*0.5);
+  ctx.lineTo(-L*0.35,  W*0.5);
+  ctx.closePath();
+  ctx.fill();
+  // bande rouge clair dessus
+  ctx.fillStyle = '#d83232';
+  ctx.fillRect(-L*0.35, -W*0.5, L*0.7, W*0.3);
+  // pointe blanche (highlight)
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(L*0.32, -W*0.35);
+  ctx.lineTo(L*0.5, 0);
+  ctx.lineTo(L*0.32, -W*0.05);
+  ctx.closePath();
+  ctx.fill();
+  // outline noir net (comic)
+  ctx.strokeStyle = '#0a0410';
+  ctx.lineWidth = 1.4;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-L*0.5, -W*0.6);
+  ctx.lineTo(-L*0.3, -W*0.5);
+  ctx.lineTo(-L*0.3, -W*0.5);
+  ctx.lineTo(L*0.35, -W*0.5);
+  ctx.lineTo(L*0.5, 0);
+  ctx.lineTo(L*0.35, W*0.5);
+  ctx.lineTo(-L*0.3, W*0.5);
+  ctx.lineTo(-L*0.5, W*0.6);
+  ctx.closePath();
+  ctx.stroke();
+  // flamme arrière (jet)
+  ctx.fillStyle = '#ff7733';
+  ctx.beginPath();
+  ctx.moveTo(-L*0.5, -W*0.4);
+  ctx.lineTo(-L*0.85 - r()*4, 0);
+  ctx.lineTo(-L*0.5,  W*0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ffe066';
+  ctx.beginPath();
+  ctx.moveTo(-L*0.5, -W*0.22);
+  ctx.lineTo(-L*0.7 - r()*2, 0);
+  ctx.lineTo(-L*0.5,  W*0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBomb(ctx, x, y, t, r, seed){
+  ctx.save();
+  ctx.translate(x, y);
+  const R = 11;
+  // sphère + highlight tournent ; mèche reste vers le haut (gravité visuelle)
+  ctx.save();
+  ctx.rotate(t * 6 * Math.PI);
+  // sphère noire
+  ctx.fillStyle = '#0a0410';
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI*2);
+  ctx.fill();
+  // gradient interne
+  const g = ctx.createRadialGradient(-R*0.3, -R*0.3, 0, 0, 0, R);
+  g.addColorStop(0, '#160820');
+  g.addColorStop(1, '#0a0410');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI*2);
+  ctx.fill();
+  // outline
+  ctx.strokeStyle = '#5a0e6e';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  // highlight blanc
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(-R*0.4, -R*0.45, R*0.25, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore(); // fin rotation sphère
+  // mèche fixe vers le haut (orientée monde)
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(R*0.4, -R*0.7);
+  ctx.lineTo(R*0.8, -R*1.4);
+  ctx.stroke();
+  // étincelle
+  const sp = 1 + r()*1.5;
+  ctx.fillStyle = '#ffe066';
+  ctx.beginPath();
+  ctx.arc(R*0.8, -R*1.4, 2.8+sp, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#ff7733';
+  ctx.beginPath();
+  ctx.arc(R*0.8, -R*1.4, 1.8, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLaser(ctx, sx, sy, tx, ty, hx, hy, ang, t){
+  // Trait du canon vers la position courante (head). Halo violet + cœur blanc.
+  ctx.save();
+  // halo violet large
+  ctx.strokeStyle = 'rgba(140,50,180,0.55)';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+  // halo violet vif
+  ctx.strokeStyle = 'rgba(255,61,138,0.7)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+  // cœur blanc
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+  // tête : disque blanc + halo
+  const halo = ctx.createRadialGradient(hx, hy, 0, hx, hy, 14);
+  halo.addColorStop(0, 'rgba(255,255,255,1)');
+  halo.addColorStop(0.4, 'rgba(255,61,138,0.7)');
+  halo.addColorStop(1, 'rgba(140,50,180,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(hx-14, hy-14, 28, 28);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(hx, hy, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---- 5 lifecycle frames (rocket par défaut)
+const lifeFracs = [0.02, 0.25, 0.50, 0.75, 0.98];
+lifeFracs.forEach((t,i)=>{
+  const c = document.getElementById('c'+i);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  // canon en bas-gauche, cible en haut-droite (mais l'arc va monter puis redescendre)
+  const sx = 25, sy = 165, tx = 175, ty = 90;
+  drawProjectile(ctx, sx, sy, tx, ty, t, 7, 'rocket');
+  // marqueurs canon/cible discrets
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(sx-3, sy-3, 6, 6);
+  ctx.fillRect(tx-3, ty-3, 6, 6);
+});
+
+// ---- 3 kinds at t=0.5
+{
+  const sx=25, sy=165, tx=175, ty=90;
+  ['rocket','bomb','laser'].forEach((k, idx)=>{
+    const c = document.getElementById(['kr','kb','kl'][idx]);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+    drawProjectile(ctx, sx, sy, tx, ty, 0.5, 11+idx*7, k);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(sx-3, sy-3, 6, 6);
+    ctx.fillRect(tx-3, ty-3, 6, 6);
+  });
+}
+
+// ---- composite
+{
+  const c = document.getElementById('big');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,c.width,c.height);
+  // monstre gauche, château droite
+  const sx = 60, sy = 240;
+  const tx = 480, ty = 200;
+  // mock monstre
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.arc(sx, sy, 10, 0, Math.PI*2); ctx.fill();
+  // mock château
+  ctx.fillStyle = '#cfcfcf'; ctx.fillRect(tx-32, ty-30, 64, 130);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3; ctx.strokeRect(tx-32, ty-30, 64, 130);
+  // créneaux
+  ctx.fillRect(tx-32, ty-40, 14, 12);
+  ctx.fillRect(tx-7, ty-40, 14, 12);
+  ctx.fillRect(tx+18, ty-40, 14, 12);
+  // canon château (laser source) en haut-droite
+  const lsx = tx, lsy = ty-40;
+  const ltx = 120, lty = 230;
+  // 4 projectiles : 2 rockets, 1 bomb (depuis monstre) + 1 laser (depuis château)
+  drawProjectile(ctx, sx, sy, tx, ty, 0.22, 31, 'rocket');
+  drawProjectile(ctx, sx, sy, tx, ty, 0.55, 53, 'bomb');
+  drawProjectile(ctx, sx, sy, tx, ty, 0.85, 77, 'rocket');
+  drawProjectile(ctx, lsx, lsy, ltx, lty, 0.6, 91, 'laser');
+}
+</script>
+</body></html>

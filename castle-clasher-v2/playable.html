@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,minimal-ui,minimum-scale=1">
+<title>Castle Clashers</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  #g { display:block; touch-action:none; image-rendering:pixelated; image-rendering:-moz-crisp-edges; image-rendering:crisp-edges; max-width:100vw; max-height:100vh; aspect-ratio:540/960; background:#9CC98B; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="g" width="540" height="960"></canvas></div>
+
+<!-- VSDK shim — same surface as MarbleSort.html voodoo-vsdk-bootstrap, conservative fallbacks -->
+<script>
+(function(){
+  const subs = {};
+  const playable = {
+    win() { console.log('[VSDK] win'); _emit('win'); },
+    lose() { console.log('[VSDK] lose'); _emit('lose'); },
+    redirectToInstallPage() {
+      console.log('[VSDK] redirectToInstallPage');
+      _emit('redirect');
+      // In production AppLovin sets this URL; here we use a placeholder.
+      try { window.open('https://apps.apple.com/app/castle-clashers/', '_blank'); } catch(e){}
+    },
+    on(event, cb) { (subs[event] = subs[event] || []).push(cb); }
+  };
+  function _emit(ev) { (subs[ev] || []).forEach(cb => { try { cb(); } catch(e){ console.error(e); } }); }
+  Object.defineProperty(window, 'Voodoo', { value: { playable }, writable:false, enumerable:true, configurable:false });
+})();
+</script>
+
+<!-- Inlined assets (PNG/audio/jpg as base64 data URIs) -->
+<script src="assets-inline.js"></script>
+
+<!-- Inlined draw functions extracted from showcases -->
+<script src="draws-inline.js"></script>
+
+<!-- Game logic -->
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// CONFIG
+// ============================================================
+const W = 540, H = 960;
+const HUD_H = 90;
+const DECK_Y = 800;
+const CARD_W = 120, CARD_H = 140;
+const CARD_X = [(W - 3*CARD_W - 2*40) / 2, 0, 0]; // recompute below
+CARD_X[1] = CARD_X[0] + CARD_W + 40;
+CARD_X[2] = CARD_X[1] + CARD_W + 40;
+
+const PLAYER = { cx: 145, baseY: 720, scale: 0.42 };  // PNG 731×958 → ~307×402
+const ENEMY  = { cx: 410, baseY: 720, scale: 0.40 };
+
+// Slot positions on player castle (3 platforms, where units stand)
+const PLAYER_SLOTS = [
+  { x: 145, y: 590, taken: null },
+  { x: 145, y: 510, taken: null },
+  { x: 145, y: 430, taken: null },
+];
+
+// Card kinds
+const CARD_KINDS = ['orc', 'skeleton', 'cyclop'];
+
+// ============================================================
+// IMAGES & AUDIO PRELOAD
+// ============================================================
+const IMG = {};
+const A = window.ASSETS;
+['ORC','SKELETON','CYCLOP','BLUE_CASTLE','RED_CASTLE','ROCKET','BOMB','BAZOOKA','CANNON','ENDCARD_BG'].forEach(k => {
+  const img = new Image();
+  img.src = A[k];
+  IMG[k] = img;
+});
+
+// Hook the showcase castle/portrait caches so drawCastle/drawCard find images.
+// The IIFE in draws-inline.js exposes the SAME object on window — we mutate it (don't reassign).
+if (window.CASTLE_IMG) { window.CASTLE_IMG.blue = IMG.BLUE_CASTLE; window.CASTLE_IMG.red = IMG.RED_CASTLE; }
+else window.CASTLE_IMG = { blue: IMG.BLUE_CASTLE, red: IMG.RED_CASTLE };
+if (window.PORTRAITS) { window.PORTRAITS.orc = IMG.ORC; window.PORTRAITS.skeleton = IMG.SKELETON; window.PORTRAITS.cyclop = IMG.CYCLOP; }
+else window.PORTRAITS = { orc: IMG.ORC, skeleton: IMG.SKELETON, cyclop: IMG.CYCLOP };
+
+const SND = {
+  music: new Audio(A.MUSIC),
+  sfx: A.SFX,  // we'll clone Audio nodes for SFX so multiple can play simultaneously
+};
+SND.music.loop = true;
+SND.music.volume = 0.4;
+function playSfx(){ try { const n = new Audio(SND.sfx); n.volume = 0.5; n.play(); } catch(e){} }
+
+const ENDCARD_IMG = new Image();
+ENDCARD_IMG.src = A.ENDCARD_BG;
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  phase: 'intro',     // intro | tutorial | freeplay | forcewin | endcard
+  t: 0,               // ms since start of current phase
+  T: 0,               // ms since boot
+  scrollX: 0,
+  tracksPhase: 0,
+  player: { hp: 1.0, hpPct: 100 },
+  enemy:  { hp: 1.0, hpPct: 100 },
+  units: [],          // { kind, slot, weapon, lastShotAt, alive:true }
+  projectiles: [],    // { sx, sy, tx, ty, t, dur, kind, seed, damage, big }
+  explosions: [],     // { x, y, t, dur, kind:'small'|'big', seed }
+  chunks: [],         // { cx, cy, t, dur, seed, opts }
+  damages: [],        // { x, y, t, dur, value, opts }
+  cracks: [],         // { x, y, seed }
+  deck: [
+    { kind: 'orc',      placed: false, weapon: 'CANNON' },
+    { kind: 'skeleton', placed: false, weapon: 'BAZOOKA' },
+    { kind: 'cyclop',   placed: false, weapon: 'CANNON' },
+  ],
+  drag: null,         // { cardIdx, x, y } if dragging
+  hand: null,         // { x, y } guidance cursor or null
+  scriptStep: 0,
+  showTapStart: true,
+  endcardFadeIn: 0,
+  forcewinT: 0,
+};
+
+window.__game = state; // for debugging/screenshot harness
+
+// ============================================================
+// SCRIPT (narrative timeline of guided ad)
+// ============================================================
+const SCRIPT = [
+  { at:    0, action: 'intro' },
+  { at: 1800, action: 'tutorial-hand', cardIdx: 1, slot: 1, label: 'DRAG !' }, // skeleton bazooka
+  { at: 9000, action: 'tutorial-hand', cardIdx: 0, slot: 0, label: 'DRAG !' }, // orc
+  { at: 16000, action: 'freeplay' },
+  { at: 30000, action: 'forcewin' },
+  { at: 33000, action: 'endcard' },
+];
+
+// ============================================================
+// FRAME LOOP
+// ============================================================
+const cnv = document.getElementById('g');
+const ctx = cnv.getContext('2d');
+
+let lastT = performance.now();
+function loop(now) {
+  const dt = Math.min(64, now - lastT);
+  lastT = now;
+  state.T += dt;
+  state.t += dt;
+  state.scrollX += dt * 0.045;
+  state.tracksPhase += dt * 0.0009;
+  if (state.tracksPhase > 1) state.tracksPhase -= 1;
+
+  tickScript(dt);
+  updateGame(dt);
+  render();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ============================================================
+// SCRIPT TICKER
+// ============================================================
+function tickScript(dt) {
+  if (state.phase === 'intro' && state.showTapStart) return; // wait for tap
+  for (let i = state.scriptStep; i < SCRIPT.length; i++) {
+    const ev = SCRIPT[i];
+    if (state.T >= ev.at) {
+      runScriptEvent(ev);
+      state.scriptStep = i + 1;
+    } else break;
+  }
+}
+
+function runScriptEvent(ev) {
+  console.log(`[script] T=${state.T|0}ms → ${ev.action}`);
+  if (ev.action === 'intro') { /* noop */ }
+  else if (ev.action === 'tutorial-hand') {
+    state.phase = 'tutorial';
+    state.hand = { cardIdx: ev.cardIdx, slot: ev.slot, label: ev.label, t: 0 };
+  }
+  else if (ev.action === 'freeplay') {
+    state.phase = 'freeplay';
+    state.hand = null;
+  }
+  else if (ev.action === 'forcewin') {
+    state.phase = 'forcewin';
+    state.forcewinT = 0;
+    // Massive final blow on enemy
+    spawnExplosion(ENEMY.cx, 500, 'big');
+    for (let i=0; i<6; i++) {
+      state.chunks.push({
+        cx: ENEMY.cx + (Math.random()-0.5)*60,
+        cy: 480 + Math.random()*200,
+        t: -i * 0.05, dur: 1400, seed: 100+i,
+        opts: { width: 70, height: 80, vx: 80 + Math.random()*120, spinDir: Math.random()<0.5?-1:1, kind: i%2===0?'wall':'roof' }
+      });
+    }
+    state.enemy.hp = 0.001;
+    state.enemy.hpPct = 0;
+  }
+  else if (ev.action === 'endcard') {
+    state.phase = 'endcard';
+    state.endcardFadeIn = 0;
+    SND.music.volume = 0.18; // duck audio for CTA
+  }
+}
+
+// ============================================================
+// GAME UPDATE
+// ============================================================
+function updateGame(dt) {
+  // Auto-tick player units
+  for (const u of state.units) {
+    if (state.T - u.lastShotAt > u.cooldown && state.phase !== 'endcard' && state.phase !== 'intro') {
+      u.lastShotAt = state.T;
+      const sx = PLAYER_SLOTS[u.slot].x + 28;
+      const sy = PLAYER_SLOTS[u.slot].y - 8;
+      const tx = ENEMY.cx + (Math.random()-0.5)*80;
+      const ty = 470 + (Math.random()-0.5)*120;
+      const dur = 700;
+      const damage = 8 + (Math.random()*10|0);
+      const big = Math.random() < 0.18 || damage > 14;
+      state.projectiles.push({ sx, sy, tx, ty, t:0, dur, kind: u.weapon === 'BAZOOKA' ? 'rocket' : 'bomb', seed: (state.T*0.31|0), damage, big });
+      playSfx();
+    }
+  }
+
+  // Enemy "fires back" — scripted enemy damage on player
+  if (state.phase === 'tutorial' || state.phase === 'freeplay') {
+    state.enemy._lastShotAt = state.enemy._lastShotAt || 0;
+    if (state.T - state.enemy._lastShotAt > 1700) {
+      state.enemy._lastShotAt = state.T;
+      const sx = ENEMY.cx - 10;
+      const sy = 450;
+      const tx = PLAYER.cx + (Math.random()-0.5)*80;
+      const ty = 480 + (Math.random()-0.5)*120;
+      state.projectiles.push({ sx, sy, tx, ty, t:0, dur:800, kind:'rocket', seed:(state.T*0.43|0), damage: 5 + (Math.random()*8|0), big:false, fromEnemy:true });
+    }
+  }
+
+  // Tick projectiles
+  for (let i = state.projectiles.length - 1; i >= 0; i--) {
+    const p = state.projectiles[i];
+    p.t += dt / p.dur;
+    if (p.t >= 1) {
+      // Impact
+      const big = !!p.big;
+      spawnExplosion(p.tx, p.ty, big ? 'big' : 'small');
+      const dmg = p.damage;
+      const dmgOpts = { color: 'white', critical: big };
+      if (p.fromEnemy) {
+        state.player.hp = Math.max(0.30, state.player.hp - dmg/200); // never die in ad
+      } else {
+        const oldHp = state.enemy.hp;
+        // Don't reduce below 0.10 in tutorial/freeplay; forcewin script handles final blow
+        state.enemy.hp = Math.max(0.10, state.enemy.hp - dmg/110);
+        // Trigger chunks at hp thresholds
+        if (oldHp > 0.66 && state.enemy.hp <= 0.66) spawnChunkBurst(ENEMY.cx, 540, 2);
+        if (oldHp > 0.33 && state.enemy.hp <= 0.33) spawnChunkBurst(ENEMY.cx, 540, 3);
+      }
+      state.damages.push({ x: p.tx, y: p.ty - 18, t:0, dur:700, value: dmg, opts: dmgOpts });
+      if (big && Math.random() < 0.6) {
+        state.cracks.push({ x: p.tx + (Math.random()-0.5)*120, y: 760 + Math.random()*30, seed: (state.T*0.71|0) });
+      }
+      state.projectiles.splice(i, 1);
+    }
+  }
+
+  // Tick explosions
+  for (let i = state.explosions.length - 1; i >= 0; i--) {
+    const e = state.explosions[i];
+    e.t += dt / e.dur;
+    if (e.t >= 1) state.explosions.splice(i, 1);
+  }
+
+  // Tick chunks
+  for (let i = state.chunks.length - 1; i >= 0; i--) {
+    const c = state.chunks[i];
+    c.t += dt / c.dur;
+    if (c.t >= 1) state.chunks.splice(i, 1);
+  }
+
+  // Tick damage texts
+  for (let i = state.damages.length - 1; i >= 0; i--) {
+    const d = state.damages[i];
+    d.t += dt / d.dur;
+    if (d.t >= 1) state.damages.splice(i, 1);
+  }
+
+  // Update derived %
+  state.player.hpPct = Math.round(state.player.hp * 100);
+  state.enemy.hpPct = Math.round(state.enemy.hp * 100);
+
+  // Forcewin tick
+  if (state.phase === 'forcewin') state.forcewinT += dt;
+
+  // Endcard fade
+  if (state.phase === 'endcard') state.endcardFadeIn = Math.min(1, state.endcardFadeIn + dt/300);
+
+  // Hand cursor pulse
+  if (state.hand) state.hand.t = (state.hand.t || 0) + dt;
+}
+
+function spawnExplosion(x, y, kind) {
+  state.explosions.push({ x, y, t:0, dur: kind === 'big' ? 600 : 400, kind, seed: (state.T*0.17|0) });
+}
+function spawnChunkBurst(cx, cy, n) {
+  for (let i = 0; i < n; i++) {
+    state.chunks.push({
+      cx: cx + (Math.random()-0.5)*40, cy: cy + (Math.random()-0.5)*30,
+      t: 0, dur: 1200, seed: 50 + i,
+      opts: { width: 50 + (Math.random()*20|0), height: 56, vx: 60 + Math.random()*100, spinDir: Math.random()<0.5?-1:1, kind: Math.random()<0.5?'wall':'roof' }
+    });
+  }
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // 1) parallax sky+hills+ground (synthetic green palette)
+  if (typeof drawParallaxGreen === 'function') drawParallaxGreen(ctx, 0, 0, W, H, state.scrollX);
+  else { ctx.fillStyle = '#9CC98B'; ctx.fillRect(0,0,W,H); }
+
+  // 2) ground cracks
+  for (const c of state.cracks) drawGroundCrack(c.x, c.y, c.seed);
+
+  // 3) tracks under each castle
+  drawTracks(ctx, PLAYER.cx - 50, PLAYER.baseY + 40, 110, 38, state.tracksPhase);
+  drawTracks(ctx, PLAYER.cx + 50, PLAYER.baseY + 40, 110, 38, state.tracksPhase);
+  drawTracks(ctx, ENEMY.cx - 50, ENEMY.baseY + 40, 110, 38, state.tracksPhase);
+  drawTracks(ctx, ENEMY.cx + 50, ENEMY.baseY + 40, 110, 38, state.tracksPhase);
+
+  // 4) castles (PNG + damaged overlay via drawCastle)
+  const playerW = 731 * PLAYER.scale, playerH = 958 * PLAYER.scale;
+  const enemyW  = 731 * ENEMY.scale,  enemyH  = 958 * ENEMY.scale;
+  drawCastle(ctx, PLAYER.cx, PLAYER.baseY + 40, playerW, playerH, state.player.hp, { side: 'blue', t: state.T, seed: 7 });
+  // Forcewin tilt on enemy
+  let enemyTiltExtra = 0;
+  if (state.phase === 'forcewin' || state.phase === 'endcard') {
+    enemyTiltExtra = Math.min(0.5, state.forcewinT / 1200) * 0.6;  // up to ~35°
+  }
+  ctx.save();
+  ctx.translate(ENEMY.cx, ENEMY.baseY + 40);
+  ctx.rotate(enemyTiltExtra);
+  drawCastle(ctx, 0, 0, enemyW, enemyH, state.enemy.hp, { side: 'red', t: state.T, seed: 13 });
+  ctx.restore();
+
+  // 5) units on player slots — monster PNG + weapon PNG
+  for (const u of state.units) {
+    const slot = PLAYER_SLOTS[u.slot];
+    drawUnit(slot.x, slot.y, u);
+  }
+
+  // 6) projectiles
+  for (const p of state.projectiles) {
+    drawProjectile(ctx, p.sx, p.sy, p.tx, p.ty, p.t, p.seed, p.kind);
+  }
+
+  // 7) chunks
+  for (const c of state.chunks) {
+    if (c.t < 0) continue;
+    drawChunk(ctx, c.cx, c.cy, c.t, c.seed, c.opts);
+  }
+
+  // 8) explosions
+  for (const e of state.explosions) {
+    drawExplosion(ctx, e.x, e.y, e.t, e.seed, e.kind);
+  }
+
+  // 9) damage texts
+  for (const d of state.damages) {
+    drawDamage(ctx, d.x, d.y, d.t, d.value, d.opts);
+  }
+
+  // 10) HUD top
+  drawHud(ctx, 0, 0, W, HUD_H, {
+    playerHp: state.player.hp, enemyHp: state.enemy.hp,
+    playerPct: state.player.hpPct, enemyPct: state.enemy.hpPct
+  });
+
+  // 11) deck bottom (only during play phases, not during endcard)
+  if (state.phase !== 'endcard' && state.phase !== 'forcewin') {
+    drawDeckBottom();
+  }
+
+  // 12) drag preview
+  if (state.drag) {
+    const card = state.deck[state.drag.cardIdx];
+    if (card && !card.placed) {
+      drawDragGhost(state.drag.x, state.drag.y, card.kind);
+    }
+  }
+
+  // 13) hand cursor (tutorial)
+  if (state.hand && !state.drag) {
+    drawHandCursor();
+  }
+
+  // 14) intro overlay
+  if (state.phase === 'intro' && state.showTapStart) {
+    drawIntroOverlay();
+  }
+
+  // 15) endcard
+  if (state.phase === 'endcard') {
+    drawEndcardOverlay();
+  }
+}
+
+// ---- helpers
+function drawUnit(x, y, u) {
+  const portrait = IMG[u.kind.toUpperCase()];
+  const wpn = IMG[u.weapon];
+  if (!portrait || !portrait.complete) return;
+  const size = 64;
+  ctx.drawImage(portrait, x - size/2, y - size, size, size);
+  if (wpn && wpn.complete) {
+    const ww = 56, wh = wpn.naturalHeight / wpn.naturalWidth * ww;
+    ctx.drawImage(wpn, x + 6, y - size*0.7, ww, wh);
+  }
+}
+
+function drawDragGhost(x, y, kind) {
+  const portrait = IMG[kind.toUpperCase()];
+  if (!portrait || !portrait.complete) return;
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.drawImage(portrait, x - 40, y - 80, 80, 80);
+  // glow
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#ff3d8a';
+  ctx.beginPath(); ctx.arc(x, y - 40, 50, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawDeckBottom() {
+  // Black background strip
+  ctx.fillStyle = 'rgba(22,8,32,0.35)';
+  ctx.fillRect(0, DECK_Y - 8, W, H - DECK_Y + 8);
+  for (let i = 0; i < 3; i++) {
+    const card = state.deck[i];
+    let st = 'idle';
+    if (card.placed) st = 'cooldown';
+    else if (state.drag && state.drag.cardIdx === i) st = 'dragging';
+    else if (state.hand && state.hand.cardIdx === i) st = 'hover';
+    drawCard(ctx, CARD_X[i], DECK_Y, CARD_W, CARD_H, { kind: card.kind, state: st, cooldownT: card.placed ? 1 : 0 });
+  }
+}
+
+function drawHandCursor() {
+  if (!state.hand) return;
+  const i = state.hand.cardIdx;
+  const cx = CARD_X[i] + CARD_W/2;
+  const cy = DECK_Y + CARD_H/2;
+  const pulse = 1 + 0.08 * Math.sin(state.hand.t * 0.008);
+  // Hand pointer
+  ctx.save();
+  ctx.translate(cx + 30, cy + 20);
+  ctx.scale(pulse, pulse);
+  // pointing finger (simplified)
+  ctx.fillStyle = '#fce8b6';
+  ctx.strokeStyle = '#160820';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -28);
+  ctx.lineTo(-18, 30);
+  ctx.lineTo(-32, 32);
+  ctx.lineTo(-26, 0);
+  ctx.lineTo(-12, -24);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // thumb
+  ctx.beginPath();
+  ctx.arc(-15, -12, 7, 0, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+  // label "DRAG !"
+  if (state.hand.label) {
+    ctx.save();
+    ctx.translate(cx, cy - CARD_H/2 - 30);
+    ctx.font = '900 italic 26px "Arial Black", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 6;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#160820';
+    ctx.strokeText(state.hand.label, 0, 0);
+    ctx.fillStyle = '#ffeb3b';
+    ctx.fillText(state.hand.label, 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawIntroOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(22,8,32,0.55)';
+  ctx.fillRect(0, 0, W, H);
+  // pulsating "TAP TO START"
+  const t = state.T * 0.005;
+  const pulse = 1 + 0.06 * Math.sin(t);
+  ctx.translate(W/2, H/2);
+  ctx.scale(pulse, pulse);
+  ctx.font = '900 italic 56px "Arial Black", Impact, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 10;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#160820';
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeText('TAP TO START', 0, 0);
+  ctx.fillText('TAP TO START', 0, 0);
+  ctx.restore();
+}
+
+function drawEndcardOverlay() {
+  // Use frame_55s.jpg as background
+  if (ENDCARD_IMG.complete) {
+    ctx.save();
+    ctx.globalAlpha = state.endcardFadeIn;
+    // cover-fit
+    const iw = ENDCARD_IMG.naturalWidth, ih = ENDCARD_IMG.naturalHeight;
+    const ar = iw/ih, tar = W/H;
+    let dw, dh, dx, dy;
+    if (ar > tar) { dh = H; dw = dh * ar; dx = (W - dw)/2; dy = 0; }
+    else { dw = W; dh = dw / ar; dx = 0; dy = (H - dh)/2; }
+    ctx.drawImage(ENDCARD_IMG, dx, dy, dw, dh);
+    // pink-violet gradient veil
+    ctx.fillStyle = 'rgba(22,8,32,0.25)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+  // CTA button overlay (use drawCtaButton from end-card showcase)
+  ctx.save();
+  ctx.globalAlpha = state.endcardFadeIn;
+  const rect = getCtaRect(0, 0, W, H);
+  drawCtaButton(ctx, rect, 'PLAY NOW', state.T);
+  state._ctaRect = rect; // for input hit-testing
+  ctx.restore();
+}
+
+// Ground crack — small zigzag in dark
+function drawGroundCrack(x, y, seed) {
+  const r = rng(seed);
+  ctx.save();
+  ctx.strokeStyle = '#160820';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  let cx = x, cy = y;
+  ctx.moveTo(cx, cy);
+  for (let i = 0; i < 5; i++) {
+    cx += (r() - 0.5) * 18;
+    cy += 6 + r() * 6;
+    ctx.lineTo(cx, cy);
+  }
+  ctx.stroke();
+  // small offshoot
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y + 10);
+  ctx.lineTo(x - 8 + (r()-0.5)*8, y + 18);
+  ctx.lineTo(x - 14 + (r()-0.5)*8, y + 26);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+function clientToCanvas(e) {
+  const rect = cnv.getBoundingClientRect();
+  const px = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const py = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+  return { x: px * (W / rect.width), y: py * (H / rect.height) };
+}
+
+function onPointerDown(e) {
+  e.preventDefault();
+  const p = clientToCanvas(e);
+
+  // intro tap → start (reset T so SCRIPT timing is relative to tap)
+  if (state.phase === 'intro' && state.showTapStart) {
+    state.showTapStart = false;
+    state.T = 0;
+    state.scriptStep = 0;
+    state.phase = 'intro'; // SCRIPT will progress now
+    try { SND.music.play(); } catch(err){}
+    return;
+  }
+  // endcard tap → install
+  if (state.phase === 'endcard') {
+    const r = state._ctaRect;
+    if (r) window.Voodoo.playable.redirectToInstallPage();
+    return;
+  }
+  // card drag start
+  if (state.phase === 'tutorial' || state.phase === 'freeplay') {
+    for (let i = 0; i < 3; i++) {
+      if (state.deck[i].placed) continue;
+      if (p.x >= CARD_X[i] && p.x <= CARD_X[i] + CARD_W && p.y >= DECK_Y && p.y <= DECK_Y + CARD_H) {
+        state.drag = { cardIdx: i, x: p.x, y: p.y };
+        return;
+      }
+    }
+  }
+}
+
+function onPointerMove(e) {
+  if (!state.drag) return;
+  e.preventDefault();
+  const p = clientToCanvas(e);
+  state.drag.x = p.x;
+  state.drag.y = p.y;
+}
+
+function onPointerUp(e) {
+  if (!state.drag) return;
+  e.preventDefault();
+  const p = clientToCanvas(e);
+  // find nearest free slot within range
+  let bestSlot = -1, bestDist = 110*110;
+  for (let i = 0; i < PLAYER_SLOTS.length; i++) {
+    if (PLAYER_SLOTS[i].taken !== null) continue;
+    const dx = PLAYER_SLOTS[i].x - p.x;
+    const dy = PLAYER_SLOTS[i].y - p.y;
+    const d = dx*dx + dy*dy;
+    if (d < bestDist) { bestDist = d; bestSlot = i; }
+  }
+  if (bestSlot >= 0) {
+    placeUnit(state.drag.cardIdx, bestSlot);
+  }
+  state.drag = null;
+  // dismiss hand if user used the targeted card
+  if (state.hand && state.deck[state.hand.cardIdx].placed) state.hand = null;
+}
+
+function placeUnit(cardIdx, slotIdx) {
+  const card = state.deck[cardIdx];
+  if (!card || card.placed) return;
+  card.placed = true;
+  PLAYER_SLOTS[slotIdx].taken = cardIdx;
+  state.units.push({
+    kind: card.kind, slot: slotIdx, weapon: card.weapon,
+    cooldown: card.weapon === 'BAZOOKA' ? 800 : 1300,  // skeleton bazooka shoots faster (rafale)
+    lastShotAt: state.T - 600,
+    alive: true,
+  });
+  playSfx();
+}
+
+// Wire events (pointer + touch)
+cnv.addEventListener('pointerdown', onPointerDown);
+cnv.addEventListener('pointermove', onPointerMove);
+cnv.addEventListener('pointerup', onPointerUp);
+cnv.addEventListener('pointercancel', onPointerUp);
+cnv.addEventListener('touchstart', onPointerDown, { passive: false });
+cnv.addEventListener('touchmove', onPointerMove, { passive: false });
+cnv.addEventListener('touchend', onPointerUp, { passive: false });
+
+})(); // end IIFE
+</script>
+</body></html>
