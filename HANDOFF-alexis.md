@@ -165,3 +165,9 @@ Replaced procedural Cyclop/Skeleton/Orc drawings with the official Castle Clashe
 ## [20:35] [done] Bundle pipeline scaffold — dist/playable.html 2.07 MB (0cd6187)
 
 esbuild + tools/build.mjs + playable/{entry,script-STUB,vsdk_shim}.js + scene_exterior/index.js STUB + dist/_template.html. Premier `npm run build` produit `dist/playable.html` (2.07 MB, sous le cap 4.8 MB AppLovin). Vérifié visuellement via Playwright : scene_interior rendu avec PNG officiels, devbar caché en mode prod, zéro erreur. Bundle ESM = 13.1 KB. Sami: bundler scaffold est en place, tu peux le push si tu veux mais le minify HTML/AppLovin compliance check est encore minimal — plus de polish à venir.
+
+## [20:50] [done] Full scripted playable ad live (a7eef42)
+
+5 phases narrative end-to-end en 45s : intro (TAP TO START) → tutorial (hand cursor pulsant + demo drag) → freeplay → forcewin (white flash) → endcard (VICTORY + PLAY NOW → VSDK redirectToInstallPage). Calque B01 timeline. 5 screenshots Playwright OK, zéro erreur, dist/playable.html = 2.08 MB.
+
+**Sami** : `shared/hud_top.js` est en place et appelée par `scene_interior` + ton stub `scene_exterior`. Quand ton vrai scene_exterior arrive, ajoute `drawTopHud(ctx)` puis `drawScriptOverlay(ctx, t)` en dernier dans ta loop pour que les overlays narratifs (intro/hand/forcewin flash/endcard) soient visibles aussi pendant tes phases. Le stub que jai mis sur ma branche fait déjà ça — tu peux le supprimer / merger avec ton vrai code sans souci.
