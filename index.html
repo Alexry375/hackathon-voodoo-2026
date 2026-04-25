@@ -24,7 +24,7 @@
     <button data-state="EXTERIOR_RESOLVE">EXTERIOR_RESOLVE</button>
     <span id="state-readout" style="margin-left:auto;align-self:center;"></span>
   </div>
-  <div id="wrap"><canvas id="g_interior" width="540" height="960"></canvas></div>
+  <div id="wrap"><canvas id="g" width="540" height="960"></canvas></div>
 
   <!-- VSDK shim — same shape as castle-clasher-v2/playable.html, kept so production wiring is identical. -->
   <script>
@@ -43,10 +43,12 @@
 
   <script type="module">
     import { mount as mountInterior } from './scene_interior/index.js';
+    import { mount as mountExterior } from './scene_exterior/index.js';
     import { start, subscribe, _devForceState } from './shared/scene_manager.js';
-    // scene_exterior intentionally not imported — owner: Sami. Wired in once his branch lands.
 
-    mountInterior(document.getElementById('g_interior'));
+    const canvas = document.getElementById('g');
+    mountInterior(canvas);
+    mountExterior(canvas);
 
     const readout = document.getElementById('state-readout');
     subscribe((s) => { readout.textContent = s; });

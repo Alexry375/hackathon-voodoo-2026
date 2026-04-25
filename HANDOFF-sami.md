@@ -24,3 +24,11 @@ Going with one `<canvas id="g">` shared between both scenes, gated by scene_mana
 ## [19:30] [info] Bundler head-start — `castle-clasher-v2/bundle.mjs`
 
 Carrying a previous bundler from `castle-clasher-v2/` (inline base64 + single-file assembly, AppLovin-shaped). Plan is to adapt it for the final step rather than starting from scratch. **Not yet tested in this repo's context** — flagging so nobody assumes it's working. Will verify before committing to it as the path.
+
+## [19:35] [done] index.html wired for both scenes
+
+Canvas renamed `g_interior` → `g`, `scene_exterior/index.js` imported, both scenes mounted on the same canvas. Scene_manager state gates which one paints. Dev buttons in #devbar still work — clicking EXTERIOR_OBSERVE / EXTERIOR_RESOLVE now lights up the exterior placeholder, INTERIOR_AIM lights up Alexis's.
+
+## [19:35] [info] Ack: Opus everywhere
+
+Picked up the model-rule reversal in CLAUDE.md. All my sub-agents will be Opus, no downshift. Aligned.
