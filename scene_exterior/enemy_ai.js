@@ -18,6 +18,7 @@ import * as vfx from './vfx.js';
  *   onComplete: () => void,
  *   completed: boolean,
  *   cooldownMs: number,
+ *   castleOnly: boolean,
  * }} */
 let wave = null;
 
@@ -59,6 +60,7 @@ export function startEnemyAttack({ onComplete, intensity = 'normal' }) {
     onComplete,
     completed: false,
     cooldownMs: 400,
+    castleOnly: intensity === 'opening',
   };
 }
 
@@ -66,9 +68,10 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 
 /**
  * @param {{w:number,h:number}} viewport
+ * @param {boolean} castleOnly  when true, never target units (opening wave)
  * @returns {Projectile}
  */
-function spawnProjectile(_viewport) {
+function spawnProjectile(_viewport, castleOnly = false) {
   // Q1 (Gemini): crows enter from the right edge of the screen flying right→left
   // with a slight downward tilt. Camera is panned left (blue castle in view) so
   // the red castle is off-screen right — crows emerge from that right edge.
@@ -83,11 +86,12 @@ function spawnProjectile(_viewport) {
   const vx = (tx - x) / flightMs; // always negative (right→left)
   const vy = (ty - y) / flightMs;
 
-  // 30% of impacts target a unit floor — but only if a unit is alive. Otherwise wall.
+  // 30% of normal-wave impacts target a unit. Opening wave always hits the castle
+  // so the player has their full roster intact on the first turn.
   const alive = aliveUnits();
   let kind = /** @type {'castle' | 'unit'} */ ('castle');
   let unitId = null;
-  if (alive.length > 0 && Math.random() < 0.3) {
+  if (!castleOnly && alive.length > 0 && Math.random() < 0.3) {
     kind = 'unit';
     unitId = alive[Math.floor(Math.random() * alive.length)].id;
   }
@@ -132,7 +136,7 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
   if (wave.pendingSpawns > 0) {
     wave.spawnTimerMs -= dt;
     if (wave.spawnTimerMs <= 0) {
-      wave.projectiles.push(spawnProjectile(viewport));
+      wave.projectiles.push(spawnProjectile(viewport, wave.castleOnly));
       wave.pendingSpawns -= 1;
       wave.spawnTimerMs = 300;
     }
