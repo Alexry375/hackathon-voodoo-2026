@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,minimal-ui,minimum-scale=1">
+  <title>Castle Clashers — dev</title>
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden;
+                 touch-action:none; -webkit-user-select:none; user-select:none; }
+    #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+    canvas { display:block; touch-action:none; max-width:100vw; max-height:100vh;
+             aspect-ratio:540/960; background:#0a0a0a; }
+    #devbar { position:fixed; top:8px; left:8px; right:8px; display:flex; gap:8px;
+              font:12px/1.2 sans-serif; color:#fff; pointer-events:auto; z-index:10; }
+    #devbar button { background:#222; color:#fff; border:1px solid #555; border-radius:4px;
+                     padding:4px 8px; cursor:pointer; font:inherit; }
+    #devbar button:hover { background:#333; }
+  </style>
+</head>
+<body>
+  <div id="devbar">
+    <button data-state="EXTERIOR_OBSERVE">EXTERIOR_OBSERVE</button>
+    <button data-state="INTERIOR_AIM">INTERIOR_AIM</button>
+    <button data-state="EXTERIOR_RESOLVE">EXTERIOR_RESOLVE</button>
+    <span id="state-readout" style="margin-left:auto;align-self:center;"></span>
+  </div>
+  <div id="wrap"><canvas id="g_interior" width="540" height="960"></canvas></div>
+
+  <!-- VSDK shim — same shape as castle-clasher-v2/playable.html, kept so production wiring is identical. -->
+  <script>
+  (function(){
+    const subs = {};
+    const playable = {
+      win() { console.log('[VSDK] win'); _emit('win'); },
+      lose() { console.log('[VSDK] lose'); _emit('lose'); },
+      redirectToInstallPage() { console.log('[VSDK] redirectToInstallPage'); _emit('redirect'); },
+      on(event, cb) { (subs[event] = subs[event] || []).push(cb); }
+    };
+    function _emit(ev) { (subs[ev] || []).forEach(cb => { try { cb(); } catch(e){ console.error(e); } }); }
+    Object.defineProperty(window, 'Voodoo', { value: { playable }, writable:false, enumerable:true, configurable:false });
+  })();
+  </script>
+
+  <script type="module">
+    import { mount as mountInterior } from './scene_interior/index.js';
+    import { start, subscribe, _devForceState } from './shared/scene_manager.js';
+    // scene_exterior intentionally not imported — owner: Sami. Wired in once his branch lands.
+
+    mountInterior(document.getElementById('g_interior'));
+
+    const readout = document.getElementById('state-readout');
+    subscribe((s) => { readout.textContent = s; });
+
+    document.querySelectorAll('#devbar button').forEach(btn => {
+      btn.addEventListener('click', () => _devForceState(btn.dataset.state));
+    });
+
+    start();
+    _devForceState('INTERIOR_AIM'); // dev: jump straight into our scene
+  </script>
+</body>
+</html>
