@@ -13,3 +13,14 @@ castle-clasher-v2/node_modules/
 *.swp
 node_modules/
 dist/playable.html
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Pipeline runs — vidéos source + sandbox de l'agent restent locales
+input/*/input/*.mp4
+input/*/input/*.mov
+input/*/SANDBOX/
+# Note : input/<jeu>/shots/ reste committée pour que l'humain dev review l'avancement

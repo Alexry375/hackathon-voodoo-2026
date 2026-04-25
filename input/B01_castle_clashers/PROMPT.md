@@ -14,9 +14,10 @@ Construire `dist/playable.html` (single-file <5 MB, AppLovin/MRAID compliant) qu
 
 - **Stack imposée** : Canvas2D + ESM + esbuild → un seul HTML inline. Pas de framework. Voir [`reference/stack.md`](reference/stack.md).
 - **Pattern d'architecture** : scene-split + 3 events lockés. Voir [`reference/scene-split-pattern.md`](reference/scene-split-pattern.md).
-- **Outils dispos** : `tools/analyze_video.py` (Gemini Files API), ffmpeg, Playwright. Voir [`reference/tools-available.md`](reference/tools-available.md).
-- **Sandbox libre** : crée et organise `SANDBOX/` à ta guise pour scripts custom, extraits vidéo, prompts Gemini, screenshots, outputs. Convention suggérée : `SANDBOX/{scripts,extracts,frames,prompts,outputs}/`.
-- **Variables d'environnement requises** : `GEMINI_API_KEY` (à demander à l'utilisateur si absente).
+- **Outils dispos** : `tools/analyze_video.py` (Gemini Files API), ffmpeg, Playwright, ImageMagick. Voir [`reference/tools-available.md`](reference/tools-available.md).
+- **Sandbox libre** : crée et organise `SANDBOX/` à ta guise (gitignored). Convention suggérée : `SANDBOX/{scripts,extracts,frames,prompts,outputs,anchor,fanout}/`.
+- **Suivi visuel par l'humain** : tu alimentes `shots/` au fil de l'eau (commitée). Convention obligatoire — voir [`pipeline/07-shots-convention.md`](pipeline/07-shots-convention.md).
+- **Économie Gemini — CAP DUR : 3 appels max sur tout le run** : la clé API Voodoo officielle est down. La clé fallback (`GOOGLE_API_KEY` dans `.env` à la racine du repo) est une clé perso. **Tu n'as droit qu'à 3 appels `analyze_video.py` sur l'ensemble du run pipeline**. Choisis-les avec un soin extrême : ils servent à trancher les divergences les plus structurantes (typiquement : structure de boucle de gameplay, identité d'un mob ambigu, mécanique d'attaque ennemie). Privilégie partout ailleurs la lecture des descriptions Antoine + ton jugement.
 
 ---
 
@@ -31,6 +32,7 @@ Travaille ces étapes **séquentiellement**. Lis chacun de ces fichiers au momen
 5. [`pipeline/04-implementation.md`](pipeline/04-implementation.md) — scaffold du jeu, scene-split, contrat events
 6. [`pipeline/05-playwright-loop.md`](pipeline/05-playwright-loop.md) — boucle visuelle : screenshot vs frame de référence
 7. [`pipeline/06-bundle-and-deliver.md`](pipeline/06-bundle-and-deliver.md) — esbuild → `dist/playable.html` + check compliance
+8. [`pipeline/07-shots-convention.md`](pipeline/07-shots-convention.md) — **transverse** : conventions du dossier `shots/` à alimenter à chaque étape pour suivi humain
 
 ---
 

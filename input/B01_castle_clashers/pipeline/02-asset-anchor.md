@@ -78,11 +78,23 @@ Une fois l'asset anchor satisfaisant, écris `SANDBOX/anchor/DA-LOCKED.md` qui s
 - Animations : <règles d'idle, bob, rotation — si applicable>
 ```
 
-## 2.5. Sortie attendue
+## 2.5. Suivi visuel pour l'humain (`shots/`)
+
+Voir [`07-shots-convention.md`](07-shots-convention.md). Pour cette étape **spécifiquement**, tu dois alimenter `input/<jeu>/shots/02-anchor/` avec :
+
+- **Toutes** tes itérations du anchor (`<asset>_iter1.png`, `<asset>_iter2.png`, ..., `<asset>_iterN_FINAL.png`) — ne supprime rien, c'est le fil de progression
+- La frame de référence vidéo (`<asset>_ref.png`)
+- Un compare côte-à-côte final (`<asset>_compare_FINAL.png`) — voir 07.
+
+Ajoute une entrée dans `shots/_index.md` à la fin de cette étape.
+
+## 2.6. Sortie attendue
 
 - `SANDBOX/anchor/<asset>.js` : code de rendu propre, exportable, réutilisable tel quel dans le code final
 - `SANDBOX/anchor/DA-LOCKED.md` : la fiche brief
 - `SANDBOX/anchor/<asset>-final.png` : screenshot de validation
+- `shots/02-anchor/*` peuplé selon §2.5
+- `shots/_index.md` mis à jour
 - **Commit jalon** : `pipeline(02): asset anchor done — DA locked`
 
 ---

@@ -10,7 +10,9 @@
 
 **Dépendance Python** : `google-genai` (`pip install --user google-genai`)
 
-**Variable d'env** : `GEMINI_API_KEY` (ou `GOOGLE_API_KEY`)
+**Variable d'env** : `GEMINI_API_KEY` (ou `GOOGLE_API_KEY`). Déjà set dans `.env` à la racine du repo (gitignored). Pour la pickup automatiquement : `set -a; source .env; set +a` avant de lancer le script. Ou en CLI : `GOOGLE_API_KEY=$(grep GOOGLE_API_KEY .env | cut -d= -f2) python tools/analyze_video.py ...`.
+
+**CAP DUR : 3 appels max sur tout le run pipeline.** Voir [`PROMPT.md`](../PROMPT.md). Cette clé est une clé perso de l'utilisateur, pas une clé Voodoo officielle. Économise.
 
 **Usage** :
 
@@ -35,6 +37,22 @@ python tools/analyze_video.py SANDBOX/extracts/seg.mp4 \
 **Source** : copié depuis le repo parent.
 
 C'est le prompt à 2 passes (chronologique seconde-par-seconde + synthèse game design 14 sections). Utilisé par défaut par `analyze_video.py`. Tu peux écrire des prompts focaux plus courts pour des checks ciblés.
+
+## ImageMagick (convert / montage)
+
+Pour les compares côte-à-côte de `shots/`. Voir [`pipeline/07-shots-convention.md`](../pipeline/07-shots-convention.md). Commandes types :
+
+```bash
+# Côte à côte simple
+convert ref.png rendu.png +append compare.png
+
+# Empilé verticalement
+convert ref.png rendu.png -append compare_vertical.png
+
+# Avec labels (joli)
+montage -label "Ref" ref.png -label "Playable" rendu.png \
+    -tile 2x1 -geometry +10+10 -background '#222' -fill white compare.png
+```
 
 ## ffmpeg
 

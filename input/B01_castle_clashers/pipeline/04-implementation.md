@@ -148,12 +148,24 @@ drawScriptOverlay(ctx, performance.now() / 1000);
 
 Sans ça, intro overlay / hand cursor / endcard ne s'affichent pas.
 
-## 4.8. Sortie attendue
+## 4.8. Suivi visuel pour l'humain (`shots/`)
+
+À la fin de chaque sous-étape qui produit du visible (4c, 4d, 4e, 4f), prends 1-2 screenshots Playwright et copie-les dans `input/<jeu>/shots/04-impl/` :
+
+- `04c_scene_a_first_render.png` — scène A toute seule
+- `04d_scene_b_first_input.png` — scène B avec input visible
+- `04e_full_loop.png` — capture pendant la résolution complète (action joueur en cours)
+- `04f_scripted_phase_<X>.png` — capture par phase scripted (intro / tutorial / freeplay / forcewin / endcard)
+
+Mets à jour `shots/_index.md` à chaque sous-étape commit.
+
+## 4.9. Sortie attendue
 
 - Tous les fichiers de la structure §4.1 existent et compilent
 - `npm run dev` + `index.html` → free-play jouable
 - `npm run dev` + `index.html?mode=prod` → 5-phase narrative joue
 - `npm run build` → `dist/playable.html` se génère sans erreur, < 5 MB
+- `shots/04-impl/*` peuplé selon §4.8
 - **Commits** : 6 commits jalons (un par sous-étape)
 
 ---

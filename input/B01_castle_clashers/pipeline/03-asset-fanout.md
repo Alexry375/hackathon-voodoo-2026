@@ -103,12 +103,23 @@ Quand tous les sub-agents ont rendu :
 3. **Re-dispatche** un sub-agent ciblé pour les assets non conformes (ne le fais pas toi-même, c'est plus rapide en parallèle)
 4. Une fois tout conforme : copie les `SANDBOX/fanout/<asset>.js` vers leurs emplacements définitifs (cf. étape 4)
 
-## 3.6. Sortie attendue
+## 3.6. Suivi visuel pour l'humain (`shots/`)
+
+À la fin du fan-out, **toi** (pas les sub-agents — tu ne veux pas qu'ils écrivent dans `shots/` directement) tu produis dans `input/<jeu>/shots/03-fanout/` :
+
+- **Un compare par asset L2+** (`<asset>_compare.png`, format côte-à-côte réf vidéo / rendu) — voir 07.
+- Mets à jour `shots/_index.md` avec le tableau récap (asset / difficulté / itérations / compare).
+
+Pas besoin de mettre toutes les itérations intermédiaires des sub-agents (ça pollue) — juste le compare final par asset.
+
+## 3.7. Sortie attendue
 
 - `SANDBOX/fanout/inventory.md` à jour (status all done)
 - `SANDBOX/fanout/<asset>.js` × N
-- `SANDBOX/fanout/<asset>-iter*.png` (traces d'itération)
+- `SANDBOX/fanout/<asset>-iter*.png` (traces d'itération internes)
 - `SANDBOX/fanout/<asset>-NOTES.md` × N
+- `shots/03-fanout/<asset>_compare.png` × N (au moins pour les L2+)
+- `shots/_index.md` mis à jour
 - **Commit jalon** : `pipeline(03): asset fanout done — N assets produced`
 
 ---

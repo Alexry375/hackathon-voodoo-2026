@@ -37,11 +37,15 @@ Les descriptions Antoine sont **généralement bonnes mais pas infaillibles**. T
 
 ### Quand lancer Gemini
 
+**CAP DUR : 3 appels Gemini sur l'intégralité du run pipeline**. Choisis chaque appel comme un investissement précieux. Tu peux par exemple répartir : 1 sur la structure de boucle, 1 sur une mécanique ambiguë, 1 sur une vérification finale. Ou tout à l'étape 1 si les divergences crient fort. C'est ton choix.
+
 Lance un appel Gemini si **un de ces signaux** est présent :
 
-- Deux fichiers d'`input/` se contredisent sur un point structurant (mécanique de tir, structure du tour, comportement ennemi)
-- Une description te semble bizarre ou imprécise (ex: "depuis le bord gauche" sans indication de quoi est à gauche)
-- Tu hésites entre 2 interprétations qui changent l'architecture
+- Deux fichiers d'`input/` se contredisent sur un point **structurant** (mécanique de tir, structure du tour, comportement ennemi). Pas pour un détail visuel.
+- Une description te semble bizarre ou imprécise sur un point qui change ton architecture (ex: "depuis le bord gauche" sans indication de quoi est à gauche, qui change la direction d'attaque)
+- Tu hésites entre 2 interprétations qui changent l'architecture du jeu (et seulement dans ce cas-là)
+
+**Ne lance pas Gemini pour** : un détail de palette, l'identité exacte d'un mob (lis la description), une couleur de VFX, une trajectoire mineure. Pour ces points : tranche par toi-même avec ton jugement + frames extraites via ffmpeg + lecture frame par frame.
 
 ### Comment lancer Gemini
 

@@ -99,11 +99,30 @@ Pour des moments narratifs complexes (intro avec dramatique, climax forcewin), t
 
 Cette étape est lourde — utilise-la **uniquement** si la version visuelle n'est pas concluante.
 
-## 5.6. Sortie attendue
+## 5.6. Suivi visuel pour l'humain (`shots/`)
+
+C'est l'étape qui produit les compares les plus importants pour l'humain. Pour chaque timestamp clé / phase narrative, copie un compare côte-à-côte dans `input/<jeu>/shots/05-playwright/` :
+
+- `phase_intro_compare.png` (frame réf @ 0:00 | playable phase intro)
+- `phase_tutorial_compare.png`
+- `phase_freeplay_compare.png`
+- `phase_forcewin_compare.png`
+- `phase_endcard_compare.png`
+- + un par timestamp clé non-narratif si tu en as identifié (ex: `cycle1_aim_compare.png`, `cycle1_resolve_compare.png`)
+
+Mets à jour `shots/_index.md` avec le tableau récap (phase / frame réf / compare).
+
+## 5.7. Note sur l'appel Gemini optionnel
+
+Le re-appel Gemini section 5.5 compte dans le **cap dur de 3 appels Gemini** sur tout le run. Considère que tu en utilises typiquement déjà 1-2 à l'étape 1 — donc tu n'as **probablement plus de budget** ici. À utiliser uniquement si tu vois une mécanique manifestement cassée et que tu n'arrives pas à diagnostiquer à l'œil.
+
+## 5.8. Sortie attendue
 
 - `SANDBOX/frames-ref/*.png` : N frames extraites de la vidéo
 - `SANDBOX/frames-prod/*.png` : N screenshots du playable
 - `SANDBOX/frames-prod/diff-*.md` : pour chaque pair, le diff documenté
+- `shots/05-playwright/*` peuplé avec les compares finaux
+- `shots/_index.md` mis à jour
 - 0 écart bloquant résiduel sur l'ensemble
 - **Commit jalon** : `pipeline(05): visual loop done — N pairs validated`
 
