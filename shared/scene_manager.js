@@ -77,3 +77,6 @@ export function ready_for_player_input() {
 // Dev-only: bypass the state machine to render a specific scene. NEVER call from production code.
 /** @param {SceneState} s */
 export function _devForceState(s) { transition(s); }
+
+// Tooling hook: Playwright polls this to know when to fire shots.
+/** @type {any} */ (window).__sceneState = getState;

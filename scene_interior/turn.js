@@ -45,3 +45,6 @@ export function getActiveUnitId() {
 on('cut_to_interior', () => {
   cursor = (cursor + 1) % TURN_ORDER.length;
 });
+
+// Tooling hook: Playwright reads active floor to aim at the right unit.
+/** @type {any} */ (window).__getActiveFloor = getActiveFloor;
