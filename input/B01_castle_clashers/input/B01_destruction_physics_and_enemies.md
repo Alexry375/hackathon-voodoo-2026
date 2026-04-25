@@ -15,9 +15,9 @@ Voici une analyse de la vidéo axée sur les éléments demandés :
 *   **Apparition :** Lors d'impacts directs sur les murs (notamment visibles lors des dernières attaques de corbeaux sur le château bleu ou de missiles sur le château rouge), des chiffres rouges apparaissent à l'écran.
 *   **Comportement :** Ces indicateurs, formatés avec un signe négatif (par exemple, "-140" ou "-44"), jaillissent exactement du point d'impact de l'explosion. Ils flottent ensuite verticalement vers le haut pendant quelques instants avant de s'estomper.
 
-**3. Modèle de vol et d'attaque des corbeaux kamikazes**
-*   **Trajectoire et ciblage :** Des corbeaux noirs, reconnaissables à la traînée de fumée grise qu'ils laissent dans leur sillage, apparaissent de manière autonome depuis le bord gauche de l'écran. Leur trajectoire est systématiquement orientée vers le château bleu.
-*   **Attaque suicidaire :** Ils n'effectuent aucune manœuvre d'esquive ou d'attaque à distance. Leur seul mode d'action est de voler à toute vitesse pour s'écraser délibérément contre la structure du château bleu. À l'instant du choc, ils explosent, se détruisant eux-mêmes tout en infligeant des dégâts matériels importants à la forteresse. Ils attaquent de manière répétée, par petites vagues de deux ou trois individus.
+**3. Modèle de vol et d'attaque des corbeaux ennemis**
+*   **Trajectoire et ciblage :** Des corbeaux noirs, reconnaissables à la traînée de fumée grise qu'ils laissent dans leur sillage, sont **lancés par le château rouge à chaque tour ennemi** dans la boucle tour-par-tour, en miroir du tir balistique du joueur. Leur trajectoire est systématiquement orientée vers le château bleu, par vagues de deux qui se croisent ou se répartissent en cours de vol pour frapper deux points d'impact distincts.
+*   **Attaque suicidaire :** Ils n'effectuent aucune manœuvre d'esquive ou d'attaque à distance. Leur seul mode d'action est de voler à toute vitesse pour s'écraser délibérément contre la structure du château bleu. À l'instant du choc, ils explosent, se détruisant eux-mêmes tout en infligeant des dégâts matériels importants à la forteresse. Une vague de deux (parfois un seul à faible vie ennemie) est tirée à chaque tour ennemi.
 
 ---
 
