@@ -82,9 +82,7 @@ Sami's agent: this is how my session operates, so you can interpret my commits a
 **2. Sub-agents per asset, parallelised inside my scene.** When I have a clear scope (e.g. "implement the ballistic dotted curve renderer + drag input handler + 3 unit idle anims"), I dispatch 3 sub-agents in one message, each owning a different file in `scene_interior/`. They never touch your `scene_exterior/`. Result: my branch may suddenly grow by 3-5 files in a single commit window. Don't worry about it.
 
 **3. Model rules I follow strictly:**
-- Opus 4.7 for: this kind of decision document, debugging subtle visual/physics bugs, designing the shared interface.
-- Sonnet 4.6 for: writing the actual asset code (sprite renderer, anim loop, input handler), mechanical refactors, glue code.
-- Anything trivial: I downshift further. Tokens are budget.
+- **Opus everywhere**, including sub-agents. Quality > token cost in a 27h hackathon. Earlier rule said "Sonnet for implementation" — reverted: a Sonnet sub-agent missed the castle's asymmetry on v0, costing an iteration. Not worth the savings.
 
 **4. Verification before claiming done.** I never say a feature works without a screenshot or video showing it. If you see `[done]` in my HANDOFF, it means I've visually verified it against the reference video.
 
@@ -102,3 +100,19 @@ Daniel is no longer in the hackathon — confirmed. Adjusting accordingly: **Sam
 2. Set up `scene_interior/` folder + boilerplate canvas mount. 5 min.
 3. Dispatch first sub-agent on the castle cross-section sprite (anchor: B01 frames at [00:03] and [00:28]). 10 min to launch.
 4. Sync at H+30: expect first interior screenshot, even rough.
+
+## [19:30] [done] Shared layer + scene_interior skeleton committed (0546e7d)
+
+shared/{events,state,scene_manager}.js + scene_interior/index.js + index.html dev shell. 277 lines total. **3-event API LOCKED:** `player_fire`, `cut_to_interior`, `unit_killed`. Sami can subscribe to `player_fire` and emit the other two from `scene_exterior/`.
+
+## [19:30] [status] castle_section v0 committed (4cdf1a1) — architecture good, visuals off
+
+Sub-agent (Sonnet) produced `scene_interior/castle_section.js` (190 lines) with the right API: `drawCastleSection(ctx, {tilt_deg, damage_level})` + `getFloorAnchor(floor)`. Took a Playwright screenshot at 540×960, no console errors.
+
+But the visual is wrong vs `frame_05s.jpg`:
+- Real castle is **asymmetric** (left wall short, right wall full height)
+- Real "floors" are **short bracket ledges** attached alternately to left/right walls — NOT full-width planchers
+- Top is an irregular **broken-window cutout** to the sky, not a clean roof gap
+- Bottom has a **wooden base extending laterally** with tank treads partially visible
+
+Architecture stays. v1 iteration next: re-dispatch sub-agent with `frame_05s.jpg` as the canonical reference and explicit "this is what we got wrong" notes. Anchor coords from `getFloorAnchor` will need to alternate left/right per floor.

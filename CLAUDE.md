@@ -134,16 +134,16 @@ Draft from Sami's branch includes: `source_analysis`, `playable_candidates[]` wi
 
 | Task | Model | Reason |
 |---|---|---|
-| Planning, specs, architecture, brainstorm, deep code review | **Opus 4.7** | reasoning-heavy, used sparingly |
-| Pure implementation (writing an already-specced function) | **Sonnet 4.6** | fast, more than sufficient |
-| Minor edits, formatting, mechanical refactors | **Sonnet 4.6** or Haiku 4.5 | Opus is overkill |
+| Everything Claude Code, including sub-agents (planning, implementation, refactors) | **Opus** | quality > token cost in a 27h hackathon; visual / mechanic accuracy is hard to recover from later |
+| Trivial mechanical edits (rename, formatting) | Opus too — don't bother downshifting | overhead of switching > savings |
 | Video analysis (external LLM) | **Gemini 3.1 Pro Preview** | SOTA video understanding |
 | Image/sprite generation | **Scenario MCP** | tuned for mobile game assets |
 
+**Why Opus everywhere instead of Opus/Sonnet split:** for a hackathon-length project with strict visual fidelity, downshifting to Sonnet has bitten us once already (sub-agent missed asymmetry / ledge layout in the castle cross-section). The token saving doesn't compensate for the iteration cost. Default to Opus, only downshift if a task is genuinely trivial.
+
 **Anti-patterns:**
-- Using Opus to write HTML boilerplate → use Sonnet.
-- Letting Sonnet debug blindly if the bug is subtle → switch to Opus.
 - Running multiple Gemini analyses on the same video "to compare" → expensive; iterate on one report.
+- Spawning sub-agents with vague scope → they'll hallucinate. Always include reference frame paths and explicit "what to NOT do" notes.
 
 ---
 
