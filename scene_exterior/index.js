@@ -51,9 +51,30 @@ const muzzlePos = () => ({ x: CASTLE_X + MUZZLE_OFFSET.x, y: CASTLE_TOP_Y + MUZZ
 /** @type {'OURS'|'ENEMY'} */
 let view = 'OURS';
 
-/** Damage marks per side (don't bleed across views). */
-const dmg = { OURS: /** @type {{x:number,y:number,r:number}[]} */ ([]),
-              ENEMY: /** @type {{x:number,y:number,r:number}[]} */ ([]) };
+/** Damage marks per side (don't bleed across views). Each zone caches a
+ *  jagged polygon outline + crack rays so it doesn't shimmer between frames. */
+const dmg = { OURS: /** @type {{x:number,y:number,r:number,poly:[number,number][],cracks:[number,number][]}[]} */ ([]),
+              ENEMY: /** @type {{x:number,y:number,r:number,poly:[number,number][],cracks:[number,number][]}[]} */ ([]) };
+
+function _makeDamageZone(x, y, r) {
+  // Irregular polygon: 12 spokes around the centre with ±35% radius jitter.
+  const poly = /** @type {[number,number][]} */ ([]);
+  const N = 12;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 + Math.random() * 0.35;
+    const rr = r * (0.65 + Math.random() * 0.55);
+    poly.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  }
+  // 5-8 crack rays extending past the polygon edge.
+  const cracks = /** @type {[number,number][]} */ ([]);
+  const nC = 5 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < nC; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rr = r * (1.05 + Math.random() * 0.6);
+    cracks.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  }
+  return { x, y, r, poly, cracks };
+}
 
 /** Castle tilt angle (radians) for firing animation. */
 let tiltAngle = 0;
@@ -168,8 +189,13 @@ function startPlayerShot(payload) {
 
 // ── Cinematic tick (called each frame) ───────────────────────────────────────
 function _tick(now) {
-  // Tilt decays after firing
-  if (now > tiltUntil) tiltAngle = 0;
+  // Tilt eases back toward 0 over the last 60% of its window.
+  if (tiltUntil > 0) {
+    const total = 600;
+    const remain = tiltUntil - now;
+    if (remain <= 0) { tiltAngle = 0; tiltUntil = 0; }
+    else if (remain < total * 0.6) tiltAngle *= 0.86;
+  }
 
   // Step transitions
   if (step === 'fire' && now - stepT0 > 1200) {
@@ -229,10 +255,13 @@ function _tick(now) {
 }
 
 function _impactEnemy(at, d) {
-  dmg.ENEMY.push({ x: at.x, y: at.y, r: 50 + Math.random() * 14 });
+  dmg.ENEMY.push(_makeDamageZone(at.x, at.y, 50 + Math.random() * 14));
   state.hp_enemy_pct = Math.max(0, state.hp_enemy_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   shakeUntil = performance.now() + 360; shakeMag = 8;
+  // Recoil: castle tilts away from the impact point (impact came from left → tilt right).
+  tiltAngle = 0.06;
+  tiltUntil = performance.now() + 500;
   step = 'enemy_dwell';
   stepT0 = performance.now();
 }
@@ -249,10 +278,13 @@ function _emitCutToInterior() {
 // (the original _impactOurs handles incoming-opening differently).
 const _origImpactOurs = _impactOurs;
 function _impactOursDuringResolve(at, d) {
-  dmg.OURS.push({ x: at.x, y: at.y, r: 50 + Math.random() * 14 });
+  dmg.OURS.push(_makeDamageZone(at.x, at.y, 50 + Math.random() * 14));
   state.hp_self_pct = Math.max(30, state.hp_self_pct - d);  // never KO during ad
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   shakeUntil = performance.now() + 320; shakeMag = 7;
+  // Recoil: bomb came from top-right → tilt left.
+  tiltAngle = -0.06;
+  tiltUntil = performance.now() + 500;
   step = 'ours_dwell';
   stepT0 = performance.now();
 }
@@ -265,7 +297,7 @@ function _routeOursImpact(at, d) {
     _impactOursDuringResolve(at, d);
   } else {
     // opening incoming
-    dmg.OURS.push({ x: at.x, y: at.y, r: 55 });
+    dmg.OURS.push(_makeDamageZone(at.x, at.y, 55));
     state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
     floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
     shakeUntil = performance.now() + 380; shakeMag = 9;
@@ -472,22 +504,44 @@ function _drawDamageMasks(ctx, zones) {
   if (!zones.length) return;
   ctx.save();
   for (const z of zones) {
-    const grad = ctx.createRadialGradient(z.x, z.y, 4, z.x, z.y, z.r);
-    grad.addColorStop(0, '#0A0A0A');
-    grad.addColorStop(0.7, '#181818');
-    grad.addColorStop(1, 'rgba(24,24,24,0)');
-    ctx.fillStyle = grad;
+    // Hard-edged jagged hole revealing dark interior.
+    ctx.fillStyle = '#0E0E10';
     ctx.beginPath();
-    ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+    ctx.moveTo(z.poly[0][0], z.poly[0][1]);
+    for (let i = 1; i < z.poly.length; i++) {
+      ctx.lineTo(z.poly[i][0], z.poly[i][1]);
+    }
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-    ctx.lineWidth = 1.5;
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + (z.x % 1);
+
+    // Inner ragged edge (slightly darker rim)
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+
+    // Crack rays extending outward from the centre
+    ctx.strokeStyle = '#1A1A1A';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (const [cx, cy] of z.cracks) {
       ctx.beginPath();
       ctx.moveTo(z.x, z.y);
-      ctx.lineTo(z.x + Math.cos(a) * z.r * 0.85, z.y + Math.sin(a) * z.r * 0.85);
+      // Slight zig-zag along the crack
+      const mx = (z.x + cx) / 2 + (cy - z.y) * 0.08;
+      const my = (z.y + cy) / 2 - (cx - z.x) * 0.08;
+      ctx.lineTo(mx, my);
+      ctx.lineTo(cx, cy);
       ctx.stroke();
+    }
+
+    // Small stone chunks scattered just outside the hole
+    ctx.fillStyle = '#7C7368';
+    for (let k = 0; k < 6; k++) {
+      const a = Math.PI * 2 * (k / 6) + (z.x % 1);
+      const rr = z.r * 1.05 + (k * 5) % 14;
+      const px = z.x + Math.cos(a) * rr;
+      const py = z.y + Math.sin(a) * rr;
+      ctx.fillRect(px, py, 5 + (k % 3) * 2, 4 + ((k * 3) % 3));
     }
   }
   ctx.restore();

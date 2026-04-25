@@ -46,9 +46,33 @@ Bundle prod `dist/playable.html` (2.08 MB), `__forcePhase` exposé, sweep sans e
 - VSDK shim chargé en premier, assets-inline ensuite, bundle en dernier
 - `window.Voodoo.playable.redirectToInstallPage()` câblé sur tap endcard
 
-## Divergences clés (ref `SANDBOX/outputs/divergences.md`)
+### Étape 07 — itération v2 (refonte caméra + critique Gemini)
+
+Découverte audit Gemini Vision : la source ne montre **JAMAIS** les 2 châteaux à l'écran simultanément (run-1 les juxtaposait, faux). Refonte profonde caméra.
+
+| Cible | Capture |
+|---|---|
+| Intro clean (HP 100/100, bombe ennemie en l'air) | ![](./06-iter-v2/t00-200-intro-clean.png) |
+| Bombe ennemie impact + dégât chunky | ![](./06-iter-v2/t01-1100-bomb-falling.png) |
+| Cut → ext_enemy (rocket arrive de la gauche) | ![](./06-iter-v2/t08-cut-to-enemy.png) |
+| Impact château ennemi + tilt recul | ![](./06-iter-v2/t09-enemy-impact.png) |
+| Cut → ext_ours (riposte ennemie) | ![](./06-iter-v2/t11-cut-to-ours-incoming.png) |
+| Endcard victory | ![](./06-iter-v2/phase_endcard.png) |
+
+Architecture refonte :
+- `scene_exterior` mono-château avec `view = OURS|ENEMY` (single asset centré)
+- Nouveau state `INTRO_INCOMING` (ouverture: bombe ennemie tombe sur nous, -33% HP)
+- Cinematic ping-pong par tour : fire→cut_enemy→dwell→cut_ours→dwell→cut_to_interior (~4s)
+- HUD : barres pleines bleue/rouge se touchant au centre + VS gros + %  contour épais
+- BG : sky teal misty, hills organiques, forest clusters lumpy, ground courbe
+- Damage masks : trous polygonaux jagged + cracks rays (vs radial-gradient blob)
+- Tilt recoil sur impact (axe chenilles, ease back)
+
+Verdict Gemini : pass1 = "placeholder" → pass3 = **4.5/10** (progrès net mono-château + sequencing + HUD layout). Reste P0 : destruction "vrais chunks" + briques internes révélées.
+
+## Divergences clés (ref `SANDBOX/outputs/divergences-v2.md`)
 1. Pas de corbeaux autonomes : bombes ennemies tirées au tour-par-tour
 2. Cible input : tap unité ET cartes du bas (UX HTML5 friendly)
 3. End-card cast ≠ gameplay cast (deux castings distincts conservés)
 4. Nuage vert [00:53] ignoré (artefact)
-5. Châteaux conjoints sur chassis partagé (vs face-à-face long champ)
+5. (run-1 → corrigé en v2) Châteaux conjoints partagés → mono-château ping-pong
