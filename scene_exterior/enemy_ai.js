@@ -6,14 +6,8 @@ import { state, applyDamageToSelf, aliveUnits } from '../shared/state.js';
 import { emit } from '../shared/events.js';
 import { playSfx } from '../shared/audio.js';
 import { WORLD } from '../shared/world.js';
+import { getImage, isImageReady } from '../shared/assets.js';
 import * as vfx from './vfx.js';
-
-const ASSET_BASE = 'assets/Castle Clashers Assets/';
-
-/** @type {HTMLImageElement | null} */
-let rocketImg = null;
-/** @type {Promise<void> | null} */
-let loadPromise = null;
 
 // Active wave state. Null when idle.
 /** @type {null | {
@@ -39,20 +33,10 @@ let wave = null;
  * @property {boolean} resolved
  */
 
-function loadImg(src) {
-  return new Promise((resolve, reject) => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error(`failed to load ${src}`));
-    im.src = src;
-  });
-}
-
 /** @returns {Promise<void>} */
 export function loadEnemyAssets() {
-  if (loadPromise) return loadPromise;
-  loadPromise = loadImg(ASSET_BASE + 'Projectile_2.png').then(im => { rocketImg = im; });
-  return loadPromise;
+  try { getImage('BOMB'); } catch (e) { console.warn('[enemy_ai] preload failed:', e); }
+  return Promise.resolve();
 }
 
 /** @returns {boolean} */
@@ -159,7 +143,8 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
   }
 
   // Render rockets — rotated to velocity. Skip resolved ones (their explosion is owned by vfx).
-  if (rocketImg) {
+  if (isImageReady('BOMB')) {
+    const img = getImage('BOMB');
     const size = 36;
     for (const p of wave.projectiles) {
       if (p.resolved) continue;
@@ -167,7 +152,7 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(angle);
-      ctx.drawImage(rocketImg, -size / 2, -size / 2, size, size);
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
       ctx.restore();
     }
   }

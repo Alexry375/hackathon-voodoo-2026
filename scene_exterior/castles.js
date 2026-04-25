@@ -4,34 +4,20 @@
 
 import { state } from '../shared/state.js';
 import { WORLD } from '../shared/world.js';
+import { getImage, isImageReady } from '../shared/assets.js';
 
-const ASSET_BASE = 'assets/Castle Clashers Assets/';
-
-/** @type {{ bg: HTMLImageElement, blue: HTMLImageElement, red: HTMLImageElement } | null} */
-let imgs = null;
-/** @type {Promise<void> | null} */
-let loadPromise = null;
-
-function loadImg(src) {
-  return new Promise((resolve, reject) => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error(`failed to load ${src}`));
-    im.src = src;
-  });
-}
-
+// Sourced from window.ASSETS data URIs (assets-inline.js) so the bundled
+// single-file playable works without an http server.
 export function loadCastleAssets() {
-  if (loadPromise) return loadPromise;
-  loadPromise = Promise.all([
-    loadImg(ASSET_BASE + 'Background.png'),
-    loadImg(ASSET_BASE + 'Blue Castle.png'),
-    loadImg(ASSET_BASE + 'Red Castle.png'),
-  ]).then(([bg, blue, red]) => { imgs = { bg, blue, red }; });
-  return loadPromise;
+  // getImage is synchronous; warm the cache so isImageReady flips on quickly.
+  try { getImage('BACKGROUND'); getImage('BLUE_CASTLE'); getImage('RED_CASTLE'); }
+  catch (e) { console.warn('[castles] asset preload failed:', e); }
+  return Promise.resolve();
 }
 
-export function castleAssetsReady() { return imgs !== null; }
+export function castleAssetsReady() {
+  return isImageReady('BACKGROUND') && isImageReady('BLUE_CASTLE') && isImageReady('RED_CASTLE');
+}
 
 /**
  * Draw the entire battlefield in world coordinates. Caller must already have
@@ -39,14 +25,14 @@ export function castleAssetsReady() { return imgs !== null; }
  * @param {CanvasRenderingContext2D} ctx
  */
 export function drawWorld(ctx) {
-  if (!imgs) return;
+  if (!castleAssetsReady()) return;
   _drawBackground(ctx);
   _drawCastle(ctx, 'blue', WORLD.blue_castle, state.hp_self_pct);
   _drawCastle(ctx, 'red',  WORLD.red_castle,  state.hp_enemy_pct);
 }
 
 function _drawBackground(ctx) {
-  const bg = imgs.bg;
+  const bg = getImage('BACKGROUND');
   // Background extended 30% wider than the battlefield to give the camera
   // breathing room when it follows projectiles past the castle pivots.
   // Anchored centered + ground line at ~85% of the bg's height.
@@ -63,7 +49,7 @@ function _drawBackground(ctx) {
  * @param {number} hp_pct
  */
 function _drawCastle(ctx, which, pivot, hp_pct) {
-  const castle = which === 'blue' ? imgs.blue : imgs.red;
+  const castle = getImage(which === 'blue' ? 'BLUE_CASTLE' : 'RED_CASTLE');
   const castleH = WORLD.castle_h;
   const castleScale = castleH / castle.height;
   const castleW = castle.width * castleScale;

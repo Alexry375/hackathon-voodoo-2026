@@ -9,13 +9,7 @@ import { on, emit } from '../shared/events.js';
 import { state } from '../shared/state.js';
 import { playSfx } from '../shared/audio.js';
 import { WORLD } from '../shared/world.js';
-
-const ASSET_BASE = 'assets/Castle Clashers Assets/';
-
-/** @type {HTMLImageElement | null} */
-let projectileImg = null;
-/** @type {Promise<void> | null} */
-let loadPromise = null;
+import { getImage, isImageReady } from '../shared/assets.js';
 
 const POST_IMPACT_MS = 150;
 const SMOKE_EVERY_MS = 40;
@@ -78,19 +72,9 @@ function _newBatch(splits) {
   return id;
 }
 
-function loadImg(src) {
-  return new Promise((resolve, reject) => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error(`failed to load ${src}`));
-    im.src = src;
-  });
-}
-
 export function loadProjectileAssets() {
-  if (loadPromise) return loadPromise;
-  loadPromise = loadImg(ASSET_BASE + 'Projectile_1.png').then(im => { projectileImg = im; });
-  return loadPromise;
+  try { getImage('ROCKET'); } catch (e) { console.warn('[projectile] preload failed:', e); }
+  return Promise.resolve();
 }
 
 on('player_fire', (payload) => { pending.push(payload); });
@@ -276,13 +260,13 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
       }
     }
 
-    if (!p.impacted && projectileImg) {
+    if (!p.impacted && isImageReady('ROCKET')) {
       const rot = Math.atan2(p.vy, p.vx);
       const s = p.sprite_size;
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(rot);
-      ctx.drawImage(projectileImg, -s / 2, -s / 2, s, s);
+      ctx.drawImage(getImage('ROCKET'), -s / 2, -s / 2, s, s);
       ctx.restore();
     }
   }
