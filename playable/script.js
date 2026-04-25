@@ -17,9 +17,9 @@ import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_curso
 import { drawEndcard, setEndcardOpacity, installEndcardTap, isEndcardShown } from './endcard.js';
 
 const PHASE_INTRO_END     = 1500;   // ms
-const PHASE_TUTORIAL_MAX  = 18000;  // ms — tutorial bails out into freeplay even if player did nothing
-const PHASE_FREEPLAY_END  = 40000;
-const PHASE_FORCEWIN_END  = 43000;
+const PHASE_TUTORIAL_MAX  = 8000;   // ms — bail to freeplay if player hasn't fired 3 shots
+const PHASE_FREEPLAY_END  = 16000;  // ms — forcewin after ~16s (target: 15-30s total)
+const PHASE_FORCEWIN_END  = 19000;  // ms — 3s forcewin flash then endcard
 const ENDCARD_FADE_MS     = 350;
 
 const game = {
@@ -188,7 +188,7 @@ function _paintOverlay(ctx, t, elapsed) {
   }
 
   if (game.phase === 'endcard') {
-    drawEndcard(ctx, t);
+    drawEndcard(ctx, t, game.endResult ?? 'win');
     return;
   }
 }

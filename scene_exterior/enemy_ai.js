@@ -146,7 +146,7 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
     p.smokeAccumMs += dt;
     if (p.smokeAccumMs > 60) {
       p.smokeAccumMs = 0;
-      try { vfx.triggerSmokeTrail(p.x, p.y, -p.vx * 0.3, -p.vy * 0.3); } catch (_) {}
+      try { vfx.triggerSmokeTrail(p.x, p.y, -p.vx * 0.3, -p.vy * 0.3, 'crow'); } catch (_) {}
     }
     if (p.ttlMs <= 0) resolveImpact(p);
   }

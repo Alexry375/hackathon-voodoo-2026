@@ -134,6 +134,7 @@ const SMOKE_BY_WEAPON = {
   rocket: { color: '#D95B5B', size: 18, life_ms: 200 },
   volley: { color: '#8D8D8D', size:  6, life_ms: 1200 },
   beam:   { color: '#9aa0a6', size:  8, life_ms: 400 },
+  crow:   { color: '#4A4A4A', size: 17, life_ms: 1200 }, // Q1: dark charcoal, moderate trail
 };
 
 export function triggerSmokeTrail(x, y, vx, vy, weapon_type = 'rocket') {

@@ -37,8 +37,9 @@ export function installEndcardTap(canvas) {
 /**
  * @param {CanvasRenderingContext2D} ctx
  * @param {number} t  seconds, for the pulse
+ * @param {'win'|'lose'} result
  */
-export function drawEndcard(ctx, t) {
+export function drawEndcard(ctx, t, result = 'win') {
   if (_opacity <= 0) return;
   ctx.save();
   ctx.globalAlpha = _opacity;
@@ -60,22 +61,31 @@ export function drawEndcard(ctx, t) {
   ctx.fillRect(0, 0, W, H);
 
   // Title
-  ctx.fillStyle = '#FFD23A';
+  const titleText = result === 'lose' ? 'DEFEAT!' : 'VICTORY!';
+  const titleColor = result === 'lose' ? '#E05050' : '#FFD23A';
+  ctx.fillStyle = titleColor;
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 6;
   ctx.font = 'bold 72px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.strokeText('VICTORY!', W / 2, 280);
-  ctx.fillText('VICTORY!', W / 2, 280);
+  ctx.strokeText(titleText, W / 2, 280);
+  ctx.fillText(titleText, W / 2, 280);
 
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 32px sans-serif';
   ctx.lineWidth = 4;
-  ctx.strokeText('Build your castle.', W / 2, 400);
-  ctx.fillText('Build your castle.', W / 2, 400);
-  ctx.strokeText('Crush your enemies.', W / 2, 444);
-  ctx.fillText('Crush your enemies.', W / 2, 444);
+  if (result === 'lose') {
+    ctx.strokeText('Try again in the full game!', W / 2, 400);
+    ctx.fillText('Try again in the full game!', W / 2, 400);
+    ctx.strokeText('Avenge your castle.', W / 2, 444);
+    ctx.fillText('Avenge your castle.', W / 2, 444);
+  } else {
+    ctx.strokeText('Build your castle.', W / 2, 400);
+    ctx.fillText('Build your castle.', W / 2, 400);
+    ctx.strokeText('Crush your enemies.', W / 2, 444);
+    ctx.fillText('Crush your enemies.', W / 2, 444);
+  }
 
   // CTA button — pulse 1.0 Hz
   const pulse = 1 + 0.04 * Math.sin(t * 2 * Math.PI * 1.0);
@@ -103,8 +113,9 @@ export function drawEndcard(ctx, t) {
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 4;
   ctx.font = 'bold 44px sans-serif';
-  ctx.strokeText('PLAY NOW', cx, cy + 4);
-  ctx.fillText('PLAY NOW', cx, cy + 4);
+  const ctaLabel = result === 'lose' ? 'PLAY AGAIN' : 'PLAY NOW';
+  ctx.strokeText(ctaLabel, cx, cy + 4);
+  ctx.fillText(ctaLabel, cx, cy + 4);
   ctx.restore();
 
   ctx.restore();

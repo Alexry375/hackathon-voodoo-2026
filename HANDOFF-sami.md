@@ -497,3 +497,25 @@ dots. Trajectory remains straight (Q6: "strictly linear").
 - Q4: Goblin beam trail is orange #F28C1F — our beam is yellow/white
   gradient. May want to tune later.
 
+
+## [01:12] [done] pacing + endcard branching + crow smoke color
+
+**Pacing (gap #4):** Compressed timeline to ~19s post-tap:
+- `PHASE_TUTORIAL_MAX`: 18000 → 8000ms (8s to fire 3 shots before freeplay)
+- `PHASE_FREEPLAY_END`: 40000 → 16000ms (forcewin at 16s)
+- `PHASE_FORCEWIN_END`: 43000 → 19000ms (endcard at 19s — squarely in 15-30s target)
+Total playable session from tap: ~19s. Forcewin flash: 3s (unchanged).
+
+**Endcard branching (gap #5):** `drawEndcard(ctx, t, result)` now takes
+a `result` param ('win'|'lose'). Script.js passes `game.endResult ?? 'win'`.
+- Win: title "VICTORY!" yellow, body "Build your castle / Crush your enemies", CTA "PLAY NOW"
+- Lose: title "DEFEAT!" red, body "Try again in the full game / Avenge your castle", CTA "PLAY AGAIN"
+
+**Crow smoke color (Q1):** Added `crow` weapon type to `SMOKE_BY_WEAPON` in vfx.js:
+`{ color: '#4A4A4A', size: 17, life_ms: 1200 }` — dark charcoal, moderate trail matching Q1 spec.
+`enemy_ai.js` now passes `'crow'` to `triggerSmokeTrail` instead of default.
+
+**Still pending:**
+- Crow sprite reskin (bomb → black bird silhouette)
+- Goblin beam trail orange (#F28C1F) — minor tuning
+- Paired intertwined crow flight — cosmetic nice-to-have
