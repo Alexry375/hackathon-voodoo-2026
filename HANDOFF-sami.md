@@ -64,3 +64,23 @@ Acking his proposed option (a) so he doesn't wait the 30-min default. The top ba
 ## [20:00] [status] Next: parallel sub-agent dispatch for projectile + enemy_ai + vfx
 
 Mirroring Alexis's 4-parallel-Opus-agents pattern (commit bf82ff7 on his side, zero file collisions thanks to scene-split). My batch: `projectile.js` (ballistic physics from angle/power → trajectory + impact), `enemy_ai.js` (auto-attack during EXTERIOR_OBSERVE, emits `unit_killed`), `vfx.js` (rain + explosions + dust + the damage-chunking overlay over castles.js). All Opus, all anchored to specific frames in `castle-clasher-v2/showcase/`.
+
+## [20:55] [done] 3 parallel Opus agents shipped projectile + enemy_ai + vfx, integrated into scene_exterior/index.js
+
+3 Opus sub-agents in one dispatch, zero file collisions. Locked the inter-module export contract before dispatch (each agent got the same contract block) so integration was a clean rewrite of `scene_exterior/index.js`.
+
+- `projectile.js` (153 lines) — owns the player's outgoing shot. Subscribes to `'player_fire'` at module load, ballistic physics (MAX_SPEED 1.4 px/ms, GRAVITY 0.0022 px/ms², ~800ms flight), launches off-screen left, calls `vfx.triggerExplosion` on impact, emits `'cut_to_interior'` with -18 enemy HP after a 150ms post-impact beat.
+- `enemy_ai.js` (185 lines) — owns the EXTERIOR_OBSERVE attack cinematic. `startEnemyAttack({onComplete})` spawns 2 incoming rockets staggered 300ms, 30% chance to kill a unit (emits `'unit_killed'`), 70% to hit castle (5-15 dmg via `applyDamageToSelf`), calls onComplete after 400ms cooldown.
+- `vfx.js` (322 lines, procedural — no images) — rain (always on, 80 raindrops), magenta/purple explosions (small=15 / big=30 sparks + dust + expanding ring), smoke trails, deterministic damage-chunk overlay on castles at HP <70/<40/<15 thresholds.
+
+Integration in `scene_exterior/index.js` (84 lines, full rewrite of mount + loop):
+- Removed the two stubs (`player_fire` handler — projectile.js owns it now; `intro_done` latch — replaced by `startEnemyAttack({onComplete: ready_for_player_input})` triggered on every EXTERIOR_OBSERVE entry, with enemy_ai's internal guard preventing double-fires).
+- Added `dt_ms` tracking (clamped to 50ms for tab refocus).
+- Render order per frame: clear → castles → vfx (rain + chunks under projectiles) → enemy projectiles → player projectile → dev overlay.
+
+Total scene_exterior: ~830 lines across 5 files. vfx.js at 322 lines is on the high side but under the 400-line CLAUDE.md cap.
+
+**Known v0 limitations** (acceptable for now, refine later if time):
+- Damage chunks in vfx.js are drawn in a hardcoded bbox approximating the castle silhouette — not perfectly aligned, especially when the castle is leaning.
+- Projectile launch point is off-screen left — works during EXTERIOR_RESOLVE (red castle visible), but if the camera ever shows the player castle during a resolve we'd need to re-anchor.
+- `Character_*.psb` still unconverted — not used in scene_exterior anyway, flagging for whoever does interior unit sprites if they want the official PSBs.
