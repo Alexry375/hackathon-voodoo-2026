@@ -209,7 +209,7 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
     while (q.remaining > 0 && q.t_ms >= VOLLEY_STAGGER_MS) {
       q.t_ms -= VOLLEY_STAGGER_MS;
       const tune = WEAPON_TUNING[q.payload.weapon_type] || WEAPON_TUNING.volley;
-      _spawnRocketLike(q.payload, viewport, q.payload.weapon_type, _jitter(tune.angleJitter), q.batchId);
+      _spawnRocketLike(q.payload, q.payload.weapon_type, _jitter(tune.angleJitter), q.batchId);
       q.remaining -= 1;
     }
     if (q.remaining === 0) volleyQueues.splice(i, 1);

@@ -129,16 +129,22 @@ function loop() {
   updateCamera(dt_ms);
 
   // === World-space draws ===
+  // try/finally so a throw in any sub-draw (vfx/enemy/projectile) cannot
+  // strand the saved camera transform on the ctx state stack — that would
+  // accumulate translates/scales every frame and ruin all subsequent renders.
   applyCameraTransform(ctx, viewport);
-  // Ground fill — extends FAR beyond bg horizontally + vertically so deep
-  // camera reveals never show empty pixels. Color matches bg's dark earth.
-  ctx.fillStyle = '#2a2f33';
-  ctx.fillRect(-4000, WORLD.ground_y, 12000, 8000);
-  if (castleAssetsReady()) drawWorld(ctx);
-  drawVfx(ctx, viewport, dt_ms);
-  drawEnemy(ctx, viewport, dt_ms);
-  drawProjectile(ctx, viewport, dt_ms);
-  ctx.restore();
+  try {
+    ctx.fillStyle = '#2a2f33';
+    ctx.fillRect(-4000, WORLD.ground_y, 12000, 8000);
+    if (castleAssetsReady()) drawWorld(ctx);
+    drawVfx(ctx, viewport, dt_ms);
+    drawEnemy(ctx, viewport, dt_ms);
+    drawProjectile(ctx, viewport, dt_ms);
+  } catch (e) {
+    console.error('[scene_exterior] world draw threw:', e);
+  } finally {
+    ctx.restore();
+  }
   // === End world-space ===
 
   // Screen-space overlays — rain stays here so it tiles the viewport, not the world.

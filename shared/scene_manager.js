@@ -50,7 +50,10 @@ on('cut_to_interior', (payload) => {
 
   if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
   if (state.hp_self_pct <= 0)   { transition('END_DEFEAT');  return; }
-  transition('INTERIOR_AIM');
+  // Hand the turn to the enemy. EXTERIOR_OBSERVE replays the intro-style
+  // attack cinematic, then scene_exterior calls ready_for_player_input()
+  // which transitions us into INTERIOR_AIM for the next player shot.
+  transition('EXTERIOR_OBSERVE');
 });
 
 on('unit_killed', (payload) => {
@@ -65,6 +68,9 @@ export function start() {
 // Test hook — exterior calls this once it has shown the opening damage cinematic
 // (or interior calls it after the intro tap-to-start). Keeps scene_manager dumb.
 export function ready_for_player_input() {
+  // Enemy attack just finished; bail to defeat screen if it killed us.
+  if (state.hp_self_pct <= 0) { transition('END_DEFEAT'); return; }
+  if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
   transition('INTERIOR_AIM');
 }
 

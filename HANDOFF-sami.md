@@ -221,3 +221,24 @@ Validated via Playwright (`tools/screenshot_exterior.mjs`):
 
 Bundle still 2.09 MB.
 
+
+## [HH:MM] [done] step 6 — enemy reply on every player turn + volley crash fix
+
+Fixed a stray-arg crash in `scene_exterior/projectile.js` where volley sub-shots
+called `_spawnRocketLike(payload, viewport, ...)` — `viewport` was undefined and
+`weapon_type` ended up bound to it, throwing on every skeleton turn. The throw
+happened mid-frame, between `applyCameraTransform` and `ctx.restore()`, so the
+saved camera state stayed on the stack and accumulated across frames — that was
+the "everything looks glitched after turn 2" the user reported. Wrapped the
+world-space draw block in try/finally so a future throw can never strand the
+camera again.
+
+Step 6 itself: in `shared/scene_manager.js`, `cut_to_interior` now routes back
+through `EXTERIOR_OBSERVE` (the existing intro-attack state) instead of jumping
+to `INTERIOR_AIM`. `scene_exterior` already starts an enemy wave on
+`EXTERIOR_OBSERVE` and calls `ready_for_player_input()` on completion, so the
+alternation comes for free. Added end-state checks in `ready_for_player_input`
+so a fatal enemy hit transitions to `END_DEFEAT` instead of looping back to aim.
+
+Verified via `tools/trace_turns.mjs` — 2 player shots produce the cycle
+`AIM → RESOLVE → OBSERVE → AIM → RESOLVE → OBSERVE → AIM` with no errors.
