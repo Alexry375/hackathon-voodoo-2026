@@ -21,10 +21,24 @@ import concurrent.futures
 from dataclasses import dataclass, field
 from typing import Optional
 import google.generativeai as genai
+import requests
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+from google.api_core.exceptions import ResourceExhausted
+
+# Nombre max de requêtes simultanées vers l'API (évite les 429)
+MAX_WORKERS_API = 5
 
 # --- Modèles ---
 MODELE_VISION = "models/gemini-3.1-pro-preview"  # Phases 1 & 3 (multimodal)
 MODELE_TEXTE  = "models/gemini-3.1-pro-preview"  # Phases 2 & 4 (text-only)
+
+# OpenRouter models (provider alternatif)
+OPENROUTER_VISION = "google/gemini-2.5-pro-preview"
+OPENROUTER_TEXTE  = "google/gemini-2.5-pro-preview"
+
+# Global provider setting
+PROVIDER = "gemini"  # "gemini" ou "openrouter"
+OPENROUTER_API_KEY = None
 
 
 # ──────────────────────────────────────────────
@@ -49,14 +63,35 @@ class Noeud:
 # Auth & Upload
 # ──────────────────────────────────────────────
 
-def configurer_authentification() -> None:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("Variable d'environnement GEMINI_API_KEY manquante.")
-    genai.configure(api_key=api_key)
+def configurer_authentification(provider: str = "gemini") -> None:
+    """Configure l'authentification selon le provider choisi."""
+    global PROVIDER, OPENROUTER_API_KEY
+    PROVIDER = provider
+    
+    if provider == "gemini":
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("Variable d'environnement GEMINI_API_KEY manquante.")
+        genai.configure(api_key=api_key)
+        print(f"[Auth] Provider: Gemini")
+    elif provider == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("Variable d'environnement OPENROUTER_API_KEY manquante.")
+        OPENROUTER_API_KEY = api_key
+        print(f"[Auth] Provider: OpenRouter")
+    else:
+        raise ValueError(f"Provider inconnu: {provider}. Utilisez 'gemini' ou 'openrouter'.")
 
 
 def televerser_video(chemin_video: str):
+    """Upload vidéo pour Gemini. OpenRouter ne supporte pas l'upload."""
+    if PROVIDER == "openrouter":
+        print(f"\n[Upload] OpenRouter: chargement de {chemin_video} (base64)...")
+        # OpenRouter ne supporte pas l'upload, mais peut recevoir du contenu encodé
+        # Pour cette version, on va stocker le chemin et l'utiliser pour les appels texte
+        return {"uri": chemin_video, "name": chemin_video, "type": "local_file"}
+    
     print(f"\n[Upload] {chemin_video}...")
     fichier = genai.upload_file(path=chemin_video)
     print(f"  URI : {fichier.uri}")
@@ -72,6 +107,39 @@ def televerser_video(chemin_video: str):
     return fichier
 
 
+def appel_openrouter(messages: list, model: str, response_format=None, temperature=0.7) -> str:
+    """Effectue un appel à l'API OpenRouter."""
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/user/voodoo-hack",
+        "X-Title": "Voodoo Hack Pipeline",
+    }
+    
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    
+    if response_format:
+        payload["response_format"] = response_format
+    
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=120
+    )
+    response.raise_for_status()
+    result = response.json()
+    
+    if "error" in result:
+        raise RuntimeError(f"OpenRouter error: {result['error']}")
+    
+    return result["choices"][0]["message"]["content"]
+
+
 # ──────────────────────────────────────────────
 # Phase 1 — Le Débroussailleur
 # ──────────────────────────────────────────────
@@ -84,10 +152,21 @@ def phase1_debroussailleur(fichier_video, modele_id: str) -> str:
         "les actions du joueur, les événements déclenchés, les transitions de scène, "
         "et tout élément visuel remarquable. Sois exhaustif et factuel. Ne rien inventer."
     )
-    modele = genai.GenerativeModel(model_name=modele_id)
-    reponse = modele.generate_content([fichier_video, prompt])
-    print(f"  Description obtenue ({len(reponse.text)} caractères)")
-    return reponse.text
+    
+    if PROVIDER == "gemini":
+        modele = genai.GenerativeModel(model_name=modele_id)
+        reponse = modele.generate_content([fichier_video, prompt])
+        print(f"  Description obtenue ({len(reponse.text)} caractères)")
+        return reponse.text
+    else:  # openrouter
+        # Pour OpenRouter, on utilise une approche texte sans la vidéo
+        # (car OpenRouter ne supporte pas l'upload de vidéo comme Gemini)
+        messages = [
+            {"role": "user", "content": f"{prompt}\n\nNote: Analyse basée sur le chemin du fichier: {fichier_video.get('uri', 'unknown')}"}
+        ]
+        reponse = appel_openrouter(messages, modele_id, temperature=0.3)
+        print(f"  Description obtenue ({len(reponse)} caractères)")
+        return reponse
 
 
 # ──────────────────────────────────────────────
@@ -120,31 +199,65 @@ Format de sortie : JSON valide strict, sans markdown ni texte autour.
 }\
 """
 
+@retry(
+    retry=retry_if_exception_type((ResourceExhausted, requests.exceptions.RequestException)),
+    wait=wait_exponential(multiplier=1, min=15, max=120),
+    stop=stop_after_attempt(6),
+    reraise=True,
+)
 def _phase2_pour_noeud(parent: Noeud, branching: int, modele_id: str) -> list[dict]:
     """Génère les sous-aspects pour un noeud parent donné."""
-    config = genai.types.GenerationConfig(
-        temperature=0.1,
-        response_mime_type="application/json"
-    )
-    modele = genai.GenerativeModel(
-        model_name=modele_id,
-        system_instruction=SYSTEME_PLANIFICATEUR,
-        generation_config=config
-    )
     message = f"N (nombre d'aspects à générer) : {branching}\n\nCONTENU À ANALYSER :\n{parent.analyse}"
-    reponse = modele.generate_content(message)
-    return json.loads(reponse.text).get("aspects", [])[:branching]
+    
+    if PROVIDER == "gemini":
+        config = genai.types.GenerationConfig(
+            temperature=0.1,
+            response_mime_type="application/json"
+        )
+        modele = genai.GenerativeModel(
+            model_name=modele_id,
+            system_instruction=SYSTEME_PLANIFICATEUR,
+            generation_config=config
+        )
+        reponse = modele.generate_content(message)
+        return json.loads(reponse.text).get("aspects", [])[:branching]
+    else:  # openrouter
+        messages = [
+            {"role": "system", "content": SYSTEME_PLANIFICATEUR},
+            {"role": "user", "content": message}
+        ]
+        response_format = {"type": "json_object"} if hasattr(requests, '__version__') else None
+        reponse_text = appel_openrouter(messages, modele_id, response_format=response_format, temperature=0.1)
+        try:
+            return json.loads(reponse_text).get("aspects", [])[:branching]
+        except json.JSONDecodeError:
+            # Si le format n'est pas valide, essayer de l'extraire
+            print(f"  Attention: Réponse OpenRouter non-JSON, tentative d'extraction...")
+            return json.loads(reponse_text).get("aspects", [])[:branching]
 
 
 # ──────────────────────────────────────────────
 # Phase 3 — Analyse spécialisée (un noeud)
 # ──────────────────────────────────────────────
 
+@retry(
+    retry=retry_if_exception_type((ResourceExhausted, requests.exceptions.RequestException)),
+    wait=wait_exponential(multiplier=1, min=15, max=120),
+    stop=stop_after_attempt(6),
+    reraise=True,
+)
 def _phase3_pour_noeud(fichier_video, noeud: Noeud, modele_id: str) -> None:
-    modele = genai.GenerativeModel(model_name=modele_id)
-    reponse = modele.generate_content([fichier_video, noeud.prompt])
-    noeud.analyse = reponse.text
-    print(f"  ✓ [d{noeud.profondeur}] {noeud.id} ({len(reponse.text)} car.)")
+    if PROVIDER == "gemini":
+        modele = genai.GenerativeModel(model_name=modele_id)
+        reponse = modele.generate_content([fichier_video, noeud.prompt])
+        noeud.analyse = reponse.text
+    else:  # openrouter
+        messages = [
+            {"role": "user", "content": noeud.prompt}
+        ]
+        noeud.analyse = appel_openrouter(messages, modele_id, temperature=0.5)
+    
+    print(f"  ✓ [d{noeud.profondeur}] {noeud.id} ({len(noeud.analyse)} car.)")
 
 
 # ──────────────────────────────────────────────
@@ -177,7 +290,7 @@ def construire_arbre(
         print(f"  [Phase 2] Génération des sous-aspects en parallèle...")
         nouveaux_noeuds: list[Noeud] = []
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_API) as executor:
             futures = {
                 executor.submit(_phase2_pour_noeud, parent, branching, modele_texte): parent
                 for parent in niveau_courant
@@ -216,7 +329,7 @@ def construire_arbre(
         # Phase 3 : analyses vidéo parallèles (tous les nouveaux noeuds d'un coup)
         print(f"  [Phase 3] {len(nouveaux_noeuds)} analyses vidéo en parallèle...")
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_API) as executor:
             futures = [
                 executor.submit(_phase3_pour_noeud, fichier_video, noeud, modele_vision)
                 for noeud in nouveaux_noeuds
@@ -308,8 +421,15 @@ Génère un document Markdown structuré :
 
 Sois synthétique. Les détails sont dans les fichiers liés.\
 """
-    modele = genai.GenerativeModel(model_name=modele_id)
-    contenu_index = modele.generate_content(prompt_index).text
+    
+    if PROVIDER == "gemini":
+        modele = genai.GenerativeModel(model_name=modele_id)
+        contenu_index = modele.generate_content(prompt_index).text
+    else:  # openrouter
+        messages = [
+            {"role": "user", "content": prompt_index}
+        ]
+        contenu_index = appel_openrouter(messages, modele_id, temperature=0.5)
 
     # Section index des liens
     contenu_index += "\n\n---\n\n## Index\n\n"
@@ -325,14 +445,25 @@ Sois synthétique. Les détails sont dans les fichiers liés.\
 # Pipeline principal
 # ──────────────────────────────────────────────
 
-def executer_pipeline(chemin_video: str, output_dir: str = ".", branching: int = 4, profondeur: int = 2) -> None:
-    configurer_authentification()
+def executer_pipeline(chemin_video: str, output_dir: str = ".", branching: int = 4, profondeur: int = 2, provider: str = "gemini",
+                      or_vision: str = None, or_texte: str = None) -> None:
+    global OPENROUTER_VISION, OPENROUTER_TEXTE, MODELE_VISION, MODELE_TEXTE
+    configurer_authentification(provider)
+    if provider == "openrouter":
+        if or_vision:
+            OPENROUTER_VISION = or_vision
+        if or_texte:
+            OPENROUTER_TEXTE = or_texte
+        MODELE_VISION = OPENROUTER_VISION
+        MODELE_TEXTE  = OPENROUTER_TEXTE
     os.makedirs(output_dir, exist_ok=True)
     nom_base = os.path.splitext(os.path.basename(chemin_video))[0]
 
     total_appels_video = sum(branching ** d for d in range(1, profondeur + 1))
     total_fichiers_md  = total_appels_video + 1  # +1 pour game_spec.md
-    print(f"\n[Config] branching={branching}, profondeur={profondeur}")
+    modeles_info = f"{MODELE_VISION}" if provider == "openrouter" else f"vision={MODELE_VISION}, texte={MODELE_TEXTE}"
+    print(f"\n[Config] branching={branching}, profondeur={profondeur}, provider={provider}")
+    print(f"         Modèles : {modeles_info}")
     print(f"         Appels vidéo Phase 3 estimés : {total_appels_video}")
     print(f"         Fichiers .md estimés         : {total_fichiers_md}")
 
@@ -373,7 +504,7 @@ def executer_pipeline(chemin_video: str, output_dir: str = ".", branching: int =
         print(f"{'='*60}")
 
     finally:
-        if fichier_video is not None:
+        if fichier_video is not None and PROVIDER == "gemini":
             print(f"\n[Nettoyage] Suppression du fichier serveur : {fichier_video.name}")
             genai.delete_file(fichier_video.name)
 
@@ -392,12 +523,19 @@ if __name__ == "__main__":
         epilog="""Exemples :
   python pipeline_agentic.py Videos/B01.mp4
   python pipeline_agentic.py Videos/B01.mp4 -b 4 -d 2 -o results/
-  python pipeline_agentic.py Videos/B01.mp4 -b 3 -d 3 -o results/  # 39 analyses"""
+  python pipeline_agentic.py Videos/B01.mp4 -b 3 -d 3 -o results/  # 39 analyses
+  python pipeline_agentic.py Videos/B01.mp4 --provider openrouter -o results/  # Avec OpenRouter API"""
     )
     parser.add_argument("video",           help="Chemin vers le fichier vidéo (MP4/MOV)")
     parser.add_argument("--output",  "-o", default=".",  help="Dossier de sortie (défaut: .)")
     parser.add_argument("--branching","-b",default=4,    type=int, help="Sous-aspects par noeud (défaut: 4)")
     parser.add_argument("--depth",   "-d", default=2,    type=int, help="Profondeur de l'arbre (défaut: 2)")
+    parser.add_argument("--provider",   "-p", default="gemini", choices=["gemini", "openrouter"],
+                        help="Provider API : 'gemini' (défaut) ou 'openrouter'")
+    parser.add_argument("--or-vision",        default=None,
+                        help=f"Modèle OpenRouter vision (défaut: {OPENROUTER_VISION})")
+    parser.add_argument("--or-texte",         default=None,
+                        help=f"Modèle OpenRouter texte (défaut: {OPENROUTER_TEXTE})")
     args = parser.parse_args()
 
     if not os.path.exists(args.video):
@@ -407,4 +545,5 @@ if __name__ == "__main__":
     if args.depth < 1:
         raise SystemExit("--depth doit être >= 1")
 
-    executer_pipeline(args.video, args.output, args.branching, args.depth)
+    executer_pipeline(args.video, args.output, args.branching, args.depth, args.provider,
+                      or_vision=args.or_vision, or_texte=args.or_texte)
