@@ -102,3 +102,34 @@ Per the user's flag: I checked the asset list. There is no separate `chenille.pn
 ## [21:00] [info] Bundle pipeline TODO for prod build
 
 My castles.js / projectile.js / enemy_ai.js currently load assets via `new Image(); im.src = 'assets/Castle Clashers Assets/...'` paths. That works in dev (HTTP server) but the prod single-file bundle uses Alexis's `window.ASSETS.BLUE_CASTLE` (etc.) base64 pattern via `shared/assets.js → getImage()`. Before we run `npm run build` for the final AppLovin handoff, scene_exterior loaders should switch to `getImage('BLUE_CASTLE')` / `getImage('ROCKET')` / `getImage('BOMB')`. Not blocking dev — flagging as a single, scoped task before final bundle.
+
+## [21:35] [info] Merged Alexis MVP brief — role swap acknowledged
+
+Pulled `origin/castle-clasher-v2-alexis` (HEAD `6f151cd`). New canonical docs:
+- `docs/game-spec.md` — spec FAIT FOI
+- `docs/MVP-audit.md` — what's missing vs spec
+- `docs/MVP-handoff-sami.md` — pipeline gotchas, locked contracts, camera ping-pong context, file map
+
+**Role swap**: Alexis → asset generation (chenille PNG, real castle assets, etc). Me → MVP end-to-end fidelity to `docs/game-spec.md`. His scene_interior + bundle + scripted ad are frozen unless bug.
+
+## [21:35] [done] Chenille generator script + v0 PNG (uncommitted, will not ship)
+
+`tools/render_chenille.py` Pillow generator + `assets/Castle Clashers Assets/Chenille.png` (760×220 v3 — terracotta cradle with rounded arches, two flat-oval treads with chain cleats). Iterated 4 times; Alexis is taking over asset generation so I'm leaving the script + last v3 in tree as a starting reference for him. Not wired into `castles.js` — when his real chenille asset lands I'll just `getImage('CHENILLE')` from `window.ASSETS`.
+
+## [21:40] [decision] MVP attack order — ranked by spec leverage
+
+Working off `docs/MVP-audit.md` priorities. Order I plan to ship in:
+
+1. **Audio first** (cheap, huge perceived gain): `shared/audio.js` exposing `startMusic()` / `playSfx()` reading `window.ASSETS.MUSIC` / `SFX`. Wire from `aim.js` (shot release), `enemy_ai.js` (impact), `vfx.js` (explosion), `playable/entry.js` (music start on first pointer).
+2. **Damage scales with power** in `projectile.js` (currently hardcoded 18 → `lerp(8, 28, power)`), threaded through `player_fire` payload (already carries `power`).
+3. **3 weapon types** — extend `player_fire` payload with `weapon_type: 'rocket'|'volley'|'beam'` (additive, doesn't break Alexis's contract). Branch in `projectile.js`: cyclop = single fast tendu, skeleton = 3-shot volley with cloche arc, orc = instant beam (no projectile, just a yellow line + DoT tick).
+4. **Real scene_exterior with 2 castles + camera** — `shared/camera.js` (`{x, y, zoom}` + easing), sub-states `EXTERIOR_OVERVIEW` / `FOLLOW_PROJECTILE` / `IMPACT_FOCUS` / `SNAP_BACK` in scene_manager. Both castles always rendered; camera pans/zooms.
+5. **Brick destruction** — replace vfx chunk overlay with a destructible-block grid mapped onto each castle. Bricks vanish based on cumulative impact zones, revealing ARCH_BLACK behind.
+6. **Enemy AI loop** — currently fires only at intro. Add 6-10s timer during freeplay → spawns black round projectile with grey spiral smoke.
+7. **Damage numbers** — small `vfx.spawnFloater(x, y, "-XX", color)` that rises + fades over 800ms.
+
+**Camera system is the architectural keystone** — items 4-7 all depend on it. Doing 1-3 first because they're independent and lift the perceived quality immediately, then attacking 4 as a dedicated push.
+
+## [21:40] [question] Camera sub-states — naming clash with current scene_manager?
+
+Current scene_manager has `EXTERIOR_OBSERVE` (pre-game enemy intro) + `EXTERIOR_RESOLVE` (player shot lands). Alexis suggests `EXTERIOR_OVERVIEW` / `FOLLOW_PROJECTILE` / `IMPACT_FOCUS` / `SNAP_BACK`. Plan: keep `INTERIOR_AIM` as the only "interior" state, replace `EXTERIOR_*` with the 4 new camera sub-states. Will land it as a single rewrite of `scene_manager.js` + matching subscribers in scene_exterior/index.js — no impact on `aim.js` / `script.js` / `turn.js` since they only listen to events, not to scene state names. Flagging in case Alexis sees a downstream he relies on.
