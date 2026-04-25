@@ -433,3 +433,22 @@ the opening EXTERIOR_OBSERVE state.
 - Intro overlay still says "TAP TO START" in plain white text. May want
   to swap to something more on-brand once we have a logo.
 
+
+## [00:38] [done] camera red→blue smooth ease (option 2)
+
+Replaced the EXTERIOR_OBSERVE snap-cut with `setPreset('blue', {
+ease: 0.02 })`. Camera now glides from red preset (held during INTRO)
+to blue preset (~500ms transition) when the player taps to dismiss
+"TAP TO START" and the opening crow wave kicks off.
+
+Source video shows neither — it uses one static wide framing showing
+both castles. But our architecture has two tight presets (red OR blue),
+so a transition between them is unavoidable. Eased pan reads better
+than a hard cut for this UX. `snapPreset('red')` in `mount()` still
+sets the initial framing.
+
+Files changed: `scene_exterior/index.js` (one-line swap, snapPreset →
+setPreset on EXTERIOR_OBSERVE branch).
+
+Next from gap-list: #4 pacing (current ~43s timeline → spec target 15s)
+or #5 endcard win/lose branching. Holding for user direction.

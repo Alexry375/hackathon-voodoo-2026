@@ -62,9 +62,11 @@ export function mount(c) {
       loop();
     }
     if (s === 'EXTERIOR_OBSERVE' && !isAttacking()) {
-      // Snap-cut to player castle for the enemy intro attack (spec §6: enemy shots snap-cut).
+      // Smooth ease from red preset → blue preset (~500ms). Source video has
+      // no transition (single wide framing both castles), but our two-preset
+      // architecture needs SOMETHING — easing reads better than a hard cut.
       _enemyShotIncoming = true;
-      snapPreset('blue');
+      setPreset('blue', { ease: 0.02 });
       pulseEnemyTint();
       const intensity = _firstWaveFired ? 'normal' : 'opening';
       _firstWaveFired = true;
