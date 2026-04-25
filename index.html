@@ -54,13 +54,15 @@
 
   <script type="module">
     import { mount as mountInterior } from './scene_interior/index.js';
+    import { mount as mountExterior } from './scene_exterior/index.js';
     import { start, subscribe, _devForceState } from './shared/scene_manager.js';
     import { state, killUnit } from './shared/state.js';
     import { emit } from './shared/events.js';
     import { getActiveUnitId } from './scene_interior/turn.js';
-    // scene_exterior intentionally not imported — owner: Sami. Wired in once his branch lands.
 
-    mountInterior(document.getElementById('g_interior'));
+    const g = document.getElementById('g_interior');
+    mountInterior(g);
+    mountExterior(g);
 
     const readout = document.getElementById('state-readout');
     subscribe((s) => { readout.textContent = s; });
