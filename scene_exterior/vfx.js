@@ -304,19 +304,18 @@ function drawChunks(ctx, w, h, hp_pct, side) {
  * @param {number} dt_ms
  * @param {{ hp_self_pct: number, hp_enemy_pct: number }} hp
  */
-export function updateAndDraw(ctx, viewport, dt_ms, { hp_self_pct, hp_enemy_pct }) {
-  const { w, h } = viewport;
-  const dt_s = Math.min(dt_ms, 50) / 1000; // clamp huge spikes (tab-switch) so rain doesn't teleport
-
-  if (!rain_inited) initRain(w, h);
-
-  // Damage overlay sits BELOW particles so explosion sparks pop in front of broken silhouette.
-  // Caller renders castles first; we don't know which side is on screen, so draw the chunks for
-  // whichever side is currently below threshold. In practice scene_manager only shows one at a time
-  // but drawing both is cheap and harmless if the off-screen one is fully healthy.
-  drawChunks(ctx, w, h, hp_self_pct, 'blue');
-  drawChunks(ctx, w, h, hp_enemy_pct, 'red');
-
+// World-space pass: explosion sparks/smoke/dust/rings (positions are world
+// coords from triggerExplosion / triggerSmokeTrail callers). Caller MUST
+// have applied the camera transform before this.
+export function updateAndDraw(ctx, _viewport, dt_ms, _hp = {}) {
   drawParticles(ctx, dt_ms);
+}
+
+// Screen-space pass: rain only. Caller MUST call this OUTSIDE the camera
+// transform so raindrops stay tied to the viewport, not the world.
+export function drawRainOverlay(ctx, viewport, dt_ms) {
+  const { w, h } = viewport;
+  const dt_s = Math.min(dt_ms, 50) / 1000;
+  if (!rain_inited) initRain(w, h);
   drawRain(ctx, w, h, dt_s);
 }

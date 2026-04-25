@@ -24,7 +24,7 @@ export const WORLD = /** @type {const} */ ({
 /** Convenience for camera presets. */
 export const CAM_PRESETS = /** @type {const} */ ({
   // Both castles visible — used for intro overview + post-impact wide.
-  overview: { x: WORLD.width / 2, y: WORLD.ground_y - 200, zoom: 0.40 },
+  overview: { x: WORLD.width / 2, y: WORLD.ground_y - 200, zoom: 0.55 },
   // Tight on the player's castle — used during aim phase if camera ever shows exterior.
   blue:     { x: WORLD.blue_castle.x,  y: WORLD.ground_y - 200, zoom: 0.85 },
   // Tight on the enemy castle — default exterior view.

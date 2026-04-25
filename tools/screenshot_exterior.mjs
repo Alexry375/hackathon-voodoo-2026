@@ -23,11 +23,35 @@ await p.waitForTimeout(2000); // let enemy attack play out
 await p.screenshot({ path: '/tmp/exterior_post_intro.png' });
 console.log('  shot post-intro (should be back to red castle focus)');
 
-// Force EXTERIOR_RESOLVE — should be on blue castle, then ease to red as projectile flies.
+// Drop enemy HP below 70% so the (now disabled) chunk overlay would have triggered.
+await p.evaluate(() => {
+  /** @type {any} */ (window).state.hp_enemy_pct = 50;
+  /** @type {any} */ (window).state.hp_self_pct = 35;
+});
 await p.click('button[data-state="EXTERIOR_RESOLVE"]');
-await p.waitForTimeout(200);
-await p.screenshot({ path: '/tmp/exterior_resolve_start.png' });
-console.log('  shot EXTERIOR_RESOLVE start');
+await p.waitForTimeout(400);
+await p.screenshot({ path: '/tmp/exterior_resolve_damaged.png' });
+console.log('  shot EXTERIOR_RESOLVE with damaged castles');
+
+// Simulate a player shot to verify camera follow + no ghost castles.
+await p.evaluate(() => {
+  /** @type {any} */ (window).dispatchEvent(new Event('focus'));
+});
+// Use the events bus directly via a script inject
+await p.evaluate(() => {
+  const Voodoo = /** @type {any} */ (window);
+  // Dynamically import events via a script element since modules aren't on window.
+  const s = document.createElement('script');
+  s.type = 'module';
+  s.text = `import { emit } from './shared/events.js'; emit('player_fire', { unit_id: 'cyclop', angle_deg: 35, power: 0.8, weapon_type: 'rocket' });`;
+  document.body.appendChild(s);
+});
+await p.waitForTimeout(400);
+await p.screenshot({ path: '/tmp/exterior_shot_inflight.png' });
+console.log('  shot with projectile in flight');
+await p.waitForTimeout(900);
+await p.screenshot({ path: '/tmp/exterior_shot_post_impact.png' });
+console.log('  shot post-impact');
 
 console.log('errors:', errs.length ? errs : 'none');
 await b.close();

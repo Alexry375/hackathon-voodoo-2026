@@ -15,7 +15,7 @@ import { WORLD, CAM_PRESETS } from '../shared/world.js';
 import { loadCastleAssets, castleAssetsReady, drawWorld } from './castles.js';
 import { loadProjectileAssets, updateAndDraw as drawProjectile, getLeadProjectilePos, getRecentImpact, isFiring } from './projectile.js';
 import { loadEnemyAssets, startEnemyAttack, updateAndDraw as drawEnemy, isAttacking } from './enemy_ai.js';
-import { loadVfxAssets, updateAndDraw as drawVfx } from './vfx.js';
+import { loadVfxAssets, updateAndDraw as drawVfx, drawRainOverlay } from './vfx.js';
 
 let drawScriptOverlay = null;
 import('../playable/script.js').then(m => { drawScriptOverlay = m.drawScriptOverlay || null; }).catch(() => {});
@@ -82,14 +82,14 @@ function _driveCamera() {
   // Enemy shots snap-cut, no follow. Already snapped in subscribe handler.
   if (_enemyShotIncoming) return;
 
-  // Player projectile in flight → follow it horizontally with a wider zoom
-  // so both castles stay roughly visible during the arc.
+  // Player projectile in flight → follow it horizontally. Zoom kept tight
+  // (0.78) so the bg image always covers and we don't reveal void edges.
   const lead = getLeadProjectilePos();
   if (lead) {
     setTarget({
       x: Math.max(CAM_PRESETS.blue.x, Math.min(CAM_PRESETS.red.x, lead.x)),
-      y: lead.y - 100,
-      zoom: 0.55,
+      y: WORLD.ground_y - 200,
+      zoom: 0.78,
     }, { ease: 0.02 });
     return;
   }
@@ -116,8 +116,13 @@ function loop() {
 
   const viewport = { w: canvas.width, h: canvas.height };
 
-  // Sky background fill (extends beyond world if camera pans wider than bg).
-  ctx.fillStyle = '#7fb069';
+  // Sky fill (screen-space) — sampled from the bg's sky band so any camera
+  // reveal beyond the bg image still reads as sky, not green grass.
+  const sky = ctx.createLinearGradient(0, 0, 0, viewport.h);
+  sky.addColorStop(0,    '#9aa9b8');
+  sky.addColorStop(0.55, '#b3bdc8');
+  sky.addColorStop(1,    '#7c8a99');
+  ctx.fillStyle = sky;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
 
   _driveCamera();
@@ -125,14 +130,19 @@ function loop() {
 
   // === World-space draws ===
   applyCameraTransform(ctx, viewport);
+  // Ground fill — extends FAR beyond bg horizontally + vertically so deep
+  // camera reveals never show empty pixels. Color matches bg's dark earth.
+  ctx.fillStyle = '#2a2f33';
+  ctx.fillRect(-4000, WORLD.ground_y, 12000, 8000);
   if (castleAssetsReady()) drawWorld(ctx);
-  drawVfx(ctx, viewport, dt_ms, { hp_self_pct: state.hp_self_pct, hp_enemy_pct: state.hp_enemy_pct });
+  drawVfx(ctx, viewport, dt_ms);
   drawEnemy(ctx, viewport, dt_ms);
   drawProjectile(ctx, viewport, dt_ms);
   ctx.restore();
   // === End world-space ===
 
-  // Screen-space overlays.
+  // Screen-space overlays — rain stays here so it tiles the viewport, not the world.
+  drawRainOverlay(ctx, viewport, dt_ms);
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
 }

@@ -197,3 +197,27 @@ Bundle still clean: 2.09 MB.
 ## [22:15] [info] Steps 5-7 remaining
 
 Out of the original 7-step plan: 5 (brick destruction), 6 (enemy AI freeplay loop, currently fires only at intro), 7 (damage numbers floating). All independent of the camera architecture — the keystone is in place. Will tackle next round.
+
+## [22:35] [done] Fixed bg coverage + ghost-castle blobs at zoom-out
+
+User-reported visual bugs after step 4:
+1. Background didn't cover when camera zoomed out → green grass voids visible above/below.
+2. "Multiple blurry enemy castles" appeared after a shot.
+
+Root causes:
+1. BG image was rendered at exactly `WORLD.width = 1400` and the screen-fill was solid green grass — anything beyond bg bounds showed empty.
+2. `vfx.drawChunks()` (damage overlay) used hardcoded SCREEN coords (`cx = w/2`). Now that the exterior renders inside a camera transform, those screen coords got re-transformed and stretched into dark castle-shaped blobs at zoom-out.
+
+Fixes:
+- `vfx.js`: split the export. `updateAndDraw(ctx, _, dt_ms)` now does only world-space particles. New `drawRainOverlay(ctx, viewport, dt_ms)` does rain in screen space. **`drawChunks()` disabled** — the screen-space approximation is fundamentally incompatible with the camera transform; will be replaced in step 5 (proper world-space brick destruction).
+- `scene_exterior/index.js`: screen-space sky gradient (matches bg's blue-grey palette) before the camera transform; world-space dark-earth ground fill (`#2a2f33`) extending far beyond the bg below `WORLD.ground_y`. Rain drawn after `ctx.restore()` so it stays viewport-locked.
+- `castles.js`: bg image stretched 30% wider than `WORLD.width` so camera follow doesn't reveal bg edges.
+- Tighter zoom: follow zoom 0.55 → 0.78 (kept tight on action), overview preset 0.40 → 0.55.
+
+Validated via Playwright (`tools/screenshot_exterior.mjs`):
+- `/tmp/exterior_resolve_damaged.png` — red castle at 50% HP, full bg coverage, no ghost blobs.
+- `/tmp/exterior_shot_inflight.png` — projectile follow shows BOTH castles + sky + bg + ground earth, all clean.
+- `/tmp/exterior_shot_post_impact.png` — impact focus shows world-space VFX explosion, no overlay artifacts.
+
+Bundle still 2.09 MB.
+

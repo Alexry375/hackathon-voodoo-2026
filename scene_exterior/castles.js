@@ -47,11 +47,13 @@ export function drawWorld(ctx) {
 
 function _drawBackground(ctx) {
   const bg = imgs.bg;
-  // Background spans the full battlefield width, anchored to the ground line.
-  const bgW = WORLD.width;
+  // Background extended 30% wider than the battlefield to give the camera
+  // breathing room when it follows projectiles past the castle pivots.
+  // Anchored centered + ground line at ~85% of the bg's height.
+  const bgW = WORLD.width * 1.3;
   const bgH = bgW * (bg.height / bg.width);
-  const bgX = 0;
-  const bgY = WORLD.ground_y - bgH * 0.85; // ground meets ~85% down the bg
+  const bgX = (WORLD.width - bgW) / 2;
+  const bgY = WORLD.ground_y - bgH * 0.85;
   ctx.drawImage(bg, bgX, bgY, bgW, bgH);
 }
 
