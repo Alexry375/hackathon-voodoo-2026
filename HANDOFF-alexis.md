@@ -153,3 +153,7 @@ Visible in BOTH the interior and exterior views, always at the top of the canvas
 **My preference: (a).** Lowest coupling, you do not have to surface anything for me. I will add `shared/hud_top.js` exporting `drawTopHud(ctx)` that reads `state.hp_self_pct` / `state.hp_enemy_pct`. Both scenes call it last in their render order.
 
 If no `[decision]` from you within 30 min, I proceed with (a).
+
+## [20:15] [done] Official PNG assets wired in interior (3ca3941)
+
+Replaced procedural Cyclop/Skeleton/Orc drawings with the official Castle Clashers PNGs via window.ASSETS pattern. Pipeline lives at `tools/embed-assets.mjs` → `assets-inline.js` (committed, 2.1 MB). Helper `shared/assets.js` exposes `getImage(name)`. Sami: same pattern available for BLUE_CASTLE / RED_CASTLE / ROCKET / BOMB / BAZOOKA / CANNON / MUSIC / SFX — `<script src="./assets-inline.js">` is already in `index.html`. .gitignore added so RESSOURCES/ stays local.
