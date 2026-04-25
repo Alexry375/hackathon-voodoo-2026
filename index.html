@@ -19,9 +19,13 @@
 </head>
 <body>
   <div id="devbar">
-    <button data-state="EXTERIOR_OBSERVE">EXTERIOR_OBSERVE</button>
-    <button data-state="INTERIOR_AIM">INTERIOR_AIM</button>
-    <button data-state="EXTERIOR_RESOLVE">EXTERIOR_RESOLVE</button>
+    <button data-state="EXTERIOR_OBSERVE">EXT_OBS</button>
+    <button data-state="INTERIOR_AIM">INT_AIM</button>
+    <button data-state="EXTERIOR_RESOLVE">EXT_RES</button>
+    <button data-hp="100">hp100</button>
+    <button data-hp="65">hp65</button>
+    <button data-hp="35">hp35</button>
+    <button data-hp="17">hp17</button>
     <span id="state-readout" style="margin-left:auto;align-self:center;"></span>
   </div>
   <div id="wrap"><canvas id="g_interior" width="540" height="960"></canvas></div>
@@ -44,6 +48,7 @@
   <script type="module">
     import { mount as mountInterior } from './scene_interior/index.js';
     import { start, subscribe, _devForceState } from './shared/scene_manager.js';
+    import { state } from './shared/state.js';
     // scene_exterior intentionally not imported — owner: Sami. Wired in once his branch lands.
 
     mountInterior(document.getElementById('g_interior'));
@@ -51,8 +56,11 @@
     const readout = document.getElementById('state-readout');
     subscribe((s) => { readout.textContent = s; });
 
-    document.querySelectorAll('#devbar button').forEach(btn => {
+    document.querySelectorAll('#devbar button[data-state]').forEach(btn => {
       btn.addEventListener('click', () => _devForceState(btn.dataset.state));
+    });
+    document.querySelectorAll('#devbar button[data-hp]').forEach(btn => {
+      btn.addEventListener('click', () => { state.hp_self_pct = +btn.dataset.hp; });
     });
 
     start();
