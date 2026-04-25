@@ -105,6 +105,38 @@ function _driveCamera() {
   setTarget(CAM_PRESETS.red, { ease: 0.006 });
 }
 
+// Pulsing red crosshair on the enemy castle during the tutorial phase, only
+// while no player shot is mid-flight (so it doesn't fight the camera follow).
+function _drawTutorialReticle(ctx, t_ms) {
+  const phase = /** @type {any} */ (window).__game?.phase;
+  if (phase !== 'tutorial' && phase !== 'intro') return;
+  if (getLeadProjectilePos()) return;
+
+  const cx = WORLD.red_castle.x;
+  const cy = WORLD.ground_y - WORLD.castle_h * 0.55;
+  const pulse = 0.55 + 0.45 * Math.sin(t_ms / 1000 * Math.PI * 1.6);
+  const r = 70 + pulse * 14;
+  ctx.save();
+  ctx.globalAlpha = 0.55 + pulse * 0.35;
+  ctx.strokeStyle = '#FF3030';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  // Crosshair ticks (4 cardinal)
+  ctx.lineWidth = 4;
+  for (const a of [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2]) {
+    const x0 = cx + Math.cos(a) * (r - 14);
+    const y0 = cy + Math.sin(a) * (r - 14);
+    const x1 = cx + Math.cos(a) * (r + 22);
+    const y1 = cy + Math.sin(a) * (r + 22);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function loop() {
   if (!visible) { rafId = 0; return; }
   rafId = requestAnimationFrame(loop);
@@ -140,6 +172,7 @@ function loop() {
     drawVfx(ctx, viewport, dt_ms);
     drawEnemy(ctx, viewport, dt_ms);
     drawProjectile(ctx, viewport, dt_ms);
+    _drawTutorialReticle(ctx, now);
   } catch (e) {
     console.error('[scene_exterior] world draw threw:', e);
   } finally {

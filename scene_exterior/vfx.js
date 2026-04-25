@@ -59,15 +59,23 @@ export function loadVfxAssets() {
   return Promise.resolve();
 }
 
+// palette presets — player shots burn warm (yellow/orange), enemy shots
+// burn cold/dark (violet/black) per spec §VFX.
+const PALETTES = {
+  player: { hueBase: 30,  hueRange: 30,  dustColor: '#5a4a3a' }, // amber → orange
+  enemy:  { hueBase: 270, hueRange: 30,  dustColor: '#1a1020' }, // violet → near-black
+};
+
 /**
  * @param {number} x
  * @param {number} y
- * @param {{ size: 'small' | 'big' }} opts
+ * @param {{ size: 'small' | 'big', palette?: 'player' | 'enemy' }} opts
  */
-export function triggerExplosion(x, y, { size }) {
+export function triggerExplosion(x, y, { size, palette = 'player' }) {
   const big = size === 'big';
   const sparkCount = big ? 30 : 15;
   const dustCount = big ? 8 : 4;
+  const pal = PALETTES[palette] || PALETTES.player;
 
   for (let i = 0; i < sparkCount; i++) {
     const p = spawn();
@@ -80,7 +88,7 @@ export function triggerExplosion(x, y, { size }) {
     p.age_ms = 0;
     p.kind = KIND_SPARK;
     p.size = (big ? 5 : 3) + Math.random() * 3;
-    p.hue = 290 + Math.random() * 30; // magenta/purple band, matches Castle Clashers ref
+    p.hue = pal.hueBase + Math.random() * pal.hueRange;
     p.alive = true;
   }
 

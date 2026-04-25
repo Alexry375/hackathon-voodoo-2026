@@ -101,12 +101,12 @@ function resolveImpact(p) {
   if (p.kind === 'unit' && p.unitId) {
     // scene_manager listens to 'unit_killed' and calls killUnit itself — do not call directly.
     emit('unit_killed', { unit_id: p.unitId });
-    try { vfx.triggerExplosion(p.x, p.y, { size: 'small' }); } catch (_) {}
+    try { vfx.triggerExplosion(p.x, p.y, { size: 'small', palette: 'enemy' }); } catch (_) {}
     playSfx({ volume: 0.8, rate: 1.1 });
   } else {
     applyDamageToSelf(-dmg);
     const size = dmg >= 11 ? 'big' : 'small';
-    try { vfx.triggerExplosion(p.x, p.y, { size }); } catch (_) {}
+    try { vfx.triggerExplosion(p.x, p.y, { size, palette: 'enemy' }); } catch (_) {}
     playSfx({ volume: 0.9, rate: 0.65 });
     addBite(p.x, p.y, { size });
   }

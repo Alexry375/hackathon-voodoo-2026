@@ -125,7 +125,7 @@ function _spawnBeam(payload) {
     x1: _TARGET_X, y1: _TARGET_Y,
     t_ms: 0, damage, damageEmitted: false,
   });
-  safeVfx('triggerExplosion', _TARGET_X, _TARGET_Y, { size: 'big' });
+  safeVfx('triggerExplosion', _TARGET_X, _TARGET_Y, { size: 'big', palette: 'player' });
   playSfx({ volume: 0.9, rate: 1.4 });
   _markImpact(_TARGET_X, _TARGET_Y, 'big');
 }
@@ -248,7 +248,7 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
       if ((descending && p.y >= tY) || p.x > WORLD.width + 80 || p.t_ms > 3000) {
         p.impacted = true;
         const size = p.weapon_type === 'volley' ? 'small' : 'big';
-        safeVfx('triggerExplosion', p.x, p.y, { size });
+        safeVfx('triggerExplosion', p.x, p.y, { size, palette: 'player' });
         playSfx({ volume: 0.9, rate: p.weapon_type === 'volley' ? 1.1 : 0.7 });
         _markImpact(p.x, p.y, size);
       }
