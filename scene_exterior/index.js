@@ -78,11 +78,16 @@ function loop() {
 
 // TODO enemy_ai.js will own the EXTERIOR_OBSERVE intro cinematic. When the intro
 // is done it should call ready_for_player_input() to cut to INTERIOR_AIM.
-// Stub for now: as soon as we enter EXTERIOR_OBSERVE, hand off after a short beat.
+// Stub: hand off ONCE at boot. Later visits to EXTERIOR_OBSERVE (e.g. dev buttons,
+// or a future "enemy attacks again" beat) won't auto-leave.
+let intro_done = false;
 subscribe((s) => {
-  if (s === 'EXTERIOR_OBSERVE') {
+  if (s === 'EXTERIOR_OBSERVE' && !intro_done) {
     setTimeout(() => {
-      if (getState() === 'EXTERIOR_OBSERVE') ready_for_player_input();
+      if (getState() === 'EXTERIOR_OBSERVE' && !intro_done) {
+        intro_done = true;
+        ready_for_player_input();
+      }
     }, 1200);
   }
 });

@@ -10,11 +10,13 @@
     #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
     canvas { display:block; touch-action:none; max-width:100vw; max-height:100vh;
              aspect-ratio:540/960; background:#0a0a0a; }
-    #devbar { position:fixed; top:8px; left:8px; right:8px; display:flex; gap:8px;
-              font:12px/1.2 sans-serif; color:#fff; pointer-events:auto; z-index:10; }
-    #devbar button { background:#222; color:#fff; border:1px solid #555; border-radius:4px;
-                     padding:4px 8px; cursor:pointer; font:inherit; }
-    #devbar button:hover { background:#333; }
+    #devbar, #devbar-hp { position:fixed; left:8px; right:8px; display:flex; gap:8px; flex-wrap:wrap;
+                          font:12px/1.2 sans-serif; color:#fff; pointer-events:auto; z-index:10; }
+    #devbar    { top:8px; }
+    #devbar-hp { top:42px; }
+    #devbar button, #devbar-hp button { background:#222; color:#fff; border:1px solid #555; border-radius:4px;
+                                        padding:4px 8px; cursor:pointer; font:inherit; }
+    #devbar button:hover, #devbar-hp button:hover { background:#333; }
   </style>
 </head>
 <body>
@@ -23,6 +25,14 @@
     <button data-state="INTERIOR_AIM">INTERIOR_AIM</button>
     <button data-state="EXTERIOR_RESOLVE">EXTERIOR_RESOLVE</button>
     <span id="state-readout" style="margin-left:auto;align-self:center;"></span>
+  </div>
+  <div id="devbar-hp">
+    <button data-hp="self"  data-delta="-25">blue −25</button>
+    <button data-hp="self"  data-delta="+25">blue +25</button>
+    <button data-hp="enemy" data-delta="-25">red −25</button>
+    <button data-hp="enemy" data-delta="+25">red +25</button>
+    <button data-hp="reset">reset 100/100</button>
+    <span id="hp-readout" style="margin-left:auto;align-self:center;"></span>
   </div>
   <div id="wrap"><canvas id="g" width="540" height="960"></canvas></div>
 
@@ -45,16 +55,32 @@
     import { mount as mountInterior } from './scene_interior/index.js';
     import { mount as mountExterior } from './scene_exterior/index.js';
     import { start, subscribe, _devForceState } from './shared/scene_manager.js';
+    import { state, applyDamageToSelf, applyDamageToEnemy } from './shared/state.js';
 
     const canvas = document.getElementById('g');
     mountInterior(canvas);
     mountExterior(canvas);
 
-    const readout = document.getElementById('state-readout');
-    subscribe((s) => { readout.textContent = s; });
+    // Dev-only: expose state for console poking (window.state.hp_self_pct = 30, etc.)
+    window.state = state;
+
+    const readout   = document.getElementById('state-readout');
+    const hpReadout = document.getElementById('hp-readout');
+    const refreshHp = () => { hpReadout.textContent = `blue ${state.hp_self_pct}%   red ${state.hp_enemy_pct}%`; };
+    subscribe((s) => { readout.textContent = s; refreshHp(); });
+    refreshHp();
 
     document.querySelectorAll('#devbar button').forEach(btn => {
       btn.addEventListener('click', () => _devForceState(btn.dataset.state));
+    });
+
+    document.querySelectorAll('#devbar-hp button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.hp === 'reset') { state.hp_self_pct = 100; state.hp_enemy_pct = 100; }
+        else if (btn.dataset.hp === 'self')  applyDamageToSelf(parseInt(btn.dataset.delta, 10));
+        else if (btn.dataset.hp === 'enemy') applyDamageToEnemy(parseInt(btn.dataset.delta, 10));
+        refreshHp();
+      });
     });
 
     start();
