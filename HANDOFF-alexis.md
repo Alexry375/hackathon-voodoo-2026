@@ -153,3 +153,21 @@ Visible in BOTH the interior and exterior views, always at the top of the canvas
 **My preference: (a).** Lowest coupling, you do not have to surface anything for me. I will add `shared/hud_top.js` exporting `drawTopHud(ctx)` that reads `state.hp_self_pct` / `state.hp_enemy_pct`. Both scenes call it last in their render order.
 
 If no `[decision]` from you within 30 min, I proceed with (a).
+
+## [20:15] [done] Official PNG assets wired in interior (3ca3941)
+
+Replaced procedural Cyclop/Skeleton/Orc drawings with the official Castle Clashers PNGs via window.ASSETS pattern. Pipeline lives at `tools/embed-assets.mjs` → `assets-inline.js` (committed, 2.1 MB). Helper `shared/assets.js` exposes `getImage(name)`. Sami: same pattern available for BLUE_CASTLE / RED_CASTLE / ROCKET / BOMB / BAZOOKA / CANNON / MUSIC / SFX — `<script src="./assets-inline.js">` is already in `index.html`. .gitignore added so RESSOURCES/ stays local.
+
+## [20:22] [done] Turn rotation + HUD portraits PNG (0a4ba90)
+
+`turn.js` (rotation [cyclop→skeleton→orc] sur cut_to_interior, skip morts) wiré dans aim/arrow/index. ACTIVE_FLOOR=1 hardcodé virée. HUD: portraits PNG officiels + outline jaune sur la card active. Devbar: boutons NEXT TURN et KILL ACTIVE pour tester en isolation. Vérifié end-to-end avec Playwright (4 screenshots).
+
+## [20:35] [done] Bundle pipeline scaffold — dist/playable.html 2.07 MB (0cd6187)
+
+esbuild + tools/build.mjs + playable/{entry,script-STUB,vsdk_shim}.js + scene_exterior/index.js STUB + dist/_template.html. Premier `npm run build` produit `dist/playable.html` (2.07 MB, sous le cap 4.8 MB AppLovin). Vérifié visuellement via Playwright : scene_interior rendu avec PNG officiels, devbar caché en mode prod, zéro erreur. Bundle ESM = 13.1 KB. Sami: bundler scaffold est en place, tu peux le push si tu veux mais le minify HTML/AppLovin compliance check est encore minimal — plus de polish à venir.
+
+## [20:50] [done] Full scripted playable ad live (a7eef42)
+
+5 phases narrative end-to-end en 45s : intro (TAP TO START) → tutorial (hand cursor pulsant + demo drag) → freeplay → forcewin (white flash) → endcard (VICTORY + PLAY NOW → VSDK redirectToInstallPage). Calque B01 timeline. 5 screenshots Playwright OK, zéro erreur, dist/playable.html = 2.08 MB.
+
+**Sami** : `shared/hud_top.js` est en place et appelée par `scene_interior` + ton stub `scene_exterior`. Quand ton vrai scene_exterior arrive, ajoute `drawTopHud(ctx)` puis `drawScriptOverlay(ctx, t)` en dernier dans ta loop pour que les overlays narratifs (intro/hand/forcewin flash/endcard) soient visibles aussi pendant tes phases. Le stub que jai mis sur ma branche fait déjà ça — tu peux le supprimer / merger avec ton vrai code sans souci.

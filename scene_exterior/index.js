@@ -1,14 +1,19 @@
 // Scene: EXTERIOR (combat view).
 // Owner: Sami.
 // Visible when scene_manager state is 'EXTERIOR_OBSERVE' or 'EXTERIOR_RESOLVE'.
-// Composes sub-modules: castles, enemy AI, projectile, VFX.
+// Composes sub-modules: castles, enemy AI, projectile, VFX, top HUD, script overlay.
 
 import { subscribe, getState, ready_for_player_input } from '../shared/scene_manager.js';
 import { state } from '../shared/state.js';
+import { drawTopHud } from '../shared/hud_top.js';
 import { loadCastleAssets, castleAssetsReady, drawCastles } from './castles.js';
 import { loadProjectileAssets, updateAndDraw as drawProjectile } from './projectile.js';
 import { loadEnemyAssets, startEnemyAttack, updateAndDraw as drawEnemy, isAttacking } from './enemy_ai.js';
 import { loadVfxAssets, updateAndDraw as drawVfx } from './vfx.js';
+
+// Script overlay is optional — only present when the prod scripted ad is wired up.
+let drawScriptOverlay = null;
+import('../playable/script.js').then(m => { drawScriptOverlay = m.drawScriptOverlay || null; }).catch(() => {});
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -74,11 +79,7 @@ function loop() {
   drawEnemy(ctx, viewport, dt_ms);
   drawProjectile(ctx, viewport, dt_ms);
 
-  // Dev overlay (remove once shared/hud_top.js lands).
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(0, 0, viewport.w, 28);
-  ctx.fillStyle = '#fff';
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(`${getState()}  blue ${state.hp_self_pct}%  red ${state.hp_enemy_pct}%  turn ${state.turn_index}`, 8, 18);
+  // Shared overlays — Alexis's hud_top on top of game, script overlay on top of HUD.
+  drawTopHud(ctx);
+  if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
 }

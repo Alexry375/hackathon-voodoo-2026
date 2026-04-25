@@ -8,15 +8,8 @@
  */
 
 import { emit } from '../shared/events.js';
-// state import kept per spec; not mutated, only future-read.
-// eslint-disable-next-line no-unused-vars
-import { state } from '../shared/state.js';
 import { getFloorAnchor } from './castle_section.js';
-
-// TODO: pick active unit from turn-based selection logic
-// (state.turn_index modulo alive units). For now hardcoded to floor 1 (Cyclop).
-const ACTIVE_FLOOR = 1;
-const ACTIVE_UNIT_ID = 'cyclop';
+import { getActiveFloor, getActiveUnitId } from './turn.js';
 
 const HIT_RADIUS = 60;
 const ORIGIN_LIFT = 40;
@@ -48,13 +41,16 @@ function _toCanvas(canvas, ev) {
 }
 
 function _unitOrigin() {
-  const a = getFloorAnchor(ACTIVE_FLOOR);
+  const f = getActiveFloor();
+  if (f === null) return null;
+  const a = getFloorAnchor(f);
   return { x: a.x, y: a.y - ORIGIN_LIFT };
 }
 
 function _onDown(ev) {
-  const p = _toCanvas(_canvas, ev);
   const o = _unitOrigin();
+  if (!o) return; // all units dead, no aim
+  const p = _toCanvas(_canvas, ev);
   const dx = p.x - o.x, dy = p.y - o.y;
   if (Math.hypot(dx, dy) > HIT_RADIUS) return;
   _aiming = true;
@@ -75,7 +71,8 @@ function _onUp(ev) {
   const { angle_deg, power } = _resolveShot();
   _aiming = false;
   try { _canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
-  emit('player_fire', { unit_id: ACTIVE_UNIT_ID, angle_deg, power });
+  const unit_id = getActiveUnitId();
+  if (unit_id) emit('player_fire', { unit_id, angle_deg, power });
 }
 
 function _onCancel() {
@@ -117,10 +114,11 @@ export function installAim(canvas) {
  */
 export function drawAimOverlay(ctx) {
   if (!_aiming || !_dragStart || !_dragCurrent) return;
+  const o = _unitOrigin();
+  if (!o) return;
   const { angle_deg, power } = _resolveShot();
   if (power <= 0.01) return;
   const rad = angle_deg * Math.PI / 180;
-  const o = _unitOrigin();
   const cw = ctx.canvas.width;
 
   let px = o.x, py = o.y;

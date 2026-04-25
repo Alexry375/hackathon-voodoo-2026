@@ -12,6 +12,9 @@ import { drawArrow } from './arrow.js';
 import { installAim, drawAimOverlay } from './aim.js';
 import { drawHudCards } from './hud_cards.js';
 import { drawRipStones } from './rip.js';
+import { getActiveFloor, getActiveUnitId } from './turn.js';
+import { drawTopHud } from '../shared/hud_top.js';
+import { drawScriptOverlay } from '../playable/script.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -21,7 +24,6 @@ let visible = false;
 let rafId = 0;
 let currentTilt = 0;
 
-const ACTIVE_FLOOR = 1;
 const TILT_EASE = 0.06;
 
 /** @param {number} hp_pct */
@@ -70,7 +72,10 @@ function loop() {
   drawCastleSection(ctx, { tilt_deg: currentTilt, damage_level: damageLevel });
   drawUnits(ctx, t);
   drawRipStones(ctx);
-  drawArrow(ctx, t, ACTIVE_FLOOR);
+  const activeFloor = getActiveFloor();
+  if (activeFloor !== null) drawArrow(ctx, t, activeFloor);
   drawAimOverlay(ctx);
-  drawHudCards(ctx);
+  drawHudCards(ctx, getActiveUnitId());
+  drawTopHud(ctx);
+  drawScriptOverlay(ctx, t);
 }
