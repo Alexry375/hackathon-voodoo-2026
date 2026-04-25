@@ -69,14 +69,18 @@ function rand(a, b) { return a + Math.random() * (b - a); }
  * @returns {Projectile}
  */
 function spawnProjectile(_viewport) {
-  // World coords: launch from above/right of red castle, target blue castle upper portion.
-  const x = WORLD.red_castle.x + rand(-80, 40);
-  const y = rand(-80, 80);
+  // Q1 (Gemini): crows enter from the right edge of the screen flying right→left
+  // with a slight downward tilt. Camera is panned left (blue castle in view) so
+  // the red castle is off-screen right — crows emerge from that right edge.
+  // Spawn well off the right canvas edge in world coords; target the upper portion
+  // of the blue castle.
+  const x = WORLD.red_castle.x + rand(60, 140);  // off-screen right
+  const y = WORLD.ground_y - WORLD.castle_h * rand(0.6, 0.9) + rand(-40, 40);
   const tx = WORLD.blue_castle.x + rand(-90, 90);
   const ty = WORLD.ground_y - WORLD.castle_h * 0.55 + rand(-30, 30);
 
-  const flightMs = rand(700, 1000);
-  const vx = (tx - x) / flightMs;
+  const flightMs = rand(800, 1200);
+  const vx = (tx - x) / flightMs; // always negative (right→left)
   const vy = (ty - y) / flightMs;
 
   // 30% of impacts target a unit floor — but only if a unit is alive. Otherwise wall.

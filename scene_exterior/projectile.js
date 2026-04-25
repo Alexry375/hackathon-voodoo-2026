@@ -250,7 +250,7 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
       p.smoke_acc_ms += dt;
       if (p.smoke_acc_ms >= SMOKE_EVERY_MS) {
         p.smoke_acc_ms = 0;
-        safeVfx('triggerSmokeTrail', p.x, p.y, -p.vx * 0.3, -p.vy * 0.3);
+        safeVfx('triggerSmokeTrail', p.x, p.y, -p.vx * 0.3, -p.vy * 0.3, p.weapon_type);
       }
 
       const descending = p.vy > 0;

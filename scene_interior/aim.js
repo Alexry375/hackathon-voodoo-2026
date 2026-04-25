@@ -18,8 +18,9 @@ const FULL_POWER_PX = 200;
 const SIM_STEPS = 60;
 const SIM_GRAVITY = 0.5;
 const SIM_V0 = 18;
-const DOT_EVERY = 3;
-const DOT_RADIUS = 3;
+const DOT_EVERY = 5;    // ~40px center-to-center pitch at typical power (Q7: 30-50px)
+const DOT_RADIUS = 6;   // ~12px diameter (Q7: 10-15px, Q6: 10-15px)
+const DOT_MAX = 9;      // Q7: max ~9 dots visible along full line
 const DOT_COLOR = '#FFFFFF';
 
 let _canvas = null;
@@ -141,18 +142,22 @@ export function drawAimOverlay(ctx) {
 
   ctx.save();
   ctx.fillStyle = DOT_COLOR;
-  ctx.shadowColor = 'rgba(0,0,0,0.45)';
-  ctx.shadowBlur = 2;
+  // Subtle drop shadow for readability against varying backgrounds (Q6).
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 3;
+  let dotCount = 0;
   for (let i = 0; i < SIM_STEPS; i++) {
     px += vx;
     py += vy;
     vy += SIM_GRAVITY;
     if (py > 960 || px < 0 || px > cw) break;
-    if (i < 1) continue;            // skip the very first dot near the origin
+    if (i < 1) continue;
     if (i % DOT_EVERY !== 0) continue;
+    if (dotCount >= DOT_MAX) break;
     ctx.beginPath();
     ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
     ctx.fill();
+    dotCount++;
   }
   ctx.restore();
 }

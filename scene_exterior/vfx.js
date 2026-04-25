@@ -6,7 +6,7 @@
 const MAX_PARTICLES = 200;
 const RAIN_COUNT = 80;
 
-/** @typedef {{x:number,y:number,vx:number,vy:number,life_ms:number,age_ms:number,kind:number,size:number,hue:number,alive:boolean}} Particle */
+/** @typedef {{x:number,y:number,vx:number,vy:number,life_ms:number,age_ms:number,kind:number,size:number,hue:number,alive:boolean,smokeColor?:string}} Particle */
 
 // kind enum: 0=explosion spark, 1=smoke puff, 2=dust, 3=ring (single per explosion)
 const KIND_SPARK = 0;
@@ -126,17 +126,29 @@ export function triggerExplosion(x, y, { size, palette = 'player' }) {
  * @param {number} vx
  * @param {number} vy
  */
-export function triggerSmokeTrail(x, y, vx, vy) {
+// Per Q4 Gemini analysis:
+// rocket (cyclop): pinkish-red #D95B5B, thick ~35px, short lifespan ~200ms
+// volley (skeleton): grey #8D8D8D, thin ~12px, long lifespan ~1200ms (traces full arc)
+// default: grey, medium
+const SMOKE_BY_WEAPON = {
+  rocket: { color: '#D95B5B', size: 18, life_ms: 200 },
+  volley: { color: '#8D8D8D', size:  6, life_ms: 1200 },
+  beam:   { color: '#9aa0a6', size:  8, life_ms: 400 },
+};
+
+export function triggerSmokeTrail(x, y, vx, vy, weapon_type = 'rocket') {
+  const cfg = SMOKE_BY_WEAPON[weapon_type] || SMOKE_BY_WEAPON.rocket;
   const p = spawn();
   p.x = x; p.y = y;
-  // Drift opposite to projectile motion + slight upward buoyancy.
   p.vx = -vx * 0.15 + (Math.random() - 0.5) * 20;
   p.vy = -vy * 0.15 - 15 - Math.random() * 15;
-  p.life_ms = 500 + Math.random() * 300;
+  p.life_ms = cfg.life_ms * (0.8 + Math.random() * 0.4);
   p.age_ms = 0;
   p.kind = KIND_SMOKE;
-  p.size = 6 + Math.random() * 5;
+  p.size = cfg.size * (0.8 + Math.random() * 0.4);
   p.hue = 0;
+  // Store color in an extra field — draw loop reads p.smokeColor.
+  p.smokeColor = cfg.color;
   p.alive = true;
 }
 
@@ -189,7 +201,7 @@ function drawParticles(ctx, dt_ms) {
       ctx.fill();
     } else if (p.kind === KIND_SMOKE) {
       ctx.globalAlpha = fade * 0.55;
-      ctx.fillStyle = '#9aa0a6';
+      ctx.fillStyle = p.smokeColor || '#9aa0a6';
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * (1 + t * 1.5), 0, Math.PI * 2);
       ctx.fill();

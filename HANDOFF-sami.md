@@ -452,3 +452,48 @@ setPreset on EXTERIOR_OBSERVE branch).
 
 Next from gap-list: #4 pacing (current ~43s timeline → spec target 15s)
 or #5 endcard win/lose branching. Holding for user direction.
+
+## [01:20] [done] Gemini video analysis — 7 queries, 4 fixes applied
+
+Ran 7 targeted ask_video.mjs queries against clip2.mp4 (Gemini 3.1 Pro
+Preview) to verify current implementation against source video.
+Results saved to results/Q1–Q7_*.md.
+
+**Fix 1 — Crow spawn direction (enemy_ai.js)**
+Q1 confirmed: crows enter from the right edge flying right→left with
+downward tilt. Spawn point moved from `red_castle.x + rand(-80,40)`
+to `red_castle.x + rand(60,140)` (clearly off-screen right). Velocity
+is already computed as `(target-origin)/flightMs` so direction auto-
+corrects. Q1 also revealed crows fly in intertwined pairs with
+alternating sine-wave offsets — not yet implemented (nice-to-have).
+
+**Fix 2 — Smoke trail color per weapon type (vfx.js + projectile.js)**
+Q4: rocket (cyclop) = pinkish-red #D95B5B, thick ~35px dia, short
+lifespan ~200ms. Volley (skeleton) = grey #8D8D8D, thin ~12px,
+long lifespan ~1200ms (traces the full arc). `triggerSmokeTrail` now
+accepts weapon_type param; SMOKE_BY_WEAPON lookup drives color/size/
+lifespan. projectile.js passes p.weapon_type when emitting smoke.
+
+**Fix 3 — Aim line dot sizing (aim.js)**
+Q6+Q7: dots are solid white circles ~12px diameter, center-to-center
+pitch ~40px, max ~9 dots along the full line. Was: radius=3, every 3
+sim steps, no max. Now: radius=6, every 5 sim steps, hard cap at 9
+dots. Trajectory remains straight (Q6: "strictly linear").
+
+**Findings that need NO change (already correct):**
+- Rain overlay: already implemented and called in scene_exterior ✓
+- Scene transition: hard cut confirmed (Q5) — our instant switch ✓
+- Camera follows projectile right: confirmed (Q3) — existing behavior ✓
+- Aim line uses individual arc() circles: already correct in aim.js ✓
+
+**Findings that identified new gaps (not yet coded):**
+- Q2: Video starts mid-action at t=0 — explosion already happening.
+  Our opening is more reserved. Acceptable for the playable version.
+- Q2: "Single crow sprite tumbling downward at 00:00" suggests crows
+  were already present before the video started — confirms they're a
+  persistent background threat, not a scripted intro event.
+- Q1: Paired intertwined crow flight (double-helix sine offset) —
+  not yet implemented. Cosmetic nice-to-have.
+- Q4: Goblin beam trail is orange #F28C1F — our beam is yellow/white
+  gradient. May want to tune later.
+
