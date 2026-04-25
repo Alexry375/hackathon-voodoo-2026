@@ -328,3 +328,63 @@ read as deliberate):**
 
 User confirmed plan: distill spec first, then close gaps in the order
 above. Will start with #1 (hook) after writing the distilled spec.
+
+## [23:55] [decision] enemy turn = crow waves, not red-castle volleys
+
+Re-watched B01.mp4 + cross-referenced `results/`. Confirmed: the red
+castle / red units never fire anything. The ONLY damage source on the
+blue castle across the whole video is kamikaze crows from the screen-
+left edge. Our current `enemy_ai.js` "off-screen rockets from upper-
+left" is a divergence — the threat should be a visible flying entity
+with a gray smoke trail that self-destructs on impact.
+
+**Architectural good news:** the alternation in `scene_manager.js` is
+structurally correct as-is. Crows are NOT periodic background pressure
+— they fire only after the player's shot resolves, except for the very
+first wave which is the opening hook before the player gets input.
+That's exactly our INTRO → EXTERIOR_OBSERVE → INTERIOR_AIM flow today.
+So the change is a reskin of `enemy_ai.js` projectile behavior, not a
+rewrite of the state machine.
+
+**User decisions on the crow-wave tuning:**
+
+1. **Wave size = 2–3 crows always.** No oversized opening swarm. The
+   opening "hook" reaches blue ≈30% HP by firing **several small waves
+   back-to-back during the no-input window** — not one giant wave.
+   (Reasoning: 5–6 crows in one volley is too much for a single hit
+   read; spec also says "petites vagues de deux ou trois.")
+2. **Lose path reachable.** The freeplay HP-floor (`hp_self_pct >= 30`)
+   we currently lock during freeplay should be removed. If the player
+   keeps missing, crows can drive HP to 0 → END_DEFEAT → endcard with
+   `endResult = 'lose'`. Source video has no actual lose ending (it cuts
+   abruptly), but `B01_game_spec.md:24` explicitly recommends a fail
+   path: *"Scénario Fail : Le joueur rate, les corbeaux détruisent son
+   château -> Écran 'Try Again' menant au store."*
+3. **Lose CTA = "Play Again" → app store** (no in-ad replay). Aligns
+   with the spec line above. No other file in `results/` contradicts.
+4. **Crow visual fallback** if no sprite in assets dir: small black
+   triangle/silhouette with a gray smoke trail behind it.
+5. **Player input locked during enemy wave.** Player can't aim or fire
+   while crows are still in flight or impacting — only on their own
+   turn. Matches source video and current behavior.
+
+**Implications for `enemy_ai.js`:**
+- Replace rocket projectile struct with a crow entity: position, target,
+  flat-ish flight (slight arc, not parabolic), gray smoke trail.
+- Spawn from `x = -50, y = WORLD.ground_y - 200..400` (left edge,
+  varying altitude), target = blue castle hitbox.
+- On impact: same explosion VFX call we already have, same damage path
+  via `applyDamageToSelf`, just remove the HP-floor clamp.
+- Opening sequence (`INTRO` / first `EXTERIOR_OBSERVE`): fire ~3 waves
+  back-to-back with short gaps until blue ≈ 30%. Subsequent waves
+  (post-player-shot) = single 2–3 crow wave doing chip damage (~5–8%
+  per wave) so the lose path is reachable but not certain in 2–3 turns.
+
+**Implications for `endcard.js` (Alexis-owned):**
+- Branch on `window.__game.endResult`: 'win' → "PLAY" / install CTA;
+  'lose' → "PLAY AGAIN" / install CTA. Both go to store.
+
+Will start coding the crow reskin + HP-floor removal once we close out
+the rest of the gap-list (#1 hook, #4 pacing, #5 endcard branching, #3
+damage numbers come first per the prior priority order — the crow swap
+is #2 last because it's the largest visual change).
