@@ -118,8 +118,9 @@ Si **Antoine dit X** et **Gemini sur la vidéo dit Y**, **Y gagne**. Tu document
 4. Combien de scènes/vues distinctes ? Comment elles s'enchaînent ?
 5. Quels sont les éléments de HUD permanents ?
 6. Quels sont les moments clés (intro / tutoriel / climax / endcard) avec timestamps ?
+7. **La source montre-t-elle simultanément les 2 entités principales** (2 châteaux, 2 joueurs, 2 zones) ou jamais ? — détermine si l'archi visuelle est mono-frame avec cuts ou dual-frame simultané. Cas vécu run-1 : impl dual-frame alors que la source était mono-frame → fidélité visuelle plombée. Réponse définitive lockée en step 01b.
 
-Si tu ne peux pas répondre à un de ces 6 points → re-lance Gemini sur la zone d'ombre, ne passe pas à l'étape suivante.
+Si tu ne peux pas répondre à un de ces 7 points → re-lance Gemini sur la zone d'ombre, ne passe pas à l'étape suivante.
 
 ## 1.5. Sortie attendue à la fin de cette étape
 
@@ -130,4 +131,4 @@ Si tu ne peux pas répondre à un de ces 6 points → re-lance Gemini sur la zon
 
 ---
 
-Étape suivante : [`02-asset-anchor.md`](02-asset-anchor.md).
+Étape suivante : [`01b-cinematic-spec.md`](01b-cinematic-spec.md) — lock cinématique avant scaffold.

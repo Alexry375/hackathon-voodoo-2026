@@ -27,12 +27,13 @@ Travaille ces étapes **séquentiellement**. Lis chacun de ces fichiers au momen
 
 1. [`pipeline/00-mission.md`](pipeline/00-mission.md) — livrable, contraintes, critères de succès
 2. [`pipeline/01-skim-and-validate.md`](pipeline/01-skim-and-validate.md) — skim des descriptions + validation Gemini sur la vidéo
-3. [`pipeline/02-asset-anchor.md`](pipeline/02-asset-anchor.md) — choisir et produire l'asset directeur (DA verrouillée)
-4. [`pipeline/03-asset-fanout.md`](pipeline/03-asset-fanout.md) — sub-agents parallèles sur les autres assets, briefés avec la DA
-5. [`pipeline/04-implementation.md`](pipeline/04-implementation.md) — scaffold du jeu, scene-split, contrat events
-6. [`pipeline/05-playwright-loop.md`](pipeline/05-playwright-loop.md) — boucle visuelle : screenshot vs frame de référence
-7. [`pipeline/06-bundle-and-deliver.md`](pipeline/06-bundle-and-deliver.md) — esbuild → `dist/playable.html` + check compliance
-8. [`pipeline/07-shots-convention.md`](pipeline/07-shots-convention.md) — **transverse** : conventions du dossier `shots/` à alimenter à chaque étape pour suivi humain
+3. [`pipeline/01b-cinematic-spec.md`](pipeline/01b-cinematic-spec.md) — **lock cinématique** (caméra, rythme, opening) avant scaffold
+4. [`pipeline/02-asset-anchor.md`](pipeline/02-asset-anchor.md) — choisir et produire l'asset directeur (DA verrouillée)
+5. [`pipeline/03-asset-fanout.md`](pipeline/03-asset-fanout.md) — sub-agents parallèles sur les autres assets, briefés avec la DA
+6. [`pipeline/04-implementation.md`](pipeline/04-implementation.md) — scaffold du jeu, scene-split, contrat events
+7. [`pipeline/05-playwright-loop.md`](pipeline/05-playwright-loop.md) — boucle visuelle clip-vs-clip + **gate score Gemini ≥ 9/10**
+8. [`pipeline/06-bundle-and-deliver.md`](pipeline/06-bundle-and-deliver.md) — esbuild → `dist/playable.html` + check compliance
+9. [`pipeline/07-shots-convention.md`](pipeline/07-shots-convention.md) — **transverse** : conventions du dossier `shots/` à alimenter à chaque étape pour suivi humain
 
 ---
 
@@ -43,6 +44,9 @@ Travaille ces étapes **séquentiellement**. Lis chacun de ces fichiers au momen
 - **Gemini = arbitre final** : si une description Antoine contredit ce que tu vois ou ce que rapporte un appel Gemini sur la vidéo, **la vidéo gagne**. Documente la divergence.
 - **Exigence > vitesse** : tu et tes sub-agents itérez tant que le résultat n'est pas conforme. Mieux vaut 5 itérations qu'un asset bâclé. Voir niveau de difficulté dans [`pipeline/03-asset-fanout.md`](pipeline/03-asset-fanout.md).
 - **Tu n'inventes pas** : si une mécanique/asset n'est pas dans les sources et pas dans la vidéo, tu ne l'ajoutes pas.
+- **Cinématique = mécanique** : caméra, rythme, transitions et frame d'opening sont des sous-systèmes load-bearing. Les locker en step 01b avant tout scaffold (sinon le pacing devient arbitraire et plombe la fidélité finale).
+- **Gate score Gemini ≥ 9/10** : aucune livraison sous **9/10** sur le scoring segmenté de step 5.5 (intro / aim / fire-cinematic / impact / endcard). En-dessous → re-itération obligatoire. Vise le 10. La step 5 documente la procédure de critique itérative.
+- **Validation finale = clip-vs-clip**, pas image-vs-image. L'image-only sert à itérer vite en step 04 ; jamais comme gate.
 
 ---
 

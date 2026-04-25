@@ -2,6 +2,8 @@
 
 > Dernière étape. Tu génères le livrable, vérifies qu'il respecte toutes les contraintes AppLovin/MRAID, et tu commits.
 
+> **Gate d'entrée** : la step 5.5 doit être verte — tous les segments du clip-vs-clip Gemini scorent **≥ 9/10**. Si tu arrives ici avec un segment < 9, retourne en 5.5. Seule exception : commit `[blocker-cinematic]` documenté après 5 itérations infructueuses sur le même segment.
+
 ---
 
 ## 6.1. Build final
@@ -71,9 +73,19 @@ Si pas dispo, skip cette étape.
 - [x] 0 erreur console
 - [x] 0 requête réseau
 - [x] Mécanique cœur conforme
-- [x] >= 80% des moments clés reproduits
+- [x] **Tous segments clip-vs-clip ≥ 9/10** (intro / aim / fire_cinematic / impact / endcard)
+- [x] Camera state machine conforme à `SANDBOX/outputs/cinematic-spec.md`
+- [x] Opening anchor à ±100 ms de la 1ère frame source
 - [x] redirectToInstallPage() OK
 - [x] Aucune feature inventée
+
+## Score final par segment (depuis `critique-clipclip-final.md`)
+- intro : <X>/10
+- aim : <X>/10
+- fire_cinematic : <X>/10
+- impact : <X>/10
+- endcard : <X>/10
+- **score min** : <X>/10 (doit être ≥ 9)
 
 ## Écarts résiduels
 <liste des écarts qui n'ont pas pu être corrigés, avec justification>
