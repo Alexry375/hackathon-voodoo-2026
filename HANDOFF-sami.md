@@ -274,3 +274,57 @@ is in `hud_top.js` which is Alexis's owned file — flagging for him.
    label instead of "PLAY", but for an ad the install CTA is fine in both.
 
 Bites still don't follow castle tilt — left as-is per user.
+
+## [23:24] [decision] gap analysis — current playable vs Gemini-distilled spec
+
+Reviewed the new `results/` folder (Alexis's Gemini analysis output: 21
+markdowns + 8 JSON iter plans, ~417 lines total). Most leaf files repeat
+their parent doc; the 4 top-level reports + `B01_game_spec.md` carry ~95%
+of the signal. Plan: distill into one `results/DISTILLED_GAMELOOP.md`
+(~80 lines) and archive the raw Gemini output under `results/raw/` so
+codegen has a single, clean contract instead of 30 files.
+
+**User-confirmed scope rules going forward:**
+- 1 character only (volley / Squelette). Drop the bottom selection menu.
+- Basic flat-color shapes are a *fallback* when an asset is missing — not
+  a wholesale replacement of the existing PNG castle render.
+- Keep castle bites as-is (no rigid-body collapse / tilt physics).
+
+**Game-loop gaps vs spec (asset fidelity excluded), ranked by
+impact-per-effort:**
+
+1. **Crisis hook missing.** Spec opens at ~30% HP under attack with hand
+   cursor. We open at full HP + intro enemy salvo. Mechanically the same
+   damage path; the urgency *read* isn't there. Fix: set
+   `state.hp_self_pct = 30` at boot + show hand immediately.
+2. **Pacing too long.** Spec target 15s. Current `script.js` has
+   `PHASE_FREEPLAY_END = 40000` + 3s forcewin → ~43s. Retune phase
+   constants. Open question whether 15s fits hook + 1–2 shots + win.
+3. **Win/lose endcard not differentiated.** `endResult` is stored but
+   `endcard.js` likely renders the same screen for both. Branch text/CTA
+   on `window.__game.endResult`.
+4. **Damage numbers (`-XX` floating, fading).** Spec calls these out as
+   core feedback. Still parked. Small module.
+5. **Kamikaze crows.** Spec antagonist = autonomous suicide units with
+   smoke trails arcing in from the left. Currently `enemy_ai.js` shoots
+   off-screen rockets. Same HP outcome, biggest visual swap for the
+   smallest gameplay change → do last.
+
+**Things to verify with a playthrough, not assume:**
+- Trajectory dotted-line preview in `aim.js` matches spec (white,
+  dotted, pivots in real time during drag).
+- HP % updates snap-to-value (no animated jauge).
+- `endcard.js` actually wires a tappable CTA into
+  `Voodoo.playable.install()` — we call `.win()` but `.install()` is the
+  conversion event.
+
+**Acknowledged scope cuts (not gaps, just flag in distilled spec so they
+read as deliberate):**
+- 3 characters → 1. No selection menu.
+- Tutorial hand should slide *from* a portrait per spec; with no menu it
+  just appears on the active unit. Fine.
+- Castle structural collapse / tilt → bites only.
+- 3D end-card with running characters → flat CTA.
+
+User confirmed plan: distill spec first, then close gaps in the order
+above. Will start with #1 (hook) after writing the distilled spec.
