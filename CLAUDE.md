@@ -147,6 +147,35 @@ Draft from Sami's branch includes: `source_analysis`, `playable_candidates[]` wi
 
 ---
 
+## Visual fidelity loop — MANDATORY for Claude Code (Sami)
+
+> **Every batch of playable changes must be verified against the source video before being reported as done.**
+
+After making visual or mechanic changes to the playable, run:
+```bash
+node tools/critique.mjs
+```
+
+This will:
+1. Start the dev server, record a full ~26s gameplay session via Playwright
+2. Send the recording + 10 sampled source frames to Gemini in one call
+3. Return a ranked diff: ✅ matches / ❌ discrepancies (P0/P1/P2) / 🔧 fix list
+4. Save the critique to `shots/critique_TIMESTAMP.md`
+
+**Rules:**
+- Run `critique.mjs` after every batch (not after every single file edit — after a coherent set of changes).
+- If the critique has P0 issues → fix them before pushing.
+- If the critique has P1 issues → fix or log them in HANDOFF as `[decision]` with justification.
+- P2 issues → log in HANDOFF, fix if time allows.
+- Do not report a task as done to the user without having run the critique at least once since the last push.
+
+**Skip conditions** (document in HANDOFF when you skip):
+- Pure refactor / rename with no visual output change.
+- Change is to pipeline tooling only (tools/, not scene_*/ or playable/).
+- The critique was already run on the immediately preceding identical state.
+
+---
+
 ## Git workflow
 
 - Branch naming: `feat/<name>/<scope>` (e.g. `feat/alexis/gemini-pipeline`, `feat/sami/codegen`).
