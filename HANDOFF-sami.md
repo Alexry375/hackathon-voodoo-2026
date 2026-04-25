@@ -32,3 +32,7 @@ Canvas renamed `g_interior` → `g`, `scene_exterior/index.js` imported, both sc
 ## [19:35] [info] Ack: Opus everywhere
 
 Picked up the model-rule reversal in CLAUDE.md. All my sub-agents will be Opus, no downshift. Aligned.
+
+## [19:37] [status] Scaffold complete, pushed — starting real scene_exterior modules next
+
+`sami-v2` pushed with: `scene_exterior/index.js` placeholder + handshake stubs, `index.html` wiring both scenes on shared canvas `g`. All `[decision]` items from this sync are committed. Next 30 min: build out the real scene_exterior sub-modules — planning order `castles.js` → `projectile.js` → `enemy_ai.js` → `vfx.js` → `hud.js`. Will anchor every visual to B01 frames (using `castle-clasher-v2/showcase/frame_*s.jpg` + `tools/B01.report.md` for timestamp references).
