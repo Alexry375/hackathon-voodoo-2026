@@ -1,21 +1,53 @@
 """
-Pipeline Agentic - Analyse Vidéo Gameplay en 4 Phases
+Pipeline Agentic - Analyse Vidéo Gameplay avec Arborescence Documentaire
+
+Principe : chaque analyse vidéo génère N sous-analyses (branching), de manière
+récursive sur D niveaux de profondeur. Résultat = game_spec.md (index racine)
++ un fichier .md par noeud de l'arbre.
+
+Estimations avant lancement :
+  branching=4, depth=2 → 4+16 = 20 appels vidéo, 21 fichiers .md
+  branching=4, depth=3 → 4+16+64 = 84 appels vidéo, 85 fichiers .md
 
 Usage:
     python pipeline_agentic.py Videos/B01.mp4
-    python pipeline_agentic.py Videos/B01.mp4 --output results/
+    python pipeline_agentic.py Videos/B01.mp4 -o results/ -b 4 -d 2
 """
 import os
 import json
 import time
 import argparse
 import concurrent.futures
+from dataclasses import dataclass, field
+from typing import Optional
 import google.generativeai as genai
 
 # --- Modèles ---
-MODELE_VISION   = "models/gemini-3.1-pro-preview"  # Phases 1 & 3 (multimodal)
-MODELE_TEXTE    = "models/gemini-3.1-pro-preview"               # Phases 2 & 4 (text-only, rapide)
+MODELE_VISION = "models/gemini-3.1-pro-preview"  # Phases 1 & 3 (multimodal)
+MODELE_TEXTE  = "models/gemini-3.1-pro-preview"  # Phases 2 & 4 (text-only)
 
+
+# ──────────────────────────────────────────────
+# Structure de données
+# ──────────────────────────────────────────────
+
+@dataclass
+class Noeud:
+    id: str
+    label: str
+    description: str
+    prompt: str
+    reason: str
+    priority: int
+    profondeur: int
+    parent_id: Optional[str]
+    analyse: str = ""
+    enfants_ids: list = field(default_factory=list)
+
+
+# ──────────────────────────────────────────────
+# Auth & Upload
+# ──────────────────────────────────────────────
 
 def configurer_authentification() -> None:
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -23,10 +55,6 @@ def configurer_authentification() -> None:
         raise ValueError("Variable d'environnement GEMINI_API_KEY manquante.")
     genai.configure(api_key=api_key)
 
-
-# ──────────────────────────────────────────────
-# Upload unique — réutilisé en phases 1 et 3
-# ──────────────────────────────────────────────
 
 def televerser_video(chemin_video: str):
     print(f"\n[Upload] {chemin_video}...")
@@ -63,24 +91,20 @@ def phase1_debroussailleur(fichier_video, modele_id: str) -> str:
 
 
 # ──────────────────────────────────────────────
-# Phase 2 — Le Planificateur
+# Phase 2 — Le Planificateur (par noeud)
 # ──────────────────────────────────────────────
 
 SYSTEME_PLANIFICATEUR = """\
 Tu es un agent d'analyse de gameplay spécialisé dans la décomposition de vidéos de jeux mobiles casual.
 
-Lis la description fournie et identifie les aspects qui méritent une analyse approfondie \
-lors d'un prochain passage sur la vidéo.
+Lis le contenu fourni et identifie exactement N aspects distincts qui méritent une analyse vidéo approfondie.
+N est indiqué dans le message.
 
 Contraintes :
-- Entre 3 et 6 aspects maximum
-- Chaque aspect porte sur un seul sujet
-- Pas de redondance entre les aspects
+- Exactement N aspects, ni plus ni moins
+- Chaque aspect porte sur un seul sujet précis, non redondant avec les autres
+- Chaque prompt doit être autonome et ciblé pour être soumis directement à la vidéo
 - Orienté vers la création d'un playable ad HTML
-
-Aspects prioritaires si présents :
-core_mechanic, player_interaction, objectives_and_win_condition, entities_and_objects,
-visual_style, camera_and_scene_layout, feedback_and_juice, ui_and_hud, progression_or_difficulty
 
 Format de sortie : JSON valide strict, sans markdown ni texte autour.
 {
@@ -88,7 +112,7 @@ Format de sortie : JSON valide strict, sans markdown ni texte autour.
     {
       "id": "snake_case_id",
       "description": "Ce qu'il faut analyser.",
-      "prompt": "Prompt ciblé pour réanalyser la vidéo sur cet aspect uniquement.",
+      "prompt": "Analyse la vidéo en te concentrant UNIQUEMENT sur [sujet]. Décris [détails attendus].",
       "priority": 5,
       "reason": "Pourquoi cet aspect est important."
     }
@@ -96,8 +120,8 @@ Format de sortie : JSON valide strict, sans markdown ni texte autour.
 }\
 """
 
-def phase2_planificateur(description: str, modele_id: str) -> dict:
-    print("\n[Phase 2] Génération du plan d'analyse ciblé...")
+def _phase2_pour_noeud(parent: Noeud, branching: int, modele_id: str) -> list[dict]:
+    """Génère les sous-aspects pour un noeud parent donné."""
     config = genai.types.GenerationConfig(
         temperature=0.1,
         response_mime_type="application/json"
@@ -107,106 +131,210 @@ def phase2_planificateur(description: str, modele_id: str) -> dict:
         system_instruction=SYSTEME_PLANIFICATEUR,
         generation_config=config
     )
-    reponse = modele.generate_content(description)
-    plan = json.loads(reponse.text)
-    aspects = plan.get("aspects", [])
-    print(f"  {len(aspects)} aspects identifiés :")
-    for a in sorted(aspects, key=lambda x: x.get("priority", 0), reverse=True):
-        print(f"    [P{a['priority']}] {a['id']} — {a['description'][:65]}")
-    return plan
+    message = f"N (nombre d'aspects à générer) : {branching}\n\nCONTENU À ANALYSER :\n{parent.analyse}"
+    reponse = modele.generate_content(message)
+    return json.loads(reponse.text).get("aspects", [])[:branching]
 
 
 # ──────────────────────────────────────────────
-# Phase 3 — La Boucle d'Expertise
+# Phase 3 — Analyse spécialisée (un noeud)
 # ──────────────────────────────────────────────
 
-def _analyser_aspect(fichier_video, aspect: dict, modele_id: str) -> dict:
-    aspect_id = aspect["id"]
-    print(f"  → {aspect_id} démarré")
+def _phase3_pour_noeud(fichier_video, noeud: Noeud, modele_id: str) -> None:
     modele = genai.GenerativeModel(model_name=modele_id)
-    reponse = modele.generate_content([fichier_video, aspect["prompt"]])
-    print(f"  ✓ {aspect_id} terminé ({len(reponse.text)} caractères)")
-    return {
-        "id":          aspect_id,
-        "description": aspect["description"],
-        "reason":      aspect.get("reason", ""),
-        "priority":    aspect.get("priority", 0),
-        "analyse":     reponse.text
-    }
+    reponse = modele.generate_content([fichier_video, noeud.prompt])
+    noeud.analyse = reponse.text
+    print(f"  ✓ [d{noeud.profondeur}] {noeud.id} ({len(reponse.text)} car.)")
 
-def phase3_boucle_expertise(fichier_video, aspects: list, modele_id: str) -> dict:
-    print(f"\n[Phase 3] Boucle d'expertise — {len(aspects)} analyses en parallèle...")
-    rapports = {}
+
+# ──────────────────────────────────────────────
+# Construction de l'arbre (BFS niveau par niveau)
+# ──────────────────────────────────────────────
+
+def construire_arbre(
+    fichier_video, description_brute: str,
+    branching: int, profondeur_max: int,
+    modele_vision: str, modele_texte: str
+) -> dict[str, Noeud]:
+
+    tous_noeuds: dict[str, Noeud] = {}
+
+    noeud_racine = Noeud(
+        id="__racine__", label="Racine", description="Description brute initiale",
+        prompt="", reason="", priority=0, profondeur=0, parent_id=None,
+        analyse=description_brute
+    )
+    tous_noeuds["__racine__"] = noeud_racine
+    niveau_courant = [noeud_racine]
+
+    for profondeur in range(1, profondeur_max + 1):
+        nb_attendus = len(niveau_courant) * branching
+        print(f"\n{'─'*55}")
+        print(f"  NIVEAU {profondeur}/{profondeur_max}  —  {len(niveau_courant)} parent(s) × {branching} = {nb_attendus} analyses")
+        print(f"{'─'*55}")
+
+        # Phase 2 : planification parallèle (un appel par noeud parent)
+        print(f"  [Phase 2] Génération des sous-aspects en parallèle...")
+        nouveaux_noeuds: list[Noeud] = []
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {
+                executor.submit(_phase2_pour_noeud, parent, branching, modele_texte): parent
+                for parent in niveau_courant
+            }
+            for future in concurrent.futures.as_completed(futures):
+                parent = futures[future]
+                aspects = future.result()
+
+                for aspect in aspects:
+                    safe_id = aspect["id"].replace(" ", "_")[:40]
+                    noeud_id = safe_id if parent.id == "__racine__" else f"{parent.id}__{safe_id}"
+
+                    # Déduplication
+                    compteur = 1
+                    base_id = noeud_id
+                    while noeud_id in tous_noeuds:
+                        noeud_id = f"{base_id}_{compteur}"
+                        compteur += 1
+
+                    noeud = Noeud(
+                        id=noeud_id,
+                        label=aspect["id"],
+                        description=aspect["description"],
+                        prompt=aspect["prompt"],
+                        reason=aspect.get("reason", ""),
+                        priority=aspect.get("priority", 0),
+                        profondeur=profondeur,
+                        parent_id=parent.id
+                    )
+                    tous_noeuds[noeud_id] = noeud
+                    parent.enfants_ids.append(noeud_id)
+                    nouveaux_noeuds.append(noeud)
+
+        print(f"  {len(nouveaux_noeuds)} noeuds créés.")
+
+        # Phase 3 : analyses vidéo parallèles (tous les nouveaux noeuds d'un coup)
+        print(f"  [Phase 3] {len(nouveaux_noeuds)} analyses vidéo en parallèle...")
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(_phase3_pour_noeud, fichier_video, noeud, modele_vision)
+                for noeud in nouveaux_noeuds
+            ]
+            concurrent.futures.wait(futures)
+            for f in futures:
+                f.result()  # propage les exceptions
+
+        niveau_courant = nouveaux_noeuds
+
+    return tous_noeuds
+
+
+# ──────────────────────────────────────────────
+# Phase 4 — Génération de l'arborescence .md
+# ──────────────────────────────────────────────
+
+def _ecrire_noeud_md(noeud: Noeud, tous_noeuds: dict, output_dir: str, nom_base: str) -> None:
+    """Écrit le fichier .md d'un noeud. Pas d'appel API — contenu = analyse Phase 3 + liens enfants."""
+    lignes = [
+        f"# {noeud.label.replace('_', ' ').title()}",
+        f"",
+        f"> {noeud.description}",
+        f"",
+        f"---",
+        f"",
+        noeud.analyse,
+    ]
+
+    if noeud.enfants_ids:
+        lignes += ["", "---", "", "## Sous-analyses", ""]
+        for eid in noeud.enfants_ids:
+            enfant = tous_noeuds.get(eid)
+            if enfant:
+                nom_fichier_enfant = f"{nom_base}_{enfant.id}.md"
+                lignes.append(f"- [{enfant.label.replace('_', ' ').title()}]({nom_fichier_enfant}) — {enfant.description[:90]}")
+
+    contenu = "\n".join(lignes)
+    chemin = os.path.join(output_dir, f"{nom_base}_{noeud.id}.md")
+    _sauvegarder(chemin, contenu)
+
+
+def phase4_generer_arborescence(
+    tous_noeuds: dict, description_brute: str,
+    modele_id: str, output_dir: str, nom_base: str
+) -> str:
+    print("\n[Phase 4] Génération de l'arborescence documentaire...")
+
+    # Écriture de tous les noeuds (pas de racine) en parallèle — pas d'appel API
+    noeuds_a_ecrire = [n for n in tous_noeuds.values() if n.id != "__racine__"]
+    print(f"  Écriture de {len(noeuds_a_ecrire)} fichiers .md...")
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {
-            executor.submit(_analyser_aspect, fichier_video, aspect, modele_id): aspect["id"]
-            for aspect in aspects
-        }
-        for future in concurrent.futures.as_completed(futures):
-            rapport = future.result()
-            rapports[rapport["id"]] = rapport
+        futures = [
+            executor.submit(_ecrire_noeud_md, noeud, tous_noeuds, output_dir, nom_base)
+            for noeud in noeuds_a_ecrire
+        ]
+        concurrent.futures.wait(futures)
+        for f in futures:
+            f.result()
 
-    return rapports
+    # game_spec.md — index racine avec synthèse (1 seul appel API)
+    print("  Génération de game_spec.md...")
+    noeuds_d1 = sorted(
+        [n for n in tous_noeuds.values() if n.profondeur == 1],
+        key=lambda n: n.priority, reverse=True
+    )
+    syntheses = "\n\n".join(
+        f"### {n.label}\n{n.analyse[:500]}..." for n in noeuds_d1
+    )
+    prompt_index = f"""\
+Tu es un expert en game design mobile. Génère un fichier game_spec.md synthétique servant d'index.
 
-
-# ──────────────────────────────────────────────
-# Phase 4 — Le Synthétiseur
-# ──────────────────────────────────────────────
-
-def phase4_synthetiseur(description_brute: str, rapports: dict, modele_id: str) -> str:
-    print("\n[Phase 4] Synthèse du document final...")
-
-    blocs_rapports = ""
-    for rapport in sorted(rapports.values(), key=lambda r: r.get("priority", 0), reverse=True):
-        blocs_rapports += (
-            f"\n\n### {rapport['id'].upper()}\n"
-            f"**Sujet :** {rapport['description']}\n"
-            f"**Analyse :**\n{rapport['analyse']}"
-        )
-
-    prompt = f"""\
-Tu es un expert en game design mobile. À partir des analyses suivantes d'une vidéo de gameplay, \
-génère un game_spec structuré, précis et immédiatement exploitable par un développeur.
-
----
 DESCRIPTION CHRONOLOGIQUE BRUTE :
-{description_brute[:3000]}
+{description_brute[:2000]}
+
+ANALYSES DE PREMIER NIVEAU :
+{syntheses}
 
 ---
-RAPPORTS D'EXPERTISE :
-{blocs_rapports}
+Génère un document Markdown structuré :
 
----
-Génère un document Markdown avec les sections suivantes :
+# Game Spec — [Nom du jeu détecté]
 
-# Game Spec — [Nom du jeu]
+## Résumé exécutif
+## Mécanique principale
+## Points clés (liste courte, 1 ligne par aspect)
+## Recommandations pour l'ad HTML jouable
 
-## 1. Résumé (2-3 phrases)
-## 2. Mécanique principale
-## 3. Entités et objets (liste avec comportements)
-## 4. Règles et conditions de victoire/défaite
-## 5. Interface utilisateur (HUD, feedback visuel, animations)
-## 6. Style visuel et ambiance
-## 7. Moments clés pour un ad HTML jouable
-
-Sois précis, factuel, et évite toute spéculation. Ne décris que ce qui est visible.\
+Sois synthétique. Les détails sont dans les fichiers liés.\
 """
-
     modele = genai.GenerativeModel(model_name=modele_id)
-    reponse = modele.generate_content(prompt)
-    print("  Synthèse terminée.")
-    return reponse.text
+    contenu_index = modele.generate_content(prompt_index).text
+
+    # Section index des liens
+    contenu_index += "\n\n---\n\n## Index\n\n"
+    for noeud in noeuds_d1:
+        contenu_index += f"- [{noeud.label.replace('_', ' ').title()}]({nom_base}_{noeud.id}.md) — {noeud.description[:80]}\n"
+
+    chemin_spec = os.path.join(output_dir, f"{nom_base}_game_spec.md")
+    _sauvegarder(chemin_spec, contenu_index)
+    return chemin_spec
 
 
 # ──────────────────────────────────────────────
 # Pipeline principal
 # ──────────────────────────────────────────────
 
-def executer_pipeline(chemin_video: str, output_dir: str = ".") -> None:
+def executer_pipeline(chemin_video: str, output_dir: str = ".", branching: int = 4, profondeur: int = 2) -> None:
     configurer_authentification()
     os.makedirs(output_dir, exist_ok=True)
     nom_base = os.path.splitext(os.path.basename(chemin_video))[0]
+
+    total_appels_video = sum(branching ** d for d in range(1, profondeur + 1))
+    total_fichiers_md  = total_appels_video + 1  # +1 pour game_spec.md
+    print(f"\n[Config] branching={branching}, profondeur={profondeur}")
+    print(f"         Appels vidéo Phase 3 estimés : {total_appels_video}")
+    print(f"         Fichiers .md estimés         : {total_fichiers_md}")
 
     fichier_video = None
     try:
@@ -214,24 +342,34 @@ def executer_pipeline(chemin_video: str, output_dir: str = ".") -> None:
 
         # Phase 1
         description_brute = phase1_debroussailleur(fichier_video, MODELE_VISION)
-        _sauvegarder(f"{output_dir}/{nom_base}_phase1_description.txt", description_brute)
+        _sauvegarder(os.path.join(output_dir, f"{nom_base}_phase1_description.txt"), description_brute)
 
-        # Phase 2
-        plan = phase2_planificateur(description_brute, MODELE_TEXTE)
-        _sauvegarder(f"{output_dir}/{nom_base}_phase2_plan.json", json.dumps(plan, indent=2, ensure_ascii=False))
+        # Construction de l'arbre (Phases 2+3 imbriquées, niveau par niveau)
+        tous_noeuds = construire_arbre(
+            fichier_video, description_brute, branching, profondeur, MODELE_VISION, MODELE_TEXTE
+        )
 
-        # Phase 3
-        rapports = phase3_boucle_expertise(fichier_video, plan["aspects"], MODELE_VISION)
-        _sauvegarder(f"{output_dir}/{nom_base}_phase3_reports.json", json.dumps(rapports, indent=2, ensure_ascii=False))
+        # Sauvegarde de la structure de l'arbre (debug)
+        _sauvegarder(
+            os.path.join(output_dir, f"{nom_base}_tree.json"),
+            json.dumps(
+                {nid: {"id": n.id, "label": n.label, "profondeur": n.profondeur,
+                       "parent_id": n.parent_id, "enfants_ids": n.enfants_ids}
+                 for nid, n in tous_noeuds.items()},
+                indent=2, ensure_ascii=False
+            )
+        )
 
-        # Phase 4
-        document_final = phase4_synthetiseur(description_brute, rapports, MODELE_TEXTE)
-        chemin_final = f"{output_dir}/{nom_base}_game_spec.md"
-        _sauvegarder(chemin_final, document_final)
+        # Phase 4 — arborescence documentaire
+        chemin_spec = phase4_generer_arborescence(
+            tous_noeuds, description_brute, MODELE_TEXTE, output_dir, nom_base
+        )
 
+        nb_noeuds = len(tous_noeuds) - 1  # exclure __racine__
         print(f"\n{'='*60}")
         print(f"[OK] Pipeline terminé.")
-        print(f"     Game spec : {chemin_final}")
+        print(f"     {nb_noeuds} analyses, {total_fichiers_md} fichiers .md générés")
+        print(f"     Index : {chemin_spec}")
         print(f"{'='*60}")
 
     finally:
@@ -248,12 +386,25 @@ def _sauvegarder(chemin: str, contenu: str) -> None:
 
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Pipeline Agentic — Analyse vidéo gameplay en 4 phases")
+    parser = argparse.ArgumentParser(
+        description="Pipeline Agentic — Analyse vidéo gameplay avec arborescence documentaire",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Exemples :
+  python pipeline_agentic.py Videos/B01.mp4
+  python pipeline_agentic.py Videos/B01.mp4 -b 4 -d 2 -o results/
+  python pipeline_agentic.py Videos/B01.mp4 -b 3 -d 3 -o results/  # 39 analyses"""
+    )
     parser.add_argument("video",           help="Chemin vers le fichier vidéo (MP4/MOV)")
-    parser.add_argument("--output", "-o",  default=".", help="Dossier de sortie (défaut: .)")
+    parser.add_argument("--output",  "-o", default=".",  help="Dossier de sortie (défaut: .)")
+    parser.add_argument("--branching","-b",default=4,    type=int, help="Sous-aspects par noeud (défaut: 4)")
+    parser.add_argument("--depth",   "-d", default=2,    type=int, help="Profondeur de l'arbre (défaut: 2)")
     args = parser.parse_args()
 
     if not os.path.exists(args.video):
         raise SystemExit(f"Erreur : fichier introuvable — {args.video}")
+    if args.branching < 1:
+        raise SystemExit("--branching doit être >= 1")
+    if args.depth < 1:
+        raise SystemExit("--depth doit être >= 1")
 
-    executer_pipeline(args.video, args.output)
+    executer_pipeline(args.video, args.output, args.branching, args.depth)
