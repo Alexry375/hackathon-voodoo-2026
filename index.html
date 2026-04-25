@@ -26,6 +26,8 @@
     <button data-hp="65">hp65</button>
     <button data-hp="35">hp35</button>
     <button data-hp="17">hp17</button>
+    <button id="btn-next-turn">NEXT TURN</button>
+    <button id="btn-kill-active">KILL ACTIVE</button>
     <span id="state-readout" style="margin-left:auto;align-self:center;"></span>
   </div>
   <div id="wrap"><canvas id="g_interior" width="540" height="960"></canvas></div>
@@ -53,7 +55,9 @@
   <script type="module">
     import { mount as mountInterior } from './scene_interior/index.js';
     import { start, subscribe, _devForceState } from './shared/scene_manager.js';
-    import { state } from './shared/state.js';
+    import { state, killUnit } from './shared/state.js';
+    import { emit } from './shared/events.js';
+    import { getActiveUnitId } from './scene_interior/turn.js';
     // scene_exterior intentionally not imported — owner: Sami. Wired in once his branch lands.
 
     mountInterior(document.getElementById('g_interior'));
@@ -66,6 +70,20 @@
     });
     document.querySelectorAll('#devbar button[data-hp]').forEach(btn => {
       btn.addEventListener('click', () => { state.hp_self_pct = +btn.dataset.hp; });
+    });
+
+    // NEXT TURN: simulate a resolution → advances turn.js cursor via cut_to_interior.
+    document.getElementById('btn-next-turn').addEventListener('click', () => {
+      emit('cut_to_interior', {
+        hp_self_after: state.hp_self_pct,
+        hp_enemy_after: state.hp_enemy_pct,
+        units_destroyed_ids: [],
+      });
+    });
+    // KILL ACTIVE: flag the currently-aimable unit dead (RIP gravestone shows up).
+    document.getElementById('btn-kill-active').addEventListener('click', () => {
+      const id = getActiveUnitId();
+      if (id) killUnit(id);
     });
 
     start();
