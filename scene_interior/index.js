@@ -1,11 +1,17 @@
-// Scene: INTERIOR (cross-section aim phase).
-// Owner: Alexis.
+// Scene: INTERIOR (cross-section aim phase). Owner: Alexis.
 // Visible only when scene_manager state is 'INTERIOR_AIM'.
-// Composes sub-modules: castle cross-section sprite, units, drag-aim input, HUD cards, RIP gravestones.
+// Composes: castle_section, units, arrow, aim, hud_cards.
+// Reactive bits driven by shared/state.js: damage_level + tilt are derived from hp_self_pct
+// and eased over time so the castle visibly leans / loses bricks as it takes damage.
 
 import { subscribe } from '../shared/scene_manager.js';
 import { state } from '../shared/state.js';
 import { drawCastleSection } from './castle_section.js';
+import { drawUnits } from './units.js';
+import { drawArrow } from './arrow.js';
+import { installAim, drawAimOverlay } from './aim.js';
+import { drawHudCards } from './hud_cards.js';
+import { drawRipStones } from './rip.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -13,13 +19,34 @@ let canvas = null;
 let ctx = null;
 let visible = false;
 let rafId = 0;
+let currentTilt = 0;
 
-/**
- * @param {HTMLCanvasElement} c
- */
+const ACTIVE_FLOOR = 1;
+const TILT_EASE = 0.06;
+
+/** @param {number} hp_pct */
+function targetTiltFor(hp_pct) {
+  // Castle leans further right as it takes damage. Calibrated against frames 13/29/40.
+  if (hp_pct >= 95) return 0;
+  if (hp_pct >= 65) return 4;
+  if (hp_pct >= 35) return 9;
+  if (hp_pct >= 18) return 14;
+  return 18;
+}
+
+/** @param {number} hp_pct */
+function damageLevelFor(hp_pct) {
+  if (hp_pct >= 70) return 0;
+  if (hp_pct >= 50) return 1;
+  if (hp_pct >= 30) return 2;
+  return 3;
+}
+
+/** @param {HTMLCanvasElement} c */
 export function mount(c) {
   canvas = c;
   ctx = c.getContext('2d');
+  installAim(c);
   subscribe((s) => {
     visible = (s === 'INTERIOR_AIM');
     if (visible && !rafId) loop();
@@ -30,21 +57,20 @@ function loop() {
   if (!visible) { rafId = 0; return; }
   rafId = requestAnimationFrame(loop);
   if (!ctx || !canvas) return;
-  // Clear with a debug-friendly color so we can verify the scene is mounted before sub-agents land.
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawCastleSection(ctx, { tilt_deg: 0, damage_level: 0 });
 
-  ctx.fillStyle = '#ffd166';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('INTERIOR — castle_section v0', canvas.width / 2, 80);
-  ctx.font = '13px sans-serif';
-  ctx.fillStyle = '#ccc';
-  ctx.fillText(`hp_self ${state.hp_self_pct}%   hp_enemy ${state.hp_enemy_pct}%   turn ${state.turn_index}`, canvas.width / 2, 100);
-  // TODO sub-agents will render here:
-  //   - 3 units with idle anim
-  //   - drag-aim input + dotted ballistic curve
-  //   - bottom HUD (3 cards)
-  //   - RIP gravestones for dead units
+  const t = performance.now() / 1000;
+
+  const targetTilt = targetTiltFor(state.hp_self_pct);
+  currentTilt += (targetTilt - currentTilt) * TILT_EASE;
+  const damageLevel = damageLevelFor(state.hp_self_pct);
+
+  ctx.fillStyle = '#88CCAA';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawCastleSection(ctx, { tilt_deg: currentTilt, damage_level: damageLevel });
+  drawUnits(ctx, t);
+  drawRipStones(ctx);
+  drawArrow(ctx, t, ACTIVE_FLOOR);
+  drawAimOverlay(ctx);
+  drawHudCards(ctx);
 }

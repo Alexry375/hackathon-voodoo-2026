@@ -21,9 +21,13 @@
 </head>
 <body>
   <div id="devbar">
-    <button data-state="EXTERIOR_OBSERVE">EXTERIOR_OBSERVE</button>
-    <button data-state="INTERIOR_AIM">INTERIOR_AIM</button>
-    <button data-state="EXTERIOR_RESOLVE">EXTERIOR_RESOLVE</button>
+    <button data-state="EXTERIOR_OBSERVE">EXT_OBS</button>
+    <button data-state="INTERIOR_AIM">INT_AIM</button>
+    <button data-state="EXTERIOR_RESOLVE">EXT_RES</button>
+    <button data-hp="100">hp100</button>
+    <button data-hp="65">hp65</button>
+    <button data-hp="35">hp35</button>
+    <button data-hp="17">hp17</button>
     <span id="state-readout" style="margin-left:auto;align-self:center;"></span>
   </div>
   <div id="devbar-hp">
@@ -70,8 +74,11 @@
     subscribe((s) => { readout.textContent = s; refreshHp(); });
     refreshHp();
 
-    document.querySelectorAll('#devbar button').forEach(btn => {
+    document.querySelectorAll('#devbar button[data-state]').forEach(btn => {
       btn.addEventListener('click', () => _devForceState(btn.dataset.state));
+    });
+    document.querySelectorAll('#devbar button[data-hp]').forEach(btn => {
+      btn.addEventListener('click', () => { state.hp_self_pct = +btn.dataset.hp; });
     });
 
     document.querySelectorAll('#devbar-hp button').forEach(btn => {
