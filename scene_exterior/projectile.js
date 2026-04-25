@@ -8,6 +8,7 @@
 import { on, emit } from '../shared/events.js';
 import { state } from '../shared/state.js';
 import { playSfx } from '../shared/audio.js';
+import { WORLD } from '../shared/world.js';
 
 const ASSET_BASE = 'assets/Castle Clashers Assets/';
 
@@ -21,16 +22,15 @@ const SMOKE_EVERY_MS = 40;
 const DAMAGE_MIN = 8;
 const DAMAGE_MAX = 28;
 
-// Weapon-specific tuning. Speed/gravity sized so a power=0.7 shot lands near
-// the enemy castle around the documented target point in ~600-900ms.
+// Weapon-specific tuning. Speed in WORLD units / ms; world battlefield is
+// ~760 units wide between castle pivots so a power=0.7 rocket lands in ~600ms.
 const WEAPON_TUNING = {
-  rocket: { speed: 1.6, gravity: 0.0010, sprite: 38, splits: 1, angleJitter: 0,        damageMul: 1.0 },
-  volley: { speed: 1.2, gravity: 0.0028, sprite: 22, splits: 3, angleJitter: 0.12,     damageMul: 0.45 },
-  beam:   { speed: 0,   gravity: 0,      sprite: 0,  splits: 0, angleJitter: 0,        damageMul: 1.1 },
+  rocket: { speed: 1.9, gravity: 0.0012, sprite: 44, splits: 1, angleJitter: 0,    damageMul: 1.0 },
+  volley: { speed: 1.6, gravity: 0.0030, sprite: 26, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
+  beam:   { speed: 0,   gravity: 0,      sprite: 0,  splits: 0, angleJitter: 0,    damageMul: 1.1 },
 };
 const VOLLEY_STAGGER_MS = 90;
 const BEAM_DURATION_MS  = 400;
-const BEAM_TARGET_Y_FRAC = 0.42;
 
 /**
  * @typedef {Object} Projectile
@@ -106,7 +106,14 @@ function _baseDamage(power) {
   return Math.round(DAMAGE_MIN + (DAMAGE_MAX - DAMAGE_MIN) * Math.max(0.1, Math.min(1, power)));
 }
 
-function _spawnRocketLike(payload, viewport, weapon_type, angleOffset, batchId) {
+// World-space launch + target. Launch from top of blue castle; target the
+// upper-mid of the red castle.
+const _LAUNCH_X = WORLD.blue_castle.x;
+const _LAUNCH_Y = WORLD.ground_y - WORLD.castle_h * 0.75;
+const _TARGET_X = WORLD.red_castle.x;
+const _TARGET_Y = WORLD.ground_y - WORLD.castle_h * 0.55;
+
+function _spawnRocketLike(payload, weapon_type, angleOffset, batchId) {
   const tune = WEAPON_TUNING[weapon_type];
   const angle = ((payload.angle_deg ?? 45) + angleOffset) * Math.PI / 180;
   const power = Math.max(0.1, Math.min(1, payload.power ?? 0.7));
@@ -115,7 +122,7 @@ function _spawnRocketLike(payload, viewport, weapon_type, angleOffset, batchId) 
   const vy = -Math.sin(angle) * speed;
   const damage = Math.round(_baseDamage(power) * tune.damageMul);
   active.push({
-    x: -40, y: viewport.h * 0.62, vx, vy,
+    x: _LAUNCH_X, y: _LAUNCH_Y, vx, vy,
     gravity: tune.gravity,
     t_ms: 0, smoke_acc_ms: 0,
     impacted: false, post_impact_ms: 0,
@@ -125,29 +132,31 @@ function _spawnRocketLike(payload, viewport, weapon_type, angleOffset, batchId) 
   });
 }
 
-function _spawnBeam(payload, viewport) {
+function _spawnBeam(payload) {
   const power = Math.max(0.1, Math.min(1, payload.power ?? 0.7));
   const damage = Math.round(_baseDamage(power) * WEAPON_TUNING.beam.damageMul);
-  const x0 = -20, y0 = viewport.h * 0.62;
-  const x1 = viewport.w * 0.55;
-  const y1 = viewport.h * BEAM_TARGET_Y_FRAC;
-  beams.push({ x0, y0, x1, y1, t_ms: 0, damage, damageEmitted: false });
-  safeVfx('triggerExplosion', x1, y1, { size: 'big' });
+  beams.push({
+    x0: _LAUNCH_X, y0: _LAUNCH_Y,
+    x1: _TARGET_X, y1: _TARGET_Y,
+    t_ms: 0, damage, damageEmitted: false,
+  });
+  safeVfx('triggerExplosion', _TARGET_X, _TARGET_Y, { size: 'big' });
   playSfx({ volume: 0.9, rate: 1.4 });
+  _markImpact(_TARGET_X, _TARGET_Y);
 }
 
-function spawnFromPayload(payload, viewport) {
+function spawnFromPayload(payload) {
   const weapon_type = payload.weapon_type || 'rocket';
   if (weapon_type === 'beam') {
-    _spawnBeam(payload, viewport);
+    _spawnBeam(payload);
     return;
   }
   const tune = WEAPON_TUNING[weapon_type] || WEAPON_TUNING.rocket;
   const batchId = _newBatch(tune.splits);
   if (tune.splits <= 1) {
-    _spawnRocketLike(payload, viewport, weapon_type, 0, batchId);
+    _spawnRocketLike(payload, weapon_type, 0, batchId);
   } else {
-    _spawnRocketLike(payload, viewport, weapon_type, _jitter(tune.angleJitter), batchId);
+    _spawnRocketLike(payload, weapon_type, _jitter(tune.angleJitter), batchId);
     volleyQueues.push({ payload, t_ms: 0, remaining: tune.splits - 1, batchId });
   }
 }
@@ -181,15 +190,17 @@ function _resolveDamage(entity) {
 }
 
 /**
+ * Caller MUST have already applied the camera transform — projectiles draw
+ * in world coordinates.
  * @param {CanvasRenderingContext2D} ctx
- * @param {{ w:number, h:number }} viewport
+ * @param {{ w:number, h:number }} _viewport (unused; kept for signature parity)
  * @param {number} dt_ms
  */
-export function updateAndDraw(ctx, viewport, dt_ms) {
-  while (pending.length) spawnFromPayload(pending.shift(), viewport);
+export function updateAndDraw(ctx, _viewport, dt_ms) {
+  while (pending.length) spawnFromPayload(pending.shift());
 
   const dt = Math.min(dt_ms, 50);
-  const tY = viewport.h * 0.42;
+  const tY = _TARGET_Y;
 
   // Tick volley queues — fire each pending sub-shot once its stagger elapses.
   for (let i = volleyQueues.length - 1; i >= 0; i--) {
@@ -249,11 +260,12 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
       }
 
       const descending = p.vy > 0;
-      if ((descending && p.y >= tY) || p.x > viewport.w + 80 || p.t_ms > 3000) {
+      if ((descending && p.y >= tY) || p.x > WORLD.width + 80 || p.t_ms > 3000) {
         p.impacted = true;
         const size = p.weapon_type === 'volley' ? 'small' : 'big';
         safeVfx('triggerExplosion', p.x, p.y, { size });
         playSfx({ volume: 0.9, rate: p.weapon_type === 'volley' ? 1.1 : 0.7 });
+        _markImpact(p.x, p.y);
       }
     } else {
       p.post_impact_ms += dt;
@@ -279,3 +291,24 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
 export function isFiring() {
   return active.length > 0 || beams.length > 0 || volleyQueues.length > 0 || pending.length > 0;
 }
+
+/** Lead projectile world position for camera follow, or null if none in flight. */
+export function getLeadProjectilePos() {
+  // Prefer the youngest in-flight rocket so camera keeps tracking the head of a volley.
+  for (const p of active) if (!p.impacted) return { x: p.x, y: p.y };
+  if (beams.length > 0) {
+    const b = beams[0];
+    const t = Math.min(1, b.t_ms / BEAM_DURATION_MS);
+    return { x: b.x0 + (b.x1 - b.x0) * t, y: b.y0 + (b.y1 - b.y0) * t };
+  }
+  return null;
+}
+
+/** Last known impact point for camera focus, or null if no recent impact. */
+let _lastImpact = /** @type {null | {x:number, y:number, t_ms:number}} */ (null);
+export function getRecentImpact(maxAgeMs = 800) {
+  if (!_lastImpact) return null;
+  if (performance.now() - _lastImpact.t_ms > maxAgeMs) return null;
+  return _lastImpact;
+}
+function _markImpact(x, y) { _lastImpact = { x, y, t_ms: performance.now() }; }

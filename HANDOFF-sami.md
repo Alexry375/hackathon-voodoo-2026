@@ -160,3 +160,40 @@ Batch tracker (`Map<batchId, {remaining, totalDamage}>`) ensures volley sub-shot
 
 Steps 1-3 are independent of the camera architecture. Items 4-7 from my attack plan need the camera system landed first. About to start `shared/camera.js` + scene_manager sub-state rewrite.
 
+
+## [22:15] [done] MVP step 4: camera ping-pong + 2-castle world rendering
+
+Big architectural shift: scene_exterior now renders in WORLD coordinates with a `shared/camera.js` mapping world → screen. Both castles always rendered at fixed world positions; the camera decides what's framed.
+
+**New modules:**
+- `shared/world.js` — battlefield constants. blue castle at world (320, 760), red at (1080, 760), ground line y=760, castle render height 560 world units. Battlefield 1400×960 wide.
+- `shared/camera.js` — `{x, y, zoom}` eased state. `setTarget(t, {ease})` for smooth pans, `snapTo(t)` for snap-cuts (spec §6 enemy shot ping-pong), `setPreset/snapPreset('overview'|'blue'|'red')`, `applyCameraTransform(ctx, viewport)` wraps world-space draws.
+
+**Refactored:**
+- `castles.js` — `drawCastles(ctx, {which, hp_pct})` is gone. New `drawWorld(ctx)` draws background + BOTH castles in world coords, reading hp from `state` directly. Tilt direction corrected (blue tilts left under fire, red tilts right).
+- `projectile.js` — launch and target now world coords (`WORLD.blue_castle.x`, `WORLD.red_castle.x`). Speed/gravity retuned for the longer world distance (rocket 1.9, volley 1.6 wu/ms). Exposed `getLeadProjectilePos()` (camera follow) + `getRecentImpact(maxAgeMs)` (impact focus).
+- `enemy_ai.js` — projectiles spawn from above the red castle, target the blue castle. World coords.
+- `scene_exterior/index.js` — full rewrite of the loop. Per frame: clear → `_driveCamera()` → `updateCamera(dt)` → `applyCameraTransform()` → world draws (castles + vfx + enemy + projectile) → `ctx.restore()` → screen-space overlays (hud_top, scriptOverlay).
+
+**Camera behavior (matches spec §6):**
+- Default idle = focus on enemy castle (the ad's natural exterior shot)
+- Player fires → preempt camera to blue castle (`on('player_fire')` handler)
+- Projectile in flight → follow horizontally, zoom out to 0.55 so both castles roughly visible during the arc
+- Recent impact (≤700ms old) → focus on impact point, zoom 0.95
+- Enemy shot incoming → SNAP-cut to blue castle, no follow (spec §6 explicit: enemy shots don't follow)
+
+**Validated visually** via Playwright screenshots:
+- `/tmp/exterior_observe.png` — camera correctly snapped to blue castle for intro enemy attack
+- `/tmp/exterior_post_intro.png` — after intro completes, transitioned to INTERIOR_AIM as expected (interior renders, RIP gravestone visible because enemy killed a unit during intro — confirms enemy_ai still wired correctly post-refactor)
+- `/tmp/exterior_resolve_start.png` — EXTERIOR_RESOLVE shows red castle framed (idle preset, no projectile yet), ready for player's shot to land
+
+Bundle still clean: 2.09 MB.
+
+**Known limitations** (non-blocking, will polish if time):
+- VFX rain renders inside the camera transform → follows the world; looks slightly off when camera is zoomed wide. Acceptable for MVP; can split rain into a screen-space pass later.
+- `_driveCamera()` overrides `EXTERIOR_RESOLVE`'s setPreset('blue') the next frame because the idle target is `red`. Functionally correct (enemy castle is where the shot lands) but means the manual force-resolve via devbar doesn't visually pan from blue first. Real player shots work because `on('player_fire')` preempts before resolve.
+- Projectile speeds tuned by feel, not matched to spec exactly. Will probably feel slightly slow.
+
+## [22:15] [info] Steps 5-7 remaining
+
+Out of the original 7-step plan: 5 (brick destruction), 6 (enemy AI freeplay loop, currently fires only at intro), 7 (damage numbers floating). All independent of the camera architecture — the keystone is in place. Will tackle next round.

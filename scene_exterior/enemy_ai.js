@@ -5,6 +5,7 @@
 import { state, applyDamageToSelf, aliveUnits } from '../shared/state.js';
 import { emit } from '../shared/events.js';
 import { playSfx } from '../shared/audio.js';
+import { WORLD } from '../shared/world.js';
 import * as vfx from './vfx.js';
 
 const ASSET_BASE = 'assets/Castle Clashers Assets/';
@@ -79,15 +80,12 @@ function rand(a, b) { return a + Math.random() * (b - a); }
  * @param {{w:number,h:number}} viewport
  * @returns {Projectile}
  */
-function spawnProjectile(viewport) {
-  const { w, h } = viewport;
-  const x = rand(-40, w * 0.2);
-  const y = rand(-80, h * 0.1);
-
-  // Target the upper portion of the blue castle (drawCastles pivots at h*0.78,
-  // castle height ~0.6h, so castle top ~h*0.18). Add jitter for variety.
-  const tx = w * 0.5 + rand(-w * 0.08, w * 0.08);
-  const ty = h * 0.5 + rand(-h * 0.05, h * 0.05);
+function spawnProjectile(_viewport) {
+  // World coords: launch from above/right of red castle, target blue castle upper portion.
+  const x = WORLD.red_castle.x + rand(-80, 40);
+  const y = rand(-80, 80);
+  const tx = WORLD.blue_castle.x + rand(-90, 90);
+  const ty = WORLD.ground_y - WORLD.castle_h * 0.55 + rand(-30, 30);
 
   const flightMs = rand(700, 1000);
   const vx = (tx - x) / flightMs;
