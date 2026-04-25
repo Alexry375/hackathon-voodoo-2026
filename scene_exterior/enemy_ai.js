@@ -44,14 +44,17 @@ export function loadEnemyAssets() {
 export function isAttacking() { return wave !== null; }
 
 /**
- * @param {{ onComplete: () => void }} opts
+ * @param {{ onComplete: () => void, intensity?: 'opening' | 'normal' }} opts
  */
-export function startEnemyAttack({ onComplete }) {
+export function startEnemyAttack({ onComplete, intensity = 'normal' }) {
   // Guard against re-entry — caller bug, but don't double-fire onComplete.
   if (wave) return;
+  // 'opening' = the no-input crisis hook, drops blue HP from 100% → ~30%.
+  // 'normal' = chip damage between player turns.
+  const pendingSpawns = intensity === 'opening' ? 7 : 2;
   wave = {
     projectiles: [],
-    pendingSpawns: 2,
+    pendingSpawns,
     spawnTimerMs: 0,
     onComplete,
     completed: false,

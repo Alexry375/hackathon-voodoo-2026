@@ -388,3 +388,48 @@ Will start coding the crow reskin + HP-floor removal once we close out
 the rest of the gap-list (#1 hook, #4 pacing, #5 endcard branching, #3
 damage numbers come first per the prior priority order — the crow swap
 is #2 last because it's the largest visual change).
+
+## [00:25] [done] gap #1 — crisis hook + intro pause + dev-prod parity
+
+**Boot flow rewritten.** scene_manager now stays in `INTRO` until the
+player taps; the "TAP TO START" overlay is a hard pause (no enemy wave,
+no timers ticking). On tap, `script.js` calls `scene_manager.start()`
+which fans out: INTRO → EXTERIOR_OBSERVE → opening crow wave (7 spawns,
+~70% blue HP drop) → ready_for_player_input → INTERIOR_AIM.
+
+Camera during intro = red castle (existing `mount()` does
+`snapPreset('red')`). On EXTERIOR_OBSERVE the existing handler
+`snapPreset('blue')` snap-cuts to blue for the wave.
+
+**Dev = Prod parity.** `index.html` now imports `runScript()` and runs
+the full scripted-ad timeline (intro overlay, tutorial hand, forcewin
+flash, endcard). Devbar hidden by default; add `?devbar=1` to the URL
+to bring it back. Removed the `_devForceState('INTERIOR_AIM')` calls
+from both `index.html:119` and `script.js:36` that were short-circuiting
+the opening EXTERIOR_OBSERVE state.
+
+**Files changed:**
+- `scene_exterior/enemy_ai.js` — `startEnemyAttack` accepts `intensity:
+  'opening' | 'normal'`; opening = 7 spawns, normal = 2.
+- `scene_exterior/index.js` — added `_firstWaveFired` flag;
+  `EXTERIOR_STATES` now includes `'INTRO'` so the exterior renders
+  during the tap-to-start pause.
+- `playable/script.js` — intro phase only advances on tap (no
+  time-based auto-advance); on dismiss, resets phase clock and calls
+  `sceneStart()`; removed dev-force INTERIOR_AIM and
+  `_devForceState` import; freeplay HP-floor lock removed (lose path
+  reachable per prior decision).
+- `index.html` — runScript() wired in dev; devbar hidden unless
+  `?devbar=1`; no longer calls `start()` directly.
+
+**Open issues for next iteration:**
+- Camera transition red → blue is currently a hard snap-cut (existing
+  `snapPreset('blue')` on EXTERIOR_OBSERVE). Source video doesn't
+  describe a camera transition at all — Gemini analysis in `results/`
+  has zero mentions of pan/zoom/cut during gameplay. The source uses a
+  single wide framing showing both castles; our two-preset architecture
+  (red OR blue) is our own divergence. Decision needed: ease the cut,
+  add a wide preset showing both, or keep snap.
+- Intro overlay still says "TAP TO START" in plain white text. May want
+  to swap to something more on-brand once we have a logo.
+

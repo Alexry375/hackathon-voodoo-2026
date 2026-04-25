@@ -10,7 +10,7 @@
 
 import { on } from '../shared/events.js';
 import { state } from '../shared/state.js';
-import { _devForceState, getState, subscribe as subscribeScene } from '../shared/scene_manager.js';
+import { getState, subscribe as subscribeScene, start as sceneStart } from '../shared/scene_manager.js';
 import { getFloorAnchor } from '../scene_interior/castle_section.js';
 import { getActiveFloor } from '../scene_interior/turn.js';
 import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_cursor.js';
@@ -27,13 +27,16 @@ const game = {
   t0: 0,
   shotsFired: 0,
   introDismissed: false,
+  introHandedOff: false, // set once we've called sceneStart() — guards re-entry
 };
 /** @type {any} */ (window).__game = game;
 
 /** @param {HTMLCanvasElement} canvas */
 export function runScript(canvas) {
   game.t0 = performance.now();
-  _devForceState('INTERIOR_AIM');
+  // Do NOT force INTERIOR_AIM here — we need the scene_manager's natural
+  // start() flow (EXTERIOR_OBSERVE opening wave → ready_for_player_input →
+  // INTERIOR_AIM) to fire so the crisis hook drops blue HP first.
   installEndcardTap(canvas);
 
   // tap-to-dismiss the intro overlay (skip the wait if the player taps early)
@@ -47,12 +50,9 @@ export function runScript(canvas) {
     game.shotsFired += 1;
   });
 
-  // Lock player HP at >= 30 during freeplay so the ad never enters lose state.
-  on('cut_to_interior', (payload) => {
-    if (game.phase === 'freeplay' && state.hp_self_pct < 30) {
-      state.hp_self_pct = 30;
-    }
-  });
+  // Lose path is reachable: if the player keeps missing, crow chip damage can
+  // drive blue HP to 0 → END_DEFEAT → endcard with endResult='lose'. The
+  // freeplay HP-floor we used to clamp here is intentionally removed.
 
   // If the scene_manager hits END_VICTORY / END_DEFEAT naturally (player won
   // mid-tutorial, or got killed before the freeplay HP-lock kicks in), jump
@@ -84,8 +84,16 @@ export function drawScriptOverlay(ctx, t) {
 function _updatePhase(elapsed) {
   switch (game.phase) {
     case 'intro':
-      if (elapsed > PHASE_INTRO_END || game.introDismissed) {
+      // Intro is a hard pause: only a player tap dismisses it (no time-based
+      // auto-advance). scene_manager stays in INTRO so no enemy wave fires
+      // and no turn timers tick — the player has time to read the screen.
+      if (game.introDismissed && !game.introHandedOff) {
+        game.introHandedOff = true;
         game.phase = 'tutorial';
+        // Reset the phase clock so 'tutorial' starts at elapsed=0 — otherwise
+        // the long pause counts against tutorial bail-out and freeplay timers.
+        game.t0 = performance.now();
+        sceneStart(); // INTRO → EXTERIOR_OBSERVE → opening crow wave
       }
       break;
     case 'tutorial':

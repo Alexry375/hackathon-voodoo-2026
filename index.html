@@ -70,6 +70,16 @@
     import { emit } from './shared/events.js';
     import { getActiveUnitId } from './scene_interior/turn.js';
     import { installAudioOnFirstTap } from './shared/audio.js';
+    import { runScript } from './playable/script.js';
+
+    // Default to full ad experience. Add `?devbar=1` to keep the dev affordances.
+    const SHOW_DEVBAR = new URLSearchParams(location.search).get('devbar') === '1';
+    if (!SHOW_DEVBAR) {
+      for (const id of ['devbar', 'devbar-hp']) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      }
+    }
 
     const canvas = document.getElementById('g');
     mountInterior(canvas);
@@ -115,8 +125,10 @@
       if (id) killUnit(id);
     });
 
-    start();
-    _devForceState('INTERIOR_AIM'); // dev: jump straight into our scene
+    // Do NOT call start() here — keep scene_manager in INTRO until the player
+    // taps to dismiss the "TAP TO START" overlay. runScript() owns that tap
+    // handler and calls start() itself when the intro is dismissed.
+    runScript(document.getElementById('g'));
   </script>
 </body>
 </html>

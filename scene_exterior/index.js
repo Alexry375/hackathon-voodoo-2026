@@ -28,11 +28,18 @@ let visible = false;
 let rafId = 0;
 let last_t = 0;
 
-const EXTERIOR_STATES = new Set(['EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
+// INTRO is included so the exterior scene renders during the "TAP TO START"
+// pause — camera stays on the red castle (set by mount's snapPreset('red'))
+// until the player taps and scene_manager.start() advances to EXTERIOR_OBSERVE.
+const EXTERIOR_STATES = new Set(['INTRO', 'EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
 let _enemyShotIncoming = false;
+// Track whether we've fired the opening crisis-hook wave yet. First entry to
+// EXTERIOR_OBSERVE = heavy opening salvo (drop blue ~70%); subsequent entries
+// = chip damage between player turns.
+let _firstWaveFired = false;
 
 export function mount(c) {
   canvas = c;
@@ -59,7 +66,9 @@ export function mount(c) {
       _enemyShotIncoming = true;
       snapPreset('blue');
       pulseEnemyTint();
-      startEnemyAttack({ onComplete: () => {
+      const intensity = _firstWaveFired ? 'normal' : 'opening';
+      _firstWaveFired = true;
+      startEnemyAttack({ intensity, onComplete: () => {
         _enemyShotIncoming = false;
         ready_for_player_input();
       }});
