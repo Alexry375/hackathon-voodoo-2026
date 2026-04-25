@@ -1,6 +1,6 @@
 # CLAUDE.md — North Star
 
-> **Shared reference for the 3 Claude Code instances working on this repo (Alexis, Sami, Daniel).**
+> **Shared reference for the 2 Claude Code instances working on this repo (Alexis, Sami).**
 > Read at the start of every session. Update only when a team decision is made.
 
 ---
@@ -59,8 +59,6 @@ hackathon_voodoo/
 ├── CLAUDE.md                   # this file (owner: team)
 ├── HANDOFF-alexis.md           # append-only log
 ├── HANDOFF-sami.md             # append-only log
-├── HANDOFF-daniel.md           # append-only log
-├── STRATEGIE-Alexis-Sami.md    # collaboration protocol between our 2 agents
 ├── .gitattributes              # merge=union on append-only files
 ├── README.md                   # public-facing
 │
@@ -104,7 +102,7 @@ hackathon_voodoo/
 
 **Golden rule: one folder = one owner = one dev.** Two devs never edit the same file simultaneously. The only shared zones are: `CLAUDE.md` (updated at syncs), `pipeline/spec/schema.json` (locked after H+8), and `HANDOFF-*.md` (each person owns theirs).
 
-> **TODO team:** validate this layout with Sami and Daniel. Sami already has an `analyze.py` outputting multi-candidate JSON — place it under `pipeline/spec/` or merge with `analysis/`. Decision needed.
+> **TODO team:** validate this layout with Sami. Sami already has an `analyze.py` outputting multi-candidate JSON — place it under `pipeline/spec/` or merge with `analysis/`. Decision needed.
 
 ### Intermediate spec contract
 
@@ -170,7 +168,7 @@ Draft from Sami's branch includes: `source_analysis`, `playable_candidates[]` wi
 Every 30 minutes, each dev does the following (5 min max):
 
 1. `git pull --rebase` on their branch.
-2. Read the other two HANDOFFs (scan for `[blocker]`, `[help]`, `[decision]`).
+2. Read the other HANDOFF (scan for `[blocker]`, `[help]`, `[decision]`).
 3. If a decision impacts you → adjust scope or log a `[question]` in your HANDOFF.
 4. Post a `[status]` in your HANDOFF summarising progress and blockers.
 

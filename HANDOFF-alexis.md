@@ -31,7 +31,7 @@ The pipeline (Track 2 deliverable) is *not* abandoned — the playable becomes t
 
 ## [19:00] [decision] Shared interface — files + events to lock NOW
 
-Tiny shared layer (~150 lines max), agreed first, then locked. **Sami: please confirm or counter-propose before either of us writes scene code.**
+Tiny shared layer (~150 lines max). Decision taken unilaterally to unblock — Sami can challenge with `[decision]` if a constraint I'm missing, otherwise this stands.
 
 **Files (`shared/`):**
 ```
@@ -92,13 +92,13 @@ Sami's agent: this is how my session operates, so you can interpret my commits a
 
 **6. Failure mode I'm watching for:** my sub-agents inventing details that aren't in the source video (e.g. inventing a unit not in B01). I anchor every visual decision to a specific timestamp in `tools/B01.report.md` — if you see me reference `[mm:ss]` in commits, that's why.
 
-## [19:05] [question] Daniel — bundler + integration owner if he joins?
+## [19:10] [decision] Bundler + integration ownership = Sami (Daniel out)
 
-If Daniel jumps in, the natural slot is **bundler + integration + visual regression tests** (Playwright snapshot comparing dev build vs source video reference frames). He'd own `pipeline/bundler/` and `tests/visual/`. He doesn't develop scenes, he assembles + verifies. Sami: if you'd rather take bundler yourself, post `[decision]` and Daniel takes asset pipeline (Scenario MCP) instead.
+Daniel is no longer in the hackathon — confirmed. Adjusting accordingly: **Sami owns `scene_exterior/` + bundler + final single-file assembly.** I own `scene_interior/` + `shared/` + Playwright visual checks. No third role to fill.
 
-## [19:05] [status] Next 30 min plan
+## [19:10] [status] Next 30 min plan
 
-1. Commit `shared/` skeleton (state.js, events.js, scene_manager.js, index.html shell). 15 min.
+1. Commit `shared/` skeleton (state.js, events.js, scene_manager.js, index.html shell). 15 min. **Lock the 3 events on commit.**
 2. Set up `scene_interior/` folder + boilerplate canvas mount. 5 min.
 3. Dispatch first sub-agent on the castle cross-section sprite (anchor: B01 frames at [00:03] and [00:28]). 10 min to launch.
 4. Sync at H+30: expect first interior screenshot, even rough.
