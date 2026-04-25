@@ -1,0 +1,260 @@
+{
+  "source_analysis": {
+    "game_name_guess": "Castle Clashers",
+    "genre_primary": "Artillery",
+    "genre_secondary": "Strategy",
+    "art_style": {
+      "descriptors": [
+        "2D cartoon",
+        "thick outlines",
+        "flat colors",
+        "side-view"
+      ],
+      "color_palette_hex": [
+        "#7CB342",
+        "#9E9E9E",
+        "#E53935",
+        "#1E88E5",
+        "#8D6E63"
+      ],
+      "reference_games": [
+        "Angry Birds",
+        "Bowmasters",
+        "Worms"
+      ]
+    },
+    "observed_mechanics": [
+      {
+        "name": "Unit Placement",
+        "frequency_in_video": "secondary",
+        "description": "Player drags a unit character from a bottom UI roster and drops it onto an empty floor/slot within their castle.",
+        "screen_time_estimate_seconds": 5
+      },
+      {
+        "name": "Trajectory Aiming and Firing",
+        "frequency_in_video": "primary",
+        "description": "Player taps and drags on a placed unit to pull back a dotted trajectory line, then releases to fire a projectile at the enemy castle.",
+        "screen_time_estimate_seconds": 15
+      },
+      {
+        "name": "Destructible Environment / Health",
+        "frequency_in_video": "primary",
+        "description": "Projectiles hit the enemy castle, causing explosions, reducing a top health bar percentage, and visually destroying chunks of the castle.",
+        "screen_time_estimate_seconds": 20
+      }
+    ],
+    "ui_elements_observed": [
+      "Top health bars with percentages (Blue vs Red)",
+      "Bottom unit selection roster",
+      "Dotted trajectory line",
+      "Floating damage numbers",
+      "End screen rewards and CTA"
+    ],
+    "audio_cues_inferred": [
+      "Cartoon explosion sounds",
+      "Projectile whoosh/firing sounds",
+      "Unit placement thud",
+      "Victory fanfare"
+    ]
+  },
+  "playable_candidates": [
+    {
+      "candidate_id": "A",
+      "concept_one_liner": "Focus purely on the satisfying artillery aiming and destruction mechanic.",
+      "featured_mechanic": "Trajectory Aiming and Firing",
+      "hook_first_3_seconds": "A pulsing animated hand prompts the player to drag back on a pre-placed skeleton unit, revealing a dotted trajectory line aimed at the enemy castle.",
+      "core_interaction": {
+        "input_type": "drag",
+        "what_player_does": "Drag back from the unit to aim the trajectory, then release to fire a rocket at the enemy castle.",
+        "win_state": "Hitting the enemy castle 2 times reduces its health to 0% and triggers a massive explosion.",
+        "lose_state": "none"
+      },
+      "session_length_seconds": 15,
+      "difficulty_curve": "flat",
+      "end_card": {
+        "headline": "Destroy the Enemy!",
+        "cta_button_text": "Play Now",
+        "visual_treatment": "The enemy castle crumbles into rubble, confetti explodes, and the surviving units cheer as the CTA button pulses."
+      },
+      "predicted_appeal": {
+        "score_out_of_10": 9,
+        "rationale": "Slingshot mechanics are universally understood, highly tactile, and immediately satisfying, making for a perfect high-converting playable."
+      },
+      "implementation_complexity": "medium",
+      "implementation_notes_for_codegen": "Use a simple quadratic bezier curve for the trajectory line. The physics don't need to be perfectly realistic, just visually satisfying with a clear arc and explosion on impact."
+    },
+    {
+      "candidate_id": "B",
+      "concept_one_liner": "Combine the strategic unit placement with an automated satisfying payoff.",
+      "featured_mechanic": "Unit Placement",
+      "hook_first_3_seconds": "The player's castle is empty. A glowing arrow points from a goblin in the bottom UI to an empty slot in the castle.",
+      "core_interaction": {
+        "input_type": "drag",
+        "what_player_does": "Drag two units from the bottom roster into the castle slots.",
+        "win_state": "Once placed, the units automatically rapid-fire at the enemy castle, destroying it in a spectacular automated sequence.",
+        "lose_state": "none"
+      },
+      "session_length_seconds": 12,
+      "difficulty_curve": "flat",
+      "end_card": {
+        "headline": "Build Your Army!",
+        "cta_button_text": "Install",
+        "visual_treatment": "Screen transitions to a lineup of cool unlockable units with the CTA button below."
+      },
+      "predicted_appeal": {
+        "score_out_of_10": 7,
+        "rationale": "Appeals to strategy and merge-game players who enjoy building a setup and watching it execute, though less tactile than aiming."
+      },
+      "implementation_complexity": "low",
+      "implementation_notes_for_codegen": "This avoids complex physics. Simply use CSS/canvas animations to move projectiles horizontally with a slight arc once the drop event is registered."
+    },
+    {
+      "candidate_id": "C",
+      "concept_one_liner": "A full micro-loop: place a unit, then aim it to save your dying castle.",
+      "featured_mechanic": "Trajectory Aiming and Firing",
+      "hook_first_3_seconds": "The player's castle is taking damage. A prompt urges them to drag a unit to the last remaining slot to counter-attack.",
+      "core_interaction": {
+        "input_type": "drag",
+        "what_player_does": "Drag a unit to the castle, then immediately drag on that unit to aim and fire a massive finishing blow.",
+        "win_state": "The fired projectile hits the enemy castle, destroying it instantly.",
+        "lose_state": "Player takes too long (over 10 seconds) and their own castle health reaches 0%."
+      },
+      "session_length_seconds": 20,
+      "difficulty_curve": "escalating",
+      "end_card": {
+        "headline": "Epic Comeback!",
+        "cta_button_text": "Play Free",
+        "visual_treatment": "A dynamic freeze-frame of the final explosion with the CTA button overlay."
+      },
+      "predicted_appeal": {
+        "score_out_of_10": 8,
+        "rationale": "Creates urgency and shows both core mechanics, but requires more user steps which can drop completion rates."
+      },
+      "implementation_complexity": "high",
+      "implementation_notes_for_codegen": "Requires managing two distinct interaction states (UI drag-and-drop vs. in-world slingshot aiming) and a timer for the lose condition."
+    }
+  ],
+  "recommended_candidate": "A",
+  "recommendation_rationale": "Candidate A focuses entirely on the most tactile and rewarding mechanic: aiming and shooting. Slingshot mechanics have a proven track record in playable ads due to their intuitive nature and immediate visual feedback.",
+  "asset_requirements": {
+    "critical": [
+      {
+        "id": "asset_001",
+        "name": "Player Castle",
+        "type": "sprite",
+        "description_for_image_gen": "A 2D cartoon medieval stone castle tower with blue roofs, sitting on top of brown tank treads. Side view, thick black outlines, flat colors, transparent background.",
+        "dimensions_px": "300x400",
+        "transparency_required": true,
+        "used_in_candidates": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      {
+        "id": "asset_002",
+        "name": "Enemy Castle",
+        "type": "sprite",
+        "description_for_image_gen": "A 2D cartoon medieval stone castle tower with red roofs, sitting on top of brown tank treads. Side view, thick black outlines, flat colors, transparent background.",
+        "dimensions_px": "300x400",
+        "transparency_required": true,
+        "used_in_candidates": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      {
+        "id": "asset_003",
+        "name": "Skeleton Unit",
+        "type": "sprite",
+        "description_for_image_gen": "A cute 2D cartoon skeleton wearing a blue helmet and holding a sci-fi blaster gun. Side view facing right, thick outlines, transparent background.",
+        "dimensions_px": "100x100",
+        "transparency_required": true,
+        "used_in_candidates": [
+          "A",
+          "C"
+        ]
+      },
+      {
+        "id": "asset_004",
+        "name": "Rocket Projectile",
+        "type": "sprite",
+        "description_for_image_gen": "A small 2D cartoon red and grey missile/rocket. Side view pointing right, thick outlines, transparent background.",
+        "dimensions_px": "60x20",
+        "transparency_required": true,
+        "used_in_candidates": [
+          "A",
+          "C"
+        ]
+      },
+      {
+        "id": "asset_005",
+        "name": "Background",
+        "type": "background",
+        "description_for_image_gen": "A 2D cartoon landscape with rolling green hills, a few stylized trees, and a pale green cloudy sky. Flat colors, simple vector style.",
+        "dimensions_px": "800x600",
+        "transparency_required": false,
+        "used_in_candidates": [
+          "A",
+          "B",
+          "C"
+        ]
+      }
+    ],
+    "nice_to_have": [
+      {
+        "id": "asset_nth_001",
+        "name": "Explosion Particle",
+        "type": "particle",
+        "description_for_image_gen": "A 2D cartoon explosion cloud, orange and yellow with thick black outlines.",
+        "fallback_if_missing": "canvas drawn orange circles expanding and fading"
+      },
+      {
+        "id": "asset_nth_002",
+        "name": "Goblin Unit",
+        "type": "sprite",
+        "description_for_image_gen": "A cute 2D cartoon green goblin wearing a red bandana holding a bazooka.",
+        "fallback_if_missing": "colored rectangle #4CAF50"
+      }
+    ]
+  },
+  "technical_constraints": {
+    "recommended_render_approach": "canvas-2d",
+    "recommended_framework": "vanilla",
+    "framework_rationale": "Vanilla Canvas 2D is lightweight enough to easily stay under the 5MB limit while perfectly capable of handling simple 2D physics, trajectory drawing, and sprite rendering without the overhead of a full engine.",
+    "estimated_loc_for_mvp": 450,
+    "known_risks": [
+      "Calculating the trajectory arc to accurately predict where the projectile will land.",
+      "Creating a satisfying visual destruction effect for the enemy castle without using heavy image sequences."
+    ]
+  },
+  "validation_criteria": {
+    "must_pass": [
+      "Dragging on the player unit renders a visible dotted line indicating trajectory.",
+      "Releasing the drag spawns a projectile that follows the indicated trajectory.",
+      "Projectile intersecting with the enemy castle bounding box triggers an explosion effect.",
+      "Enemy castle health bar decreases upon projectile impact.",
+      "After 2 successful hits, the end card UI becomes visible."
+    ],
+    "should_pass": [
+      "The trajectory line updates smoothly in real-time as the user drags.",
+      "The visual style matches the flat, thick-outlined cartoon aesthetic of the source.",
+      "A tutorial hand animation plays if the user does not interact within the first 3 seconds."
+    ]
+  },
+  "_meta": {
+    "videos_analyzed_count": 1,
+    "video_duration_total_seconds": 56,
+    "confidence_overall": "high",
+    "fields_with_low_confidence": [
+      "source_analysis.audio_cues_inferred"
+    ],
+    "things_unobservable_from_videos": [
+      "Audio and sound effects (video is muted)",
+      "What happens if the player's castle reaches 0% health (lose state animation)",
+      "Monetization mechanics or out-of-game progression"
+    ],
+    "conflicts_between_videos": []
+  }
+}

@@ -1,0 +1,838 @@
+<html data-darkreader-mode="dynamic" data-darkreader-scheme="dark"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><style class="darkreader darkreader--fallback" media="screen"></style><style class="darkreader darkreader--user-agent" media="screen">@layer {
+html {
+    background-color: var(--darkreader-background-ffffff, #000000) !important;
+}
+html {
+    color-scheme: dark !important;
+}
+iframe {
+    color-scheme: dark !important;
+}
+html, body, input, textarea, select, button, dialog {
+    background-color: var(--darkreader-background-ffffff, #000000);
+}
+html, body, input, textarea, select, button {
+    border-color: var(--darkreader-border-4c4c4c, #6b655b);
+    color: var(--darkreader-text-000000, #ffffff);
+}
+a {
+    color: var(--darkreader-text-0040ff, #4790e6);
+}
+table {
+    border-color: var(--darkreader-border-808080, #4a4f52);
+}
+mark {
+    color: var(--darkreader-text-000000, #ffffff);
+}
+::placeholder {
+    color: var(--darkreader-text-a9a9a9, #beb8b1);
+}
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    background-color: var(--darkreader-background-faffbd, #2c2f00) !important;
+    color: var(--darkreader-text-000000, #ffffff) !important;
+}
+* {
+    scrollbar-color: var(--darkreader-background-b0b0b0, #363a3c) var(--darkreader-background-f1f1f1, #050708);
+}
+::selection {
+    background-color: var(--darkreader-background-0060d4, #003eb7) !important;
+    color: var(--darkreader-text-ffffff, #ffffff) !important;
+}
+::-moz-selection {
+    background-color: var(--darkreader-background-0060d4, #003eb7) !important;
+    color: var(--darkreader-text-ffffff, #ffffff) !important;
+}
+}</style><style class="darkreader darkreader--text" media="screen"></style><style class="darkreader darkreader--invert" media="screen">.jfk-bubble.gtx-bubble, .captcheck_answer_label > input + img, span#closed_text > img[src^="https://www.gstatic.com/images/branding/googlelogo"], span[data-href^="https://www.hcaptcha.com/"] > #icon, img.Wirisformula, a[data-testid="headerMediumLogo"]>svg, .d2l-navigation-link-image-container, .d2l-iframe-loading-container, div.mc-ip-hide[style*="background: rgb(255, 255, 255) !important"] {
+    filter: invert(100%) hue-rotate(180deg) grayscale(40%) !important;
+}</style><style class="darkreader darkreader--inline" media="screen">[data-darkreader-inline-bgcolor] {
+  background-color: var(--darkreader-inline-bgcolor) !important;
+}
+[data-darkreader-inline-bgimage] {
+  background-image: var(--darkreader-inline-bgimage) !important;
+}
+[data-darkreader-inline-border] {
+  border-color: var(--darkreader-inline-border) !important;
+}
+[data-darkreader-inline-border-bottom] {
+  border-bottom-color: var(--darkreader-inline-border-bottom) !important;
+}
+[data-darkreader-inline-border-left] {
+  border-left-color: var(--darkreader-inline-border-left) !important;
+}
+[data-darkreader-inline-border-right] {
+  border-right-color: var(--darkreader-inline-border-right) !important;
+}
+[data-darkreader-inline-border-top] {
+  border-top-color: var(--darkreader-inline-border-top) !important;
+}
+[data-darkreader-inline-boxshadow] {
+  box-shadow: var(--darkreader-inline-boxshadow) !important;
+}
+[data-darkreader-inline-color] {
+  color: var(--darkreader-inline-color) !important;
+}
+[data-darkreader-inline-fill] {
+  fill: var(--darkreader-inline-fill) !important;
+}
+[data-darkreader-inline-stroke] {
+  stroke: var(--darkreader-inline-stroke) !important;
+}
+[data-darkreader-inline-outline] {
+  outline-color: var(--darkreader-inline-outline) !important;
+}
+[data-darkreader-inline-stopcolor] {
+  stop-color: var(--darkreader-inline-stopcolor) !important;
+}
+[data-darkreader-inline-bg] {
+  background: var(--darkreader-inline-bg) !important;
+}
+[data-darkreader-inline-border-short] {
+  border: var(--darkreader-inline-border-short) !important;
+}
+[data-darkreader-inline-border-bottom-short] {
+  border-bottom: var(--darkreader-inline-border-bottom-short) !important;
+}
+[data-darkreader-inline-border-left-short] {
+  border-left: var(--darkreader-inline-border-left-short) !important;
+}
+[data-darkreader-inline-border-right-short] {
+  border-right: var(--darkreader-inline-border-right-short) !important;
+}
+[data-darkreader-inline-border-top-short] {
+  border-top: var(--darkreader-inline-border-top-short) !important;
+}
+[data-darkreader-inline-invert] {
+    filter: invert(100%) hue-rotate(180deg);
+}</style><style class="darkreader darkreader--variables" media="screen">:root {
+   --darkreader-neutral-background: var(--darkreader-background-ffffff, #000000);
+   --darkreader-neutral-text: var(--darkreader-text-000000, #ffffff);
+   --darkreader-selection-background: var(--darkreader-background-0060d4, #003eb7);
+   --darkreader-selection-text: var(--darkreader-text-ffffff, #ffffff);
+}</style><style class="darkreader darkreader--root-vars" media="screen"></style>
+    <link rel="stylesheet" href="AppLovin%20Playable%20Preview_files/css.css" type="text/css"><script type="text/javascript" src="AppLovin%20Playable%20Preview_files/jquery.min.js"></script><meta name="darkreader" content="1f077e9ca2a34f5cbcbe537ccf12dd0e"><style class="darkreader darkreader--override" media="screen">.vimvixen-hint {
+    background-color: var(--darkreader-background-ffd76e, #523c01) !important;
+    border-color: var(--darkreader-background-c59d00, #957c1a) !important;
+    color: var(--darkreader-text-302505, #f0edea) !important;
+}
+#vimvixen-console-frame {
+    color-scheme: light !important;
+}
+::placeholder {
+    opacity: 0.5 !important;
+}
+#edge-translate-panel-body,
+.MuiTypography-body1,
+.nfe-quote-text {
+    color: var(--darkreader-neutral-text) !important;
+}
+gr-main-header {
+    background-color: var(--darkreader-background-add8e6, #103440) !important;
+}
+.tou-z65h9k,
+.tou-mignzq,
+.tou-1b6i2ox,
+.tou-lnqlqk {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+.tou-75mvi {
+    background-color: var(--darkreader-background-cfecf5, #00212b) !important;
+}
+.tou-ta9e87,
+.tou-1w3fhi0,
+.tou-1b8t2us,
+.tou-py7lfi,
+.tou-1lpmd9d,
+.tou-1frrtv8,
+.tou-17ezmgn {
+    background-color: var(--darkreader-background-f5f5f5, #020304) !important;
+}
+.tou-uknfeu {
+    background-color: var(--darkreader-background-faedda, #261400) !important;
+}
+.tou-6i3zyv {
+    background-color: var(--darkreader-background-85c3d8, #214d5c) !important;
+}
+div.mermaid-viewer-control-panel .btn {
+    background-color: var(--darkreader-neutral-background);
+    fill: var(--darkreader-neutral-text);
+}
+svg g rect.er {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.er.entityBox {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.er.attributeBoxOdd {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.er.attributeBoxEven {
+    fill: var(--darkreader-selection-background);
+    fill-opacity: 0.8 !important;
+}
+svg rect.er.relationshipLabelBox {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g g.nodes rect,
+svg g g.nodes polygon {
+    fill: var(--darkreader-neutral-background) !important;
+}
+svg g rect.task {
+    fill: var(--darkreader-selection-background) !important;
+}
+svg line.messageLine0,
+svg line.messageLine1 {
+    stroke: var(--darkreader-neutral-text) !important;
+}
+div.mermaid .actor {
+    fill: var(--darkreader-neutral-background) !important;
+}
+mitid-authenticators-code-app > .code-app-container {
+    background-color: white !important;
+    padding-top: 1rem;
+}
+iframe#unpaywall[src$="unpaywall.html"] {
+    color-scheme: light !important;
+}
+select {
+    --darkreader-bg--form-control-background-color: rgba(22, 22, 22, 0) !important;
+}
+body#tumblr {
+    --darkreader-bg--secondary-accent: 31, 32, 34 !important;
+    --darkreader-bg--white: 23, 23, 23 !important;
+    --darkreader-text--black: 228, 224, 218 !important;
+}
+:host {
+    --d2l-border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+    --d2l-button-icon-background-color-hover: var(--darkreader-bg--d2l-color-gypsum) !important;
+    --d2l-color-ferrite: var(--darkreader-neutral-text) !important;
+    --d2l-color-sylvite: var(--darkreader-bg--d2l-color-sylvite) !important;
+    --d2l-dropdown-background-color: var(--darkreader-neutral-background) !important;
+    --d2l-dropdown-border-color: var(--darkreader-border--d2l-color-mica) !important;
+    --d2l-input-backgroud-color: var(--darkreader-neutral-background) !important;
+    --d2l-menu-border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+    --d2l-tooltip-background-color: var(--darkreader-neutral-background) !important;
+    --d2l-tooltip-border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+:host([_floating]) .d2l-floating-buttons-container {
+    background-color: var(--darkreader-neutral-background) !important;
+    border-top-color: var(--darkreader-border--d2l-color-mica) !important;
+    opacity: 0.88 !important;
+}
+d2l-card {
+    background: var(--darkreader-neutral-background) !important;
+    border-color: var(--darkreader-border--d2l-color-gypsum) !important;
+}
+d2l-dropdown-content > div,
+d2l-menu-item {
+    background-color: var(--darkreader-neutral-background) !important;
+    border-radius: 10px !important;
+}
+d2l-empty-state-simple {
+    border-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+.d2l-button-filter > ul > li > a.vui-button {
+    border-color: var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-label-text:has(.d2l-button-subtle-content):hover,
+.d2l-label-text:has(.d2l-button-subtle-content):focus,
+.d2l-label-text:has(.d2l-button-subtle-content):active {
+    background-color: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+.d2l-navigation-centerer {
+    color: inherit !important;
+}
+.d2l-tabs-layout {
+    border-color: var(--darkreader-border--d2l-color-gypsum) !important;
+}
+.d2l-input,
+.d2l-calendar-date,
+.d2l-htmleditor-container {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+.d2l-collapsible-panel {
+    border: 1px solid var(--darkreader-border--d2l-color-mica) !important;
+    border-radius: 0.4rem !important;
+}
+.d2l-collapsible-panel-divider {
+    border-bottom: 1px solid var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-w2d-flex {
+    border-bottom: 2px solid var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-collapsible-panel scrolled,
+.d2l-collapsible-panel-header,
+.d2l-w2d-collection-fixed {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+.d2l-loading-spinner-bg {
+    fill: var(--darkreader-bg--d2l-color-gypsum) !important;
+}
+.d2l-loading-spinner-bg-stroke {
+    stroke: var(--darkreader-border--d2l-color-mica) !important;
+}
+.d2l-loading-spinner-wrapper svg path,
+.d2l-loading-spinner-wrapper svg circle {
+    fill: var(--darkreader-neutral-background) !important;
+}
+.d2l-twopanelselector-side.d2l-twopanelselector-side-sep {
+    background: var(--darkreader-bg--d2l-color-mica) !important;
+}
+.d2l-le-TreeAccordionItem-anchor::before {
+    background: var(--darkreader-bg--d2l-color-corundum) !important;
+}
+table[class|="moz-header"] {
+    background: none;
+}
+*[style*="color: rgba(0,0,0,"],
+*[style*="color: rgba(0, 0, 0,"],
+*[style*="color:#000"],
+*[style*="color:black"],
+*[style*="color:#282828"],
+*[style*="color:#444"] {
+    color: var(--darkreader-neutral-text) !important;
+}
+*[style*="background:#fff"],
+*[style*="background-color:#fff"] {
+    background: var(--darkreader-neutral-background) !important;
+}
+*[bgcolor="#F5F5F5"],
+*[style*="background-color: #F5F5F5"] {
+    background: var(--darkreader-background-f5f5f5, #020304) !important;
+}
+body[style*="background: rgb(255, 255, 255) !important"] *:not(a),
+.body[style*="background-color: rgb(254, 254, 254) !important"] *:not(a) {
+    background-color: var(--darkreader-neutral-background) !important;
+}
+div[style*="www.gstatic.com/android/"] {
+    background: none !important;
+}
+*[style*="background:#f9f9f9"] {
+    background: var(--darkreader-background-f9f9f9, #000001) !important;
+}</style><script type="text/javascript" src="AppLovin%20Playable%20Preview_files/jquery-migrate.min.js"></script><script type="text/javascript" src="AppLovin%20Playable%20Preview_files/jquery.noty.js"></script><script type="text/javascript" src="AppLovin%20Playable%20Preview_files/jquery-ui.min.js"></script><script type="text/javascript" src="AppLovin%20Playable%20Preview_files/qrcode.min.js"></script>        <meta name="“robots”" content="“noindex”">
+        <meta name="viewport" content="width=device-width,minimum-scale=1,maximum-scale=1,user-scalable=no">
+        <meta charset="utf-8">
+        <link rel="shortcut icon" href="https://p.applov.in/assets/images/favicon.ico?v=1">
+        <link rel="stylesheet" href="AppLovin%20Playable%20Preview_files/playable_preview.css"><style class="darkreader darkreader--sync" media="screen"></style>
+        <title>AppLovin Playable Preview</title>
+        <style>
+            figure { text-align: center; }
+            .badge { max-height: 3em; }
+
+            /* playable specs */
+            #playable-specs{ margin-bottom: 18px; margin-top: -12px; }
+            #playable-specs h3{ margin:2rem 0 .75rem; }
+            #playable-specs h5{ margin:0.4rem 0 .3rem; font-weight:700; }
+            #playable-specs h5:nth-of-type(2){ margin-top:0.75rem; }
+            #playable-specs :is(p, ul){ margin:0 0 1rem; }  
+            #playable-specs ul{ padding-left:1.25rem; margin: 4px 0 0 !important; }     
+            #playable-specs li{ margin:0 0 .5rem; }         
+            #playable-specs li ul{ margin:.4rem 0 .6rem; }    
+        </style><style class="darkreader darkreader--sync" media="screen"></style>
+    </head>
+    <body data-hint_scrollable="true" style="">
+        <header>
+            <div class="wrap">
+                <a href="https://www.applovin.com/" id="logo">AppLovin</a>
+                <h3>AppLovin Playable Preview</h3>
+                <span class="spacer"></span>
+            </div>
+        </header>
+
+        <section id="container">
+            <div class="wrap">
+
+                <section id="content">
+                    <div class="wrap">
+                        <h1>Playable Preview Tool</h1>
+                        <p>Use the tool on this page to check whether your playable will execute correctly in the AppLovin SDK.</p>
+
+                        <p>To use this tool, do one of the following:</p>
+                        <ul>
+                            <li>Enter the URL of where your HTML playable is hosted and click <b>Preview Playable</b>, <em>or</em></li>
+                            <li>Upload a file containing your HTML playable by dragging-and-dropping that file to the field below, or by clicking
+                                <b>Click here to upload</b> and selecting that file from your local file system.</li>
+                        </ul>
+
+                        <p>Your playable will begin to execute in a simulated device screen on this page. Test your playable there to see that it
+                           behaves as expected. Click <b>Rotate</b> to 
+also test your playable in the landscape orientation. When you click the
+ call
+                           to action in your playable, this tool should 
+display the message “You have successfully clicked.” If it does not, 
+your
+                           playable will also not function correctly in 
+the AppLovin SDK.</p>
+
+                        <p>In some circumstances, a playable behaves 
+properly when you test it on this page but fails to work correctly on 
+real-world
+                           devices. For this reason, after you 
+successfully test your playable on this page, you should also test it in
+ the Playable
+                           Preview app, which better simulates the 
+real-world environment in which your playable will execute.</p>
+
+                        <h3>Playable Preview app</h3>
+                        <p>Use the Playable Preview app to test whether your playable will execute correctly in the AppLovin SDK. This app is
+                           available for
+                           <a href="https://apps.apple.com/us/app/playable-preview/id6468529760" target="_blank" rel="noopener noreferrer">iOS</a> and
+                           <a href="https://play.google.com/store/apps/details?id=com.applovin.apps.playables" target="_blank" rel="noopener noreferrer">Android</a>.</p>
+                        <figure>
+                            <a href="https://apps.apple.com/us/app/playable-preview/id6468529760" target="_blank" rel="noopener noreferrer"><img class="badge" src="AppLovin%20Playable%20Preview_files/app-store.svg"></a>
+                            <a href="https://play.google.com/store/apps/details?id=com.applovin.apps.playables" target="_blank" rel="noopener noreferrer"><img class="badge" src="AppLovin%20Playable%20Preview_files/google-play.svg"></a>
+                        </figure>
+
+                        <p>Upload or preview your playable by using the 
+form on this page. This causes a QR code to appear at the bottom of the 
+page. Then, open the Playable Preview app. Use that app to scan the QR 
+code. Your playable then opens in the Playable Preview app. Test
+                           your playable to see that it behaves as 
+expected. Test both in landscape and in portrait orientations. Click 
+your playable’s call to action: if your
+                           playable is working correctly, you should see
+ a redirect take place. 
+                           <b>Note:</b> The actual result of the 
+redirect can be ignored. Redirects within the Playable Preview app are 
+only to confirm that a redirect takes place when expected.</p>
+
+                        <div id="playable-specs">
+                        <h3>HTML Playable Specifications</h3>
+                        <h5>Behavioral Requirements</h5>
+                        <ul>
+                            <li><b>File Size:</b> Each ad must be 5 MB or smaller.</li>
+                            <li>
+                            <b>File Type:</b> Each ad must be a single HTML file.
+                            <ul>
+                                <li>All resources must be embedded in either base64 or base122 format; external resources are prohibited.</li>
+                            </ul>
+                            </li>
+                            <li><b>Orientation Compatibility:</b> Each ad must work in both landscape and portrait orientations.</li>
+                            <li><b>Ad Timer Initialization:</b> Each ad’s timer must start only after the first user interaction.</li>
+                            <li><b>Interactivity:</b> Each ad must be playable and must not redirect to app stores on the first tap/click.</li>
+                            <li><b>Load Time:</b> Each ad must fully load and become interactive within a reasonable time frame.</li>
+                            <li>
+                            <b>No Auto-Play:</b>
+                            <ul>
+                                <li>Audio must remain muted until the first user interaction.</li>
+                                <li>Audio must stop or be muted when the ad closes or becomes hidden.</li>
+                            </ul>
+                            </li>
+                            <li><b>No Auto-Click:</b> Each ad must not auto-click or auto-redirect to app stores or other landing pages without user interaction.</li>
+                            <li>
+                            <b>No External Requests:</b>
+                            <ul>
+                                <li>External network calls are prohibited.</li>
+                            </ul>
+                            </li>
+                        </ul>
+
+                        <h5>Technical Requirements</h5>
+                        <ul>
+                            <li>
+                            <b>MRAID</b>
+                            <ul>
+                                <li>HTML ads must support MRAID v2.0.</li>
+                                <li>
+                                Wait for the <code>ready</code> event (or confirm <code>mraid.getState()</code> is not
+                                <code>'loading'</code>) before calling any MRAID APIs or making layout/sizing decisions.
+                                </li>
+                                <li><b>Use <code>mraid.open()</code> for click-through actions</b>, otherwise click-through will fail and your campaign performance may be negatively impacted for serving broken html files. </li>
+                            </ul>
+                            </li>
+                            <li>
+                            <b>WebGL</b>
+                            <ul>
+                                <li>If using WebGL, provide a UI fallback if initialization fails or the context is lost.</li>
+                            </ul>
+                            </li>
+                        </ul>
+                        </div>
+
+                        <div class="subsection inputLine">
+                            <input name="url" id="url" type="text" placeholder="Enter your hosted HTML playable URL here">
+                            <a id="submit" class="button" href="javascript://">Preview Playable</a>
+                        </div>
+                        <span class="error-message hidden">Please enter a valid URL with extension '.html'</span>
+                        <div class="or-text"><strong>- or -</strong></div>
+                        <div class="subsection inputLine">
+                            <div id="upload-file" class="file-drop-container">
+                                <div class="file-drop" ondragover="allowDrop(event,true)" ondragleave="allowDrop(event,false)" ondrop="handleDrop(event)">
+                                    <div class="cloud-icon"></div>
+                                    <div class="drop-text"> Drop a file here to upload </div>
+                                    <div class="or-text"> - or - </div>
+                                    <div class="p-r plain-upload">
+                                        <div class="button blue upload-button-cover">Click here to upload</div>
+                                        <input type="file" accept=".html" class="upload-button" value="Select file">
+                                    </div>
+                                </div>
+                                <div id="uploaded-files-container"></div>
+
+                                <!-- template for showing uploading files -->
+                                <div class="uploading-file-template uploading-file margin-b-10 padding-10" style="display:none">
+                                    <div class="f-l">
+                                        <div class="file-name"></div>
+                                    </div>
+                                    <div class="f-r">
+                                        <div class="progressbar">
+                                            <div class="bar"></div>
+                                        </div>
+                                    </div>
+                                    <div class="clearfix"></div>
+                                </div>
+
+                                <!-- template for showing uploaded macros -->
+                                <div class="uploaded-asset-template uploaded-asset accordion" style="display:none">
+                                    <span class="assetName"></span>
+                                    <div class="accordion-content" style="display:none">
+                                    </div>
+                                </div>
+
+                                <!-- template for showing uploaded macros with assets that are still being processed -->
+                                <div class="under-processing-asset-template uploaded-asset accordion" style="display:none">
+                                    <span class="assetName"></span>
+                                    <div class="accordion-content" style="display:none">
+                                        <div class="image-container p-r text-align-center">
+                                            <div class="p-a ad-preview-overlay font-16">
+                                                <p id="overlay-asset-message" class="overlay-message">Video currently being processed. Please check again later.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="adLoader hidden">
+                            <img src="AppLovin%20Playable%20Preview_files/loader1.gif">
+                        </div>
+
+                        <div id="playableWarning" class="warning" style="display:none">
+                            Ensure that this playable was made using <a href="https://docs.lunalabs.io/docs/playable/code/runtime-analysis#what-is-runtime-analysis" target="_blank">Runtime Analysis</a>. Failure to do so
+                            may cause ads to freeze which will result in your ads being disabled.
+                        </div>
+                        <div class="subsection iframeWrapper portrait">
+                            <div class="adPreviewControls">
+                                <a id="rotate" href="javascript://" "="" class="button rotateButton">Rotate</a>
+                                <a id="reload" href="javascript://" "="" class="button reloadButton">Reload</a>
+                            </div>
+                            <div class="phoneTemplate"></div>
+                            <div id="qrcode" class="qrcode"></div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </section>
+
+        <script type="text/javascript">
+            let playPreview = {
+                isLandscape: false,
+                active: true
+            };
+            let qrcode;
+
+            $(function() {
+
+                $('#submit').on('click', function(){
+                    let $url = $('#url').val();
+                    $('.error-message').addClass('hidden');
+                    validate($url);
+                })
+
+                // handle button click to invoke file selection
+                $('.upload-button-cover').click(function() {
+                    $('.upload-button').click(); // simulate the original input field click
+                });
+
+                // handler for normal file upload
+                $('.upload-button').change(function (event) {
+                    let fileData = event.currentTarget.files[0];
+
+                    if (fileData) {
+                        validateAndSubmitFile(fileData);
+                    }
+                })
+
+                $('#rotate').on('click', function(){
+                    playPreview.isLandscape = !playPreview.isLandscape;
+                    $('#INTER').hide();
+                    $('#INTER').removeClass('landscape').removeClass('portrait');
+                    $('.iframeWrapper').removeClass('landscape').removeClass('portrait');
+                    if (playPreview.isLandscape) {
+                        $('.iframeWrapper').addClass('landscape');
+                    } else {
+                        $('.iframeWrapper').addClass('portrait');
+                    }
+                    $('#INTER').show();
+                })
+
+                $('#reload').on('click', function() {
+                    // reload ad preview
+                    $('#INTER')[0].src += '';
+                })
+
+                $(window).resize(function(){
+                    if (/Mobi/.test(navigator.userAgent)) {
+                        if (playPreview.active) {
+                            $('iframe').css('width', window.innerWidth);
+                            $('iframe').css('height', window.innerHeight);
+                        }
+                    }
+                });
+
+                let queryParams = {};
+
+                window.location.search.substr(1).split("&").map(function (queryKeyVal) {
+                    let keyVal = queryKeyVal.split("=");
+                    let key = keyVal[0];
+                    let val = keyVal[1];
+
+                    queryParams[key] = val;
+                });
+            });
+
+            function processFile(fileData)
+            {
+                $.ajax({
+                    url: '/validateHTMLContent'
+                    , data: fileData
+                    , type: "POST"
+                    , dataType: "json"
+                    , processData: false
+                    , contentType: false
+                    , success: function(data) {
+                        if (data.code == 200)
+                        {
+                            let showFileWarning = false;
+                            if ( !data.results.isValid )
+                            {
+                                showFileWarning = true;
+                            }
+                            submitFile(fileData, showFileWarning);
+                        }
+                    }
+                    , error: function(){
+                        noty({text:'There was an error in your request. Be sure to check your connection when uploading a file.', type:'error'});
+                        $('.adLoader').addClass('hidden');
+                        $('.iframeWrapper').hide();
+                        $('#playableWarning').hide();
+                    }
+                });
+            }
+            function submitFile(fileData, showFileWarning){
+                $.ajax({
+                    url: '/getCachedAdURL'
+                    , data: fileData
+                    , type: "POST"
+                    , dataType: "json"
+                    , processData: false
+                    , contentType: false
+                    , success: function(data) {
+                        if (data.code == 200){
+
+                            if (showFileWarning)
+                            {
+                                $('#playableWarning').show();
+                            }
+
+                            let hash = data.results;
+                            $('#INTER').remove();
+                            $('<iframe>', {
+                               src: '/getPreviewHTML?preview=' + hash,
+                               id:  'INTER',
+                               class: 'portrait',
+                               sandbox: 'allow-scripts allow-same-origin',
+                               frameborder: 0,
+                               scrolling: 'no'
+                            }).appendTo('.iframeWrapper');
+
+                            $('.adLoader').addClass('hidden');
+                            $('.iframeWrapper').show().addClass('portrait');
+
+                            generateQRCode(hash);
+                            playPreview.active = true;
+
+                            if (/Mobi/.test(navigator.userAgent)) {
+                                if (playPreview.active) {
+                                    $('iframe').css('width', window.innerWidth);
+                                    $('iframe').css('height', window.innerHeight);
+                                }
+                            }
+
+                        } else {
+                            noty({text:'There was an error in your request. Be sure to check your connection when uploading a file.', type:'error'});
+                            $('.adLoader').addClass('hidden');
+                            $('.iframeWrapper').hide();
+                        }
+                    }, error: function(){
+                        noty({text:'There was an error in your request. Be sure to check your connection when uploading a file.', type:'error'});
+                        $('.adLoader').addClass('hidden');
+                        $('.iframeWrapper').hide();
+                    }
+                });
+            }
+
+            function validate(url) {
+                let urlReg = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?\.(html)/g;
+
+                if (urlReg.test(url)){
+
+                    $('#INTER').remove();
+                    $('.iframeWrapper').removeClass('portrait');
+                    $('.adLoader').removeClass('hidden');
+                    $('#playableWarning').hide();
+
+                    $.ajax({
+                        url: '/validateHTMLContent'
+                        , data: {'data': encodeURIComponent(url)}
+                        , type: "POST"
+                        , dataType: "json"
+                        , success: function(data) {
+                            let showFileWarning = false;
+                            if ( !data.results.isValid )
+                            {
+                                showFileWarning = true;
+                            }
+                            submitURL(url, showFileWarning);
+                        }
+                        , error: function(){
+                            noty({text:'There was an error in your request. Be sure to check your URL is valid with an ".html" extension', type:'error'});
+                            $('.adLoader').addClass('hidden');
+                            $('.iframeWrapper').hide();
+                            $('#playableWarning').hide();
+                        }
+
+                    })
+
+
+                } else {
+                    displayErrorMessage("Please enter a valid URL with extension '.html'");
+                }
+            }
+
+            function submitURL(url, showFileWarning)
+            {
+                $.ajax({
+                    url: '/getCachedAdURL'
+                    , data: {'data': encodeURIComponent(url)}
+                    , type: "POST"
+                    , dataType: "json"
+                    , success: function(data) {
+                        if (data.code == 200){
+
+                            if (showFileWarning)
+                            {
+                                $('#playableWarning').show();
+                            }
+
+                            let hash = data.results;
+
+                            $('#INTER').remove();
+                            $('<iframe>', {
+                                src: '/getPreviewHTML?preview=' + hash,
+                                id:  'INTER',
+                                class: 'portrait',
+                                sandbox: 'allow-scripts allow-same-origin',
+                                frameborder: 0,
+                                scrolling: 'no'
+                            }).appendTo('.iframeWrapper');
+
+                            $('.adLoader').addClass('hidden');
+                            $('.iframeWrapper').show().addClass('portrait');
+
+                            playPreview.active = true;
+
+                            if (/Mobi/.test(navigator.userAgent)) {
+                                if (playPreview.active) {
+                                    $('iframe').css('width', window.innerWidth);
+                                    $('iframe').css('height', window.innerHeight);
+                                }
+                            }
+
+                            generateQRCode(hash);
+                            
+                        } else {
+                            noty({text:'There was an error in your request. Be sure to check your URL is valid with an ".html" extension', type:'error'});
+                            $('.adLoader').addClass('hidden');
+                            $('.iframeWrapper').hide();
+                        }
+                    }, error: function(){
+                        noty({text:'There was an error in your request. Be sure to check your URL is valid with an ".html" extension', type:'error'});
+                        $('.adLoader').addClass('hidden');
+                        $('.iframeWrapper').hide();
+                    }
+                });
+            }
+
+            function allowDrop(event, setClass) {
+                event.preventDefault();
+
+                if (setClass) {
+                    $('.file-drop').addClass('dragged');
+                    $('.cloud-icon').addClass('rotated');
+                } else {
+                    $('.file-drop').removeClass('dragged');
+                    $('.cloud-icon').removeClass('rotated');
+                }
+            }
+
+            function handleDrop(event) {
+                event.preventDefault();
+
+                $('.file-drop').removeClass('dragged');
+                $('.cloud-icon').removeClass('rotated');
+
+                let fileData = event.dataTransfer.files[0];
+
+                if (fileData) {
+                    validateAndSubmitFile(fileData);
+                }
+            }
+
+            function generateQRCode(previewHash) {
+                if (qrcode) {
+                    qrcode.clear();
+                    qrcode.makeCode(previewHash);
+                } else {
+                    qrcode = new QRCode(document.getElementById('qrcode'), {
+                        text: previewHash,
+                        height: 128,
+                        width: 128
+                    });
+                }
+            }
+
+            function validateAndSubmitFile(file) {
+                $('.iframeWrapper').hide();
+                $('#playableWarning').hide();
+
+                if (!isFileValid(file)) {
+                    displayErrorMessage("File must be smaller than 5MB");
+                    return;
+                }
+
+                let formData = new FormData();
+                formData.append('file', file);
+                processFile(formData);
+
+                $('.adLoader').removeClass('hidden');
+                $('.error-message').addClass('hidden');
+            }
+
+            function isFileValid(file) {
+                return file.size <= 5242880; // valid if less than 5MB
+            }
+
+            function displayErrorMessage(errorMessage) {
+                $('.error-message').text(errorMessage).removeClass('hidden');
+            }
+
+        </script>
+        <footer class="wrap">
+            <span class="copyright">Copyright 2026 by AppLovin.</span>
+        </footer>
+    
+
+</body><div style="display: block; opacity: 1; color-scheme: light;"></div></html>

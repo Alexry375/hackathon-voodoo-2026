@@ -1,0 +1,155 @@
+{
+  "source_analysis": {
+    "mechanics": {
+      "genre_specific": "castle vs castle tower battler",
+      "input_modality": "tap",
+      "core_loop_one_sentence": "Player taps unit cards at the bottom to spawn troops that attack the enemy castle while defending their own.",
+      "win_condition": "Reduce enemy castle HP to 0%",
+      "lose_condition": "Player's castle HP reaches 0%",
+      "session_length_seconds": 45,
+      "secondary_mechanics": [
+        "unit deployment via card selection",
+        "HP/percentage damage tracking for both castles",
+        "multiple unit types (skeleton, orc, red minion) with distinct roles"
+      ]
+    },
+    "visual_style": {
+      "art_style_descriptors": ["cartoon", "2D", "vector", "flat-shaded", "mobile-casual"],
+      "color_palette_hex": ["#7FB069", "#C44536", "#E8C39E", "#3A4A4F", "#A8D5BA"],
+      "perspective": "side-scroll",
+      "reference_games": ["Castle Crush", "Tower Conquest", "Clash Royale"],
+      "visual_effects_observed": [
+        "rocket smoke trails",
+        "rain particle effects",
+        "castle damage/destruction states",
+        "falling debris",
+        "unit spawn animations"
+      ]
+    }
+  },
+
+  "hook_design": {
+    "most_striking_moment": {
+      "frame": "clip2_018.png",
+      "description": "The player's mobile castle launches a barrage of rockets mid-air toward the enemy castle, with smoke trails arcing across the sky as both fortresses battle on treads."
+    },
+    "best_15s_slice": "From frame 006 (finger tap charges the unit launcher inside the castle) through frame 030 (enemy castle visibly damaged, health dropping from 100% to 44%) — covering setup, the rocket-barrage payoff, and clear win-state progression.",
+    "hook_first_3_seconds": "Two tank-treaded medieval castles face off on a battlefield with 100% vs 100% health bars at the top, an animated hand taps and pulls back a slingshot/launcher inside the player's castle, and a bold prompt 'TAP TO ATTACK' pulses on screen.",
+    "end_card": {
+      "headline": "Crush Every Castle. Rule The Realm.",
+      "cta_text": "Play Free Now",
+      "visual_treatment": "The victorious rolling castle stands tall on its treads over the smoking ruins of the enemy fortress, with a glowing app logo and a bouncing 'Play Free Now' button pulsing below."
+    },
+    "alternative_concept": {
+      "concept_one_liner": "Lead with the unit-roster choice screen (skeleton, orc, red blob heroes) and let the user pick their attacker before firing the first shot.",
+      "why_consider": "Choice-driven hooks boost engagement and IPM by giving players agency in the first second, and the character roster is visually distinctive enough to differentiate the ad from generic castle-battle creatives."
+    }
+  },
+
+  "asset_requirements": {
+    "critical": [
+      {
+        "id": "asset_001",
+        "name": "Castle Tower Structure",
+        "type": "sprite",
+        "description_for_image_gen": "2D cartoon medieval stone castle with two tall towers, grey brick walls, pointed red conical roofs, small arched windows, and an arched wooden gate at the base. Front-facing flat perspective, soft daylight shading, transparent background.",
+        "dimensions_px": "512x768",
+        "transparency_required": true
+      },
+      {
+        "id": "asset_002",
+        "name": "Tank Tracks Base",
+        "type": "sprite",
+        "description_for_image_gen": "2D cartoon pair of black metal tank treads with grey wheels, mounted as a mobile base under a castle. Side view, flat shading, clean outline, transparent background.",
+        "dimensions_px": "512x128",
+        "transparency_required": true
+      },
+      {
+        "id": "asset_003",
+        "name": "Parallax Forest Background",
+        "type": "background",
+        "description_for_image_gen": "2D cartoon vertical mobile-game background with layered teal and green silhouetted forest hills, a soft blue sky with light clouds, and a red-brown soil cross-section at the bottom. Flat illustrated style, even daylight, no transparency.",
+        "dimensions_px": "750x1334",
+        "transparency_required": false
+      },
+      {
+        "id": "asset_004",
+        "name": "Rocket Projectile",
+        "type": "sprite",
+        "description_for_image_gen": "2D cartoon small red and grey missile rocket with a pointed tip and fins, flying horizontally with a fiery orange exhaust trail and grey smoke. Side view, vibrant lighting, transparent background.",
+        "dimensions_px": "256x128",
+        "transparency_required": true
+      },
+      {
+        "id": "asset_005",
+        "name": "Health Bar HUD with Castle Icons",
+        "type": "ui_element",
+        "description_for_image_gen": "2D mobile game HUD bar split into blue (left) and red (right) team health bars at the top of the screen, with small cartoon castle icons (blue and red flagged) below each side and a bold white 'Vs' badge in the center. Clean flat UI style, transparent background.",
+        "dimensions_px": "750x200",
+        "transparency_required": true
+      }
+    ],
+    "nice_to_have": [
+      {
+        "id": "asset_nth_01",
+        "name": "Skeleton Defender Character",
+        "type": "sprite",
+        "description_for_image_gen": "2D cartoon skeleton warrior holding a blue weapon, pixel-cartoon hybrid style, front-facing, transparent background.",
+        "fallback_if_missing": "grey rectangle #888888"
+      },
+      {
+        "id": "asset_nth_02",
+        "name": "Goblin Defender Character",
+        "type": "sprite",
+        "description_for_image_gen": "2D cartoon green goblin character with a red headband holding a bazooka weapon, side view, flat shading, transparent background.",
+        "fallback_if_missing": "green rectangle #4CAF50"
+      },
+      {
+        "id": "asset_nth_03",
+        "name": "Red Blob Hero Character",
+        "type": "sprite",
+        "description_for_image_gen": "2D cartoon small round red blob creature with big white eyes and a surprised mouth, cute mascot style, front-facing, transparent background.",
+        "fallback_if_missing": "red circle #FF3030"
+      },
+      {
+        "id": "asset_nth_04",
+        "name": "Pointing Hand Tutorial Cursor",
+        "type": "ui_element",
+        "description_for_image_gen": "2D cartoon human hand with index finger pointing left, light skin tone, bold black outline, flat shading, transparent background.",
+        "fallback_if_missing": "white arrow shape"
+      },
+      {
+        "id": "asset_nth_05",
+        "name": "Explosion Smoke Particle",
+        "type": "particle",
+        "description_for_image_gen": "2D cartoon puffy grey-black smoke cloud particle with soft edges, suitable for impact and damage trails, transparent background.",
+        "fallback_if_missing": "grey circle #555555"
+      }
+    ]
+  },
+
+  "_meta": {
+    "frames_analyzed": 10,
+    "frames_source": "frames/clip2_*.png (sampled every ~5th from 56 total)",
+    "subagents": ["mechanics", "visual_style", "hook_design", "assets"],
+    "conflicts": [
+      {
+        "field": "primary_input_action",
+        "mechanics_says": "tap unit cards to spawn troops (auto-battler style)",
+        "hook_and_assets_say": "active rocket aiming/firing with slingshot-style launcher and trajectory",
+        "resolution": "Both may be true: source game likely has both passive card-spawning (Clash-Royale-like) AND aimed rocket firing per unit. For a single-mechanic playable, prefer the active rocket-firing read because it is more tactile and matches the most striking observed moment (frame 18). The mechanics agent appears to have under-weighted the explicit aiming/firing visible in frames."
+      }
+    ],
+    "low_confidence_fields": [
+      "mechanics.session_length_seconds",
+      "mechanics.core_loop_one_sentence (see conflicts)",
+      "visual_style.color_palette_hex (palette varies between rain and sunny scenes)"
+    ],
+    "things_unobservable_from_frames": [
+      "audio (frames are silent)",
+      "monetization model",
+      "full unit roster and progression",
+      "PvP vs PvE mode"
+    ]
+  }
+}

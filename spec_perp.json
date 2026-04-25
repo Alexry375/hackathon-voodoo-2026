@@ -1,0 +1,189 @@
+{
+  "source_analysis": {
+    "game_name_guess": "Forest Match 3",
+    "genre_primary": "Puzzle",
+    "genre_secondary": "Match-3",
+    "art_style": {
+      "descriptors": ["cartoon", "2D flat", "vibrant", "nature-themed"],
+      "color_palette_hex": ["#aecaa3", "#702f27", "#518c75", "#721c1f", "#0d0b0b"],
+      "reference_games": ["Candy Crush Saga", "Gardenscapes", "Toon Blast"]
+    },
+    "observed_mechanics": [
+      {
+        "name": "Tile Swapping",
+        "frequency_in_video": "primary",
+        "description": "The player drags an adjacent object (like a leaf or berry) into a neighboring cell to swap them, attempting to form a straight line of 3 or more identical items.",
+        "screen_time_estimate_seconds": 15
+      },
+      {
+        "name": "Chain Reaction Cascade",
+        "frequency_in_video": "secondary",
+        "description": "After a successful match, the matched items disappear, and items above them fall down by gravity to fill the empty slots, sometimes triggering automatic subsequent matches.",
+        "screen_time_estimate_seconds": 6
+      },
+      {
+        "name": "Power-up Activation",
+        "frequency_in_video": "tertiary",
+        "description": "The player taps a glowing tile (created by matching 4 items earlier) which instantly clears an entire horizontal and vertical row.",
+        "screen_time_estimate_seconds": 3
+      }
+    ],
+    "ui_elements_observed": ["Move counter at top left", "Score progress bar at top center", "Pause button at top right", "Level target indicator showing collected items"],
+    "audio_cues_inferred": ["pop/snap sound on match", "chime for power-up creation", "woosh for tiles falling", "upbeat acoustic background music"]
+  },
+  "playable_candidates": [
+    {
+      "candidate_id": "A",
+      "concept_one_liner": "A single, highly-curated puzzle scenario where the player is one move away from a massive satisfying cascade.",
+      "featured_mechanic": "Tile Swapping",
+      "hook_first_3_seconds": "A glowing hand pointer repeatedly drags a red berry tile over a green leaf tile, showing the player exactly what to do.",
+      "core_interaction": {
+        "input_type": "drag",
+        "what_player_does": "Drag the red berry tile to swap it with the green leaf tile to complete a 4-match.",
+        "win_state": "Completing 3 moves successfully, which drops the target item to the bottom of the board.",
+        "lose_state": "none"
+      },
+      "session_length_seconds": 15,
+      "difficulty_curve": "flat",
+      "end_card": {
+        "headline": "Great Job!",
+        "cta_button_text": "Play Now",
+        "visual_treatment": "Screen darkens, confetti falls from the top, and the green CTA button pulses in the center."
+      },
+      "predicted_appeal": {
+        "score_out_of_10": 9,
+        "rationale": "Forcing a massive cascade on the first move guarantees immediate visual satisfaction and hooks the user. It is very standard but highly effective for puzzle ads."
+      },
+      "implementation_complexity": "medium",
+      "implementation_notes_for_codegen": "Hardcode the grid layout and the falling tile sequence rather than building a full RNG match-3 engine. Pre-calculate the cascade state to keep code size small."
+    },
+    {
+      "candidate_id": "B",
+      "concept_one_liner": "A frantic, time-attack version of the game utilizing only power-up tapping.",
+      "featured_mechanic": "Power-up Activation",
+      "hook_first_3_seconds": "The board is entirely filled with regular tiles and 5 glowing bomb power-ups, with a prominent 'Tap Fast!' text pulsing over the board.",
+      "core_interaction": {
+        "input_type": "tap",
+        "what_player_does": "Tap the glowing bomb power-ups to clear sections of the board before a 10-second timer runs out.",
+        "win_state": "Tapping all 5 power-ups within the time limit.",
+        "lose_state": "Failing to tap all power-ups before the timer hits zero."
+      },
+      "session_length_seconds": 12,
+      "difficulty_curve": "escalating",
+      "end_card": {
+        "headline": "Can You Beat It?",
+        "cta_button_text": "Try Again",
+        "visual_treatment": "A shattered glass effect overlays the screen with the CTA button appearing from below."
+      },
+      "predicted_appeal": {
+        "score_out_of_10": 7,
+        "rationale": "It distills the most explosive part of the game (power-ups) into a pure dopamine hit. The sense of urgency drives immediate interaction."
+      },
+      "implementation_complexity": "low",
+      "implementation_notes_for_codegen": "No need for a matching algorithm; just implement a grid of static images and 5 interactive buttons that trigger row/column clear animations."
+    },
+    {
+      "candidate_id": "C",
+      "concept_one_liner": "A 'fail state' bait ad where the player must clear a path for a character by swapping the correct tiles, but an obvious trap exists.",
+      "featured_mechanic": "Tile Swapping",
+      "hook_first_3_seconds": "A cute animal character at the top of the screen is crying, blocked by rocks. A prompt asks 'Help him down!'.",
+      "core_interaction": {
+        "input_type": "drag",
+        "what_player_does": "Drag tiles to match them underneath the character so it falls to the exit at the bottom.",
+        "win_state": "Matching the correct tiles to free the character.",
+        "lose_state": "Matching the wrong tiles, causing rocks to fall and trap the character permanently."
+      },
+      "session_length_seconds": 20,
+      "difficulty_curve": "single-shot",
+      "end_card": {
+        "headline": "He Needs You!",
+        "cta_button_text": "Save Him",
+        "visual_treatment": "Character looking sad through a window overlay, with the bright CTA button below."
+      },
+      "predicted_appeal": {
+        "score_out_of_10": 8,
+        "rationale": "Narrative-driven puzzle ads with high stakes (saving a character) tend to convert very well, especially if the player thinks they are smarter than the simulated ad player."
+      },
+      "implementation_complexity": "high",
+      "implementation_notes_for_codegen": "Requires custom state logic for the character entity falling through the grid. Keep the grid small (e.g., 5x5) to simplify the physics and state management."
+    }
+  ],
+  "recommended_candidate": "A",
+  "recommendation_rationale": "Candidate A provides the most authentic representation of the core match-3 gameplay while guaranteeing a highly satisfying player experience. By hardcoding the cascade, it remains technically feasible within the 5MB single-file HTML limit while still feeling like a full game.",
+  "asset_requirements": {
+    "critical": [
+      {
+        "id": "tile_leaf",
+        "name": "Green Leaf Tile",
+        "type": "sprite",
+        "description_for_image_gen": "A glossy, stylized bright green leaf, 3D render style, top-down perspective, soft shadow underneath, transparent background, 256x256.",
+        "dimensions_px": "256x256",
+        "transparency_required": true,
+        "used_in_candidates": ["A", "B", "C"]
+      },
+      {
+        "id": "tile_berry",
+        "name": "Red Berry Tile",
+        "type": "sprite",
+        "description_for_image_gen": "A cluster of three shiny red berries, 3D render style, top-down perspective, soft shadow underneath, transparent background, 256x256.",
+        "dimensions_px": "256x256",
+        "transparency_required": true,
+        "used_in_candidates": ["A", "B", "C"]
+      },
+      {
+        "id": "bg_forest",
+        "name": "Forest Background",
+        "type": "background",
+        "description_for_image_gen": "A blurred, lush forest clearing at daytime, soft lighting, vibrant greens and browns, cartoon style, 1080x1920.",
+        "dimensions_px": "1080x1920",
+        "transparency_required": false,
+        "used_in_candidates": ["A", "B", "C"]
+      },
+      {
+        "id": "ui_hand",
+        "name": "Tutorial Hand Pointer",
+        "type": "ui_element",
+        "description_for_image_gen": "A stylized, white cartoon glove pointing with its index finger, thick outline, slight drop shadow, transparent background, 256x256.",
+        "dimensions_px": "256x256",
+        "transparency_required": true,
+        "used_in_candidates": ["A"]
+      }
+    ],
+    "nice_to_have": [
+      {
+        "id": "fx_particles",
+        "name": "Match Sparkles",
+        "type": "particle",
+        "description_for_image_gen": "A small glowing yellow star sparkle with a soft halo.",
+        "fallback_if_missing": "CSS box-shadow glow effect or yellow circle primitives."
+      }
+    ]
+  },
+  "technical_constraints": {
+    "recommended_render_approach": "dom",
+    "recommended_framework": "vanilla",
+    "framework_rationale": "A simple grid of tiles can be heavily optimized using standard HTML/CSS grid and CSS transitions, keeping the payload well under 5MB without the overhead of a canvas engine.",
+    "estimated_loc_for_mvp": 350,
+    "known_risks": ["Implementing a full match-3 logic engine is too heavy; must rely on a hardcoded sequence of moves.", "CSS animations for falling tiles might look jittery on low-end Android devices if not utilizing hardware acceleration (transform: translate)."]
+  },
+  "validation_criteria": {
+    "must_pass": [
+      "Dragging a tile swaps it visually with the adjacent tile within 150ms",
+      "If a match of 3 or more is formed, the tiles disappear and trigger the cascade animation",
+      "Total HTML file size including base64 assets is strictly under 5MB",
+      "The end card and 'Play Now' button appear immediately after the first cascade finishes"
+    ],
+    "should_pass": [
+      "The visual style is recognizably similar to the vibrant, nature-themed aesthetic of the source video",
+      "The tutorial hand animates in a continuous loop until the user makes their first interaction"
+    ]
+  },
+  "_meta": {
+    "videos_analyzed_count": 2,
+    "video_duration_total_seconds": 60,
+    "confidence_overall": "medium",
+    "fields_with_low_confidence": ["audio_cues_inferred", "source_analysis.game_name_guess"],
+    "things_unobservable_from_videos": ["Whether the game features an overworld meta-layer or base-building mechanics", "The monetization strategy or premium currency types", "Audio if the videos were recorded without sound"],
+    "conflicts_between_videos": ["None"]
+  }
+}
