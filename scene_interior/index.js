@@ -5,6 +5,7 @@
 
 import { subscribe } from '../shared/scene_manager.js';
 import { state } from '../shared/state.js';
+import { drawCastleSection } from './castle_section.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -32,15 +33,16 @@ function loop() {
   // Clear with a debug-friendly color so we can verify the scene is mounted before sub-agents land.
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawCastleSection(ctx, { tilt_deg: 0, damage_level: 0 });
+
   ctx.fillStyle = '#ffd166';
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = 'bold 18px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('INTERIOR — placeholder', canvas.width / 2, 80);
-  ctx.font = '14px sans-serif';
+  ctx.fillText('INTERIOR — castle_section v0', canvas.width / 2, 80);
+  ctx.font = '13px sans-serif';
   ctx.fillStyle = '#ccc';
-  ctx.fillText(`hp_self ${state.hp_self_pct}%   hp_enemy ${state.hp_enemy_pct}%   turn ${state.turn_index}`, canvas.width / 2, 110);
+  ctx.fillText(`hp_self ${state.hp_self_pct}%   hp_enemy ${state.hp_enemy_pct}%   turn ${state.turn_index}`, canvas.width / 2, 100);
   // TODO sub-agents will render here:
-  //   - castle cross-section + tilted platforms (anchor: B01 [00:03], [00:28], [00:40])
   //   - 3 units with idle anim
   //   - drag-aim input + dotted ballistic curve
   //   - bottom HUD (3 cards)
