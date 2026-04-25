@@ -166,6 +166,19 @@ Replaced procedural Cyclop/Skeleton/Orc drawings with the official Castle Clashe
 
 esbuild + tools/build.mjs + playable/{entry,script-STUB,vsdk_shim}.js + scene_exterior/index.js STUB + dist/_template.html. Premier `npm run build` produit `dist/playable.html` (2.07 MB, sous le cap 4.8 MB AppLovin). Vérifié visuellement via Playwright : scene_interior rendu avec PNG officiels, devbar caché en mode prod, zéro erreur. Bundle ESM = 13.1 KB. Sami: bundler scaffold est en place, tu peux le push si tu veux mais le minify HTML/AppLovin compliance check est encore minimal — plus de polish à venir.
 
+## [21:30] [decision] Sami prend le MVP fidèle à `docs/game-spec.md`
+
+Pivot : Alexis bascule sur la pipeline (Track 2). Sami prend le MVP gameplay end-to-end. Tout le contexte qui n'était que verbal (bundle, gotchas, flow caméra ping-pong, conventions) est désormais figé dans `docs/MVP-handoff-sami.md`. Spec officielle : `docs/game-spec.md` (transcrit de `RESSOURCES/message.txt`). Audit "ce qui manque" : `docs/MVP-audit.md`.
+
+Points clés inédits dans HANDOFF jusqu'ici :
+- **Flow caméra ping-pong** (§5 du handoff Sami) : portrait → 2 châteaux trop éloignés, le projectile fait office de transition narrative entre les 2 vues. Aucun système caméra dans le code, à créer (`shared/camera.js`).
+- **Pipeline build complet** (npm run embed/build/dev, mode auto-détect dev vs prod via URL).
+- **Gotcha `$&` backreference** dans `tools/build.mjs` : `replace(needle, () => repl)` callback obligatoire, sinon `t!==$&&` minifié esbuild se fait corrompre en `t!==&` → SyntaxError.
+- **Render order locked** : `drawTopHud(ctx)` puis `drawScriptOverlay(ctx, t)` en dernier dans chaque scene loop.
+- **Devbar + scrub hooks** : `window.__forcePhase` / `window.__game.phase` pour Playwright.
+
+Tu peux merger / supprimer mon stub `scene_exterior/index.js` à ta convenance — garde juste les 2 lignes de fin qui appellent les overlays.
+
 ## [20:50] [done] Full scripted playable ad live (a7eef42)
 
 5 phases narrative end-to-end en 45s : intro (TAP TO START) → tutorial (hand cursor pulsant + demo drag) → freeplay → forcewin (white flash) → endcard (VICTORY + PLAY NOW → VSDK redirectToInstallPage). Calque B01 timeline. 5 screenshots Playwright OK, zéro erreur, dist/playable.html = 2.08 MB.
