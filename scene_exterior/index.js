@@ -1042,19 +1042,35 @@ function _drawGround(ctx) {
 }
 
 function _drawGroundOurs(ctx) {
-  // Two flat green bands matching the blue-side source (sampled from clip1).
-  const GRASS_TOP = HORIZON_Y + 92;
-  const DEEP_TOP  = HORIZON_Y + 124;
-  ctx.fillStyle = '#466B3F';
-  ctx.fillRect(BG_X0, DEEP_TOP, BG_W, H - DEEP_TOP);
-  ctx.fillStyle = '#668F56';
-  ctx.fillRect(BG_X0, GRASS_TOP, BG_W, DEEP_TOP - GRASS_TOP);
-  // Thin separator stroke between the two greens.
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#2C4225';
-  ctx.beginPath();
-  ctx.moveTo(BG_X0, DEEP_TOP); ctx.lineTo(BG_X0 + BG_W, DEEP_TOP);
-  ctx.stroke();
+  // Soft grass turf — a single muted-green base with a vertical gradient from
+  // lighter front-grass (#668F56) into deeper shadow (#3F5D38), no hard
+  // separator stroke. The deterministic grass tufts dotted along the upper
+  // band keep it from reading as a flat rectangle once the castles cover it.
+  const GRASS_TOP = HORIZON_Y + 88;
+  const grad = ctx.createLinearGradient(0, GRASS_TOP, 0, H);
+  grad.addColorStop(0,    '#6F9658');
+  grad.addColorStop(0.35, '#5C8449');
+  grad.addColorStop(1,    '#3F5D38');
+  ctx.fillStyle = grad;
+  ctx.fillRect(BG_X0, GRASS_TOP, BG_W, H - GRASS_TOP);
+
+  // Tiny grass tufts for texture — deterministic positions tied to x so they
+  // don't shimmer during the horizontal pan.
+  ctx.fillStyle = 'rgba(46, 70, 38, 0.55)';
+  for (let i = 0; i < 110; i++) {
+    const x = BG_X0 + ((i * 173) % BG_W);
+    const y = GRASS_TOP + 6 + ((i * 53) % 22);
+    const w = 3 + ((i * 7) % 3);
+    const h = 2 + ((i * 11) % 2);
+    ctx.fillRect(x, y, w, h);
+  }
+  // A second, brighter tuft pass closer to the foreground for parallax depth.
+  ctx.fillStyle = 'rgba(140, 174, 116, 0.45)';
+  for (let i = 0; i < 80; i++) {
+    const x = BG_X0 + ((i * 233) % BG_W);
+    const y = GRASS_TOP + 26 + ((i * 47) % 80);
+    ctx.fillRect(x, y, 4, 2);
+  }
 }
 
 function _drawGroundEnemy(ctx) {
