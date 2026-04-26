@@ -36,18 +36,13 @@ const SHAKE_AMP = 7; // world-space pixels
 /** Trigger a screen shake (called from enemy_ai on crow impact). */
 export function triggerShake() { _shakeMs = SHAKE_DURATION; }
 
-/** Returns 0–1: how far through the enter-castle transition we are. */
-export function getZoomT() { return _zoomT; }
+/** Kept for ABI: source uses a hard cut, no zoom transition. */
+export function getZoomT() { return 0; }
 
 // INTRO is included so the exterior scene renders during the "TAP TO START"
 // pause — camera stays on the red castle (set by mount's snapPreset('red'))
 // until the player taps and scene_manager.start() advances to EXTERIOR_OBSERVE.
 const EXTERIOR_STATES = new Set(['INTRO', 'EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
-
-// Transition state — camera punches into blue castle wall, then white flash covers the cut.
-let _zoomT = 0;
-let _zoomActive = false;
-const ZOOM_SPEED = 0.0022; // total ~450ms: first ~350ms = camera zoom, last ~100ms = white flash
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
@@ -75,16 +70,9 @@ export function mount(c) {
     const wasVisible = visible;
     visible = EXTERIOR_STATES.has(s);
     if (visible && !wasVisible) {
-      // Coming back into view — reset zoom state.
-      _zoomT = 0;
-      _zoomActive = false;
+      last_t = performance.now();
     }
-    if (!visible && wasVisible && s === 'INTERIOR_AIM') {
-      // Interior is taking over — snap camera close to castle wall, then animate inward.
-      snapTo({ x: WORLD.blue_castle.x, y: WORLD.ground_y - 260, zoom: 1.30 });
-      _zoomActive = true;
-    }
-    if ((visible || _zoomActive) && !rafId) {
+    if (visible && !rafId) {
       last_t = performance.now();
       loop();
     }
@@ -183,7 +171,7 @@ function _drawEnemyTint(ctx, viewport, dt_ms) {
 }
 
 function loop() {
-  if (!visible && !_zoomActive) { rafId = 0; return; }
+  if (!visible) { rafId = 0; return; }
   rafId = requestAnimationFrame(loop);
   if (!ctx || !canvas) return;
 
@@ -193,36 +181,16 @@ function loop() {
 
   const viewport = { w: canvas.width, h: canvas.height };
 
-  // Camera zoom-in: push toward the blue castle wall, then white flash covers the cut.
-  if (_zoomActive) {
-    _zoomT = Math.min(1, _zoomT + ZOOM_SPEED * dt_ms);
-    // Snap camera immediately to a zoomed close-up of the castle wall.
-    // Hold there for the first 78% of the transition so player sees the zoom.
-    // We use snapTo-style large ease so the camera reaches target in one frame.
-    const camT = Math.min(1, _zoomT / 0.78);
-    const eased = camT * camT * (3 - 2 * camT); // smoothstep
-    const zoomLevel = 1.30 + eased * 0.55;      // starts already close (1.30), pushes to 1.85
-    const targetY = WORLD.ground_y - 260 - eased * 70;
-    setTarget({ x: WORLD.blue_castle.x, y: targetY, zoom: zoomLevel }, { ease: 0.5 });
-    if (_zoomT >= 1) {
-      _zoomActive = false;
-      rafId = 0;
-      return;
-    }
-  }
-
   ctx.save();
 
-  // Warm teal-green sky fill — matches source game palette.
+  // Pale olive-green → minty teal sky fill — matches source game palette (Q9).
   const sky = ctx.createLinearGradient(0, 0, 0, viewport.h);
-  sky.addColorStop(0,    '#A8CCBA');
-  sky.addColorStop(0.45, '#BACEB8');
-  sky.addColorStop(0.8,  '#C8D8B8');
-  sky.addColorStop(1,    '#D0E4B8');
+  sky.addColorStop(0,    '#C6D4B2');
+  sky.addColorStop(1,    '#A2CDAF');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
 
-  if (!_zoomActive) _driveCamera();
+  _driveCamera();
   updateCamera(dt_ms);
 
   // === World-space draws ===
@@ -257,13 +225,6 @@ function loop() {
   _drawEnemyTint(ctx, viewport, dt_ms);
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
-
-  // White flash builds in the last 22% (~100ms) right before the cut.
-  if (_zoomActive && _zoomT > 0.78) {
-    const alpha = Math.min(1, (_zoomT - 0.78) / 0.22);
-    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-    ctx.fillRect(0, 0, viewport.w, viewport.h);
-  }
 
   ctx.restore();
 }

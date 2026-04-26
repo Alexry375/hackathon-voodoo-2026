@@ -35,12 +35,13 @@ const PUNCH_EASE = 0.18;
 
 /** @param {number} hp_pct */
 function targetTiltFor(hp_pct) {
-  // Castle leans further right as it takes damage. Calibrated against frames 13/29/40.
+  // Source: starts upright (0°), tilts LEFT (away from enemy on right) as the
+  // castle takes damage. Verified against clip2_0001 vs clip2_0046.
   if (hp_pct >= 95) return 0;
-  if (hp_pct >= 65) return 6;
-  if (hp_pct >= 45) return 12;
-  if (hp_pct >= 25) return 20;
-  return 26;
+  if (hp_pct >= 65) return -8;
+  if (hp_pct >= 45) return -16;
+  if (hp_pct >= 25) return -22;
+  return -27;
 }
 
 /** @param {number} hp_pct */
@@ -57,13 +58,10 @@ export function mount(c) {
   ctx = c.getContext('2d');
   installAim(c);
   subscribe((s) => {
-    const wasVisible = visible;
     visible = (s === 'INTERIOR_AIM');
-    if (visible && !wasVisible) {
-      // Start slightly zoomed in (matching where exterior left off), ease to 1.
-      _punchScale = 1.22;
-      _punchActive = true;
-    }
+    // Source uses a hard cut; no punch-in.
+    _punchScale = 1;
+    _punchActive = false;
     if (visible && !rafId) loop();
   });
 }
