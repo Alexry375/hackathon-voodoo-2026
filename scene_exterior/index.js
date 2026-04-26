@@ -26,6 +26,8 @@ import { subscribe, ready_for_player_input } from '../shared/scene_manager.js';
 import { drawTopHud } from '../shared/hud_top.js';
 import { getImage, isImageReady } from '../shared/assets.js';
 import { drawScriptOverlay } from '../playable/script.js';
+import { drawRaven } from './raven.js';
+import { drawRavenFlock } from './raven_flock.js';
 
 // ── Layout constants (canvas 540×960) ────────────────────────────────────────
 const W = 540, H = 960;
@@ -80,16 +82,80 @@ function _makeDamageZone(x, y, r) {
 let tiltAngle = 0;
 let tiltUntil = 0;
 
-let shakeUntil = 0;
-let shakeMag = 0;
+// Enemy castle recoil — kicks in on every player-missile impact. Source video
+// shows the enemy castle rolling backward on its tracks after a hit. We always
+// trigger it (not only after the 2nd hit) — simpler and reads clearly.
+let enemyRecoil = /** @type {{t0:number,dur:number,peak:number}|null} */ (null);
+let _treadScrollOffset = 0;
+
+// Camera shake: triggerShake(intensity_px, dur_ms) with quadratic decay.
+let shakeStart = 0;
+let shakeDur = 0;
+let shakeIntensity = 0;
+function triggerShake(intensity, durMs) {
+  shakeStart = performance.now();
+  shakeDur = durMs;
+  shakeIntensity = intensity;
+}
 
 /** @type {{x:number,y:number,t0:number,text:string,color:string}[]} */
 const floats = [];
 
-/** @typedef {{kind:'rocket'|'bomb', from:{x:number,y:number}, to:{x:number,y:number},
- *             t0:number, dur:number, peakLift:number, onLand:()=>void}} Projectile */
+/** @typedef {{kind:'rocket'|'bomb'|'raven', from:{x:number,y:number}, to:{x:number,y:number},
+ *             t0:number, dur:number, peakLift:number, sinAmp?:number, sinPhase?:number,
+ *             sinFreq?:number, onLand:()=>void}} Projectile */
 /** @type {Projectile[]} */
 const projectiles = [];
+
+/** @typedef {{kind:'debris'|'smoke'|'spark'|'flash', x:number,y:number, vx:number,vy:number,
+ *             ax:number,ay:number, t0:number, life:number, size:number, color:string,
+ *             rot:number, rotSpeed:number, sizeGrow:number}} Particle */
+/** @type {Particle[]} */
+const particles = [];
+
+function _spawnExplosion(x, y, opts) {
+  const t = performance.now();
+  const heavy = opts && opts.heavy;
+  // Flash core (white/yellow) — single short-lived expanding disk.
+  particles.push({ kind:'flash', x, y, vx:0, vy:0, ax:0, ay:0, t0:t,
+    life: 140, size: 90, color: '#FFF7C8', rot:0, rotSpeed:0, sizeGrow: 1.6 });
+  // Fire core: 6 orange/red pulses with slight outward drift.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.random() * 0.5;
+    particles.push({ kind:'flash', x: x + Math.cos(a)*8, y: y + Math.sin(a)*8,
+      vx: Math.cos(a)*60, vy: Math.sin(a)*60, ax:0, ay:0, t0: t,
+      life: 280 + Math.random()*120, size: 38 + Math.random()*22,
+      color: i%2 ? '#FF8030' : '#E03B12', rot:0, rotSpeed:0, sizeGrow: 1.2 });
+  }
+  // Sparks: bright tiny streaks shooting outward fast.
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 320 + Math.random() * 220;
+    particles.push({ kind:'spark', x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+      ax:0, ay: 280, t0: t, life: 320 + Math.random()*180,
+      size: 3 + Math.random()*2, color: '#FFE07A', rot:0, rotSpeed:0, sizeGrow: 0 });
+  }
+  // Debris: 15-20 stone chunks with gravity + rotation.
+  const nDebris = heavy ? 22 : 16;
+  for (let i = 0; i < nDebris; i++) {
+    const a = -Math.PI/2 + (Math.random() - 0.5) * Math.PI * 1.4; // upward cone
+    const sp = 180 + Math.random() * 260;
+    particles.push({ kind:'debris', x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+      ax: 0, ay: 720, t0: t, life: 1100 + Math.random()*700,
+      size: 5 + Math.random()*8,
+      color: ['#7C7368','#5C5048','#9C8C7C','#3F3530'][i % 4],
+      rot: Math.random()*Math.PI*2, rotSpeed: (Math.random()-0.5)*14, sizeGrow: 0 });
+  }
+  // Smoke puffs: slow upward drift, expanding, persist 1.5-2.5s.
+  for (let i = 0; i < 10; i++) {
+    const a = Math.random() * Math.PI * 2;
+    particles.push({ kind:'smoke', x: x + Math.cos(a)*12, y: y + Math.sin(a)*12,
+      vx: Math.cos(a)*20, vy: -30 - Math.random()*30, ax:0, ay: -10,
+      t0: t + i * 30, life: 1600 + Math.random()*900,
+      size: 22 + Math.random()*16, color: 'rgba(60,55,50,1)',
+      rot:0, rotSpeed:0, sizeGrow: 1.8 });
+  }
+}
 
 // Cinematic step machine (resolve)
 let step = 'idle'; // idle | fire | cut_to_enemy | enemy_dwell | cut_to_ours | ours_dwell | incoming
@@ -141,25 +207,27 @@ export function mount(c) {
 
 // ── Opening cinematic ────────────────────────────────────────────────────────
 function _startIncoming() {
-  // Bomb falls from top-right onto our castle. Trajectory tuned so the bomb is
-  // in-frame for ≥1.2 s — Gemini samples at 1 fps and previously the bomb
-  // started at y=-40 / peakLift=80, putting it offscreen for the first second.
+  // Source-faithful enemy attack: 2 ravens ARE the projectiles. They dive at
+  // the castle from off-screen right with phase-opposed sinusoidal bobs (one
+  // peaks while the other dips). Raven A crashes into the castle and triggers
+  // impact; raven B grazes just above and exits frame as a second wave.
   const target = { x: CASTLE_X + CASTLE_W * 0.72, y: CASTLE_TOP_Y + 60 };
   const dmgVal = 33;
   pendingPlayerImpact = target;
+  const t = performance.now();
   /** @type {Projectile} */
-  const proj = {
-    kind: 'bomb',
-    from: { x: W + 30, y: 70 },
+  const flock = {
+    kind: 'flock',
+    from: { x: W + 100, y: 320 },
     to: target,
-    // 600ms hold-pre-launch makes the bomb readable as a "threat in the sky"
-    // even at Gemini's 1fps sampling (one frame catches it mid-air for sure).
-    t0: performance.now() + 600,
-    dur: 2400,
-    peakLift: 140,
+    t0: t + 200,
+    dur: 2200,
+    peakLift: 0,
+    sinAmp: 50, sinFreq: 0, sinPhase: 0,
     onLand: () => _impactOurs(target, dmgVal),
   };
-  projectiles.push(proj);
+  projectiles.push(flock);
+
   step = 'incoming';
   stepT0 = performance.now();
 }
@@ -168,13 +236,17 @@ function _impactOurs(at, d) {
   dmg.OURS.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
   state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
-  // Bomb hit = bigger shake (impact from above, heavier than rocket).
-  shakeUntil = performance.now() + 600; shakeMag = 16;
+  _spawnExplosion(at.x, at.y, { heavy: true });
+  triggerShake(20, 520);
   tiltAngle = -0.08;
   tiltUntil = performance.now() + 700;
   if (step === 'incoming') {
-    // hand control to interior after a short beat (was 900ms — too dead)
-    setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 400);
+    // After the impact beat, run the zoom-in punch transition (900ms) before
+    // handing off to interior — without this wrapper the cut is sec.
+    setTimeout(() => {
+      step = 'idle';
+      _startExitTransition(() => ready_for_player_input());
+    }, 400);
   }
 }
 
@@ -195,34 +267,27 @@ function startPlayerShot(payload) {
   };
 
   const t = performance.now();
-  // Phase 1 projectile + camera pan are SIMULTANEOUS — the camera "follows" the
-  // shot from ours toward enemy. Both run for 1100ms so Gemini's 1fps sampling
-  // catches at least one frame mid-pan (verifies the camera is moving).
   const m = muzzlePos();
+  // Single world-space rocket: muzzle (OURS world) → enemy target (ENEMY world,
+  // offset by +W). The render loop compensates `screen_x = world_x - viewOffset`
+  // where viewOffset is the current pan in pixels (0 in OURS, W in ENEMY,
+  // interpolated during the pan). High peakLift so the arc clears both castles.
   /** @type {Projectile} */
-  const phase1 = {
+  const rocket = {
     kind: 'rocket',
-    from: m, to: { x: W + 80, y: 240 },
+    worldSpace: true,
+    from: m,
+    to: { x: pendingEnemyImpact.x + W, y: pendingEnemyImpact.y },
     t0: t + 250,
-    dur: 1100,
-    peakLift: 220,
-    onLand: () => {},
-  };
-  projectiles.push(phase1);
-
-  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1100, dir: 1 };
-
-  // Phase 2 projectile spawns when pan completes — continuous trajectory feel.
-  const phase2 = {
-    kind: 'rocket',
-    from: { x: -60, y: 240 },
-    to: pendingEnemyImpact,
-    t0: t + 1350,
-    dur: 1100,
-    peakLift: 220,
+    dur: 1500,
+    peakLift: 380,
     onLand: () => _impactEnemy(pendingEnemyImpact, pendingEnemyDmg),
   };
-  projectiles.push(phase2);
+  projectiles.push(rocket);
+
+  // Camera pan runs concurrently with the first ~73% of the rocket flight; the
+  // last 400ms of the rocket arc descend onto the enemy castle in ENEMY view.
+  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1100, dir: 1 };
 }
 
 // ── Cinematic tick (called each frame) ───────────────────────────────────────
@@ -248,10 +313,11 @@ function _impactEnemy(at, d) {
   dmg.ENEMY.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
   state.hp_enemy_pct = Math.max(0, state.hp_enemy_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
-  // Strong shake (Gemini: "manque de nervosité") + longer tilt for weight.
-  shakeUntil = performance.now() + 520; shakeMag = 14;
+  _spawnExplosion(at.x, at.y, { heavy: true });
+  triggerShake(18, 480);
   tiltAngle = 0.09;
   tiltUntil = performance.now() + 700;
+  enemyRecoil = { t0: performance.now(), dur: 680, peak: 42 };
   step = 'enemy_dwell';
   stepT0 = performance.now();
 }
@@ -263,13 +329,20 @@ function _startExitTransition(endAction) {
 }
 
 function _emitCutToInterior() {
-  _startExitTransition(() => {
-    emit('cut_to_interior', {
-      hp_self_after:  state.hp_self_pct,
-      hp_enemy_after: state.hp_enemy_pct,
-      units_destroyed_ids: pendingKills,
-    });
-  });
+  // Whip-pan back ENEMY → OURS (no zoom punch on enemy — enemy castle has no
+  // interior view in source). Interior's own entrance zoom does the punch.
+  const now = performance.now();
+  viewTransition = {
+    fromView: 'ENEMY', toView: 'OURS',
+    t0: now, dur: 500, dir: -1,
+    onComplete: () => {
+      emit('cut_to_interior', {
+        hp_self_after:  state.hp_self_pct,
+        hp_enemy_after: state.hp_enemy_pct,
+        units_destroyed_ids: pendingKills,
+      });
+    },
+  };
 }
 
 // Override: when ours-impact lands during a cut_to_ours, advance to ours_dwell
@@ -279,7 +352,8 @@ function _impactOursDuringResolve(at, d) {
   dmg.OURS.push(_makeDamageZone(at.x, at.y, 50 + Math.random() * 14));
   state.hp_self_pct = Math.max(30, state.hp_self_pct - d);  // never KO during ad
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
-  shakeUntil = performance.now() + 320; shakeMag = 7;
+  _spawnExplosion(at.x, at.y, { heavy: false });
+  triggerShake(11, 380);
   // Recoil: bomb came from top-right → tilt left.
   tiltAngle = -0.06;
   tiltUntil = performance.now() + 500;
@@ -298,7 +372,8 @@ function _routeOursImpact(at, d) {
     dmg.OURS.push(_makeDamageZone(at.x, at.y, 55));
     state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
     floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
-    shakeUntil = performance.now() + 380; shakeMag = 9;
+    _spawnExplosion(at.x, at.y, { heavy: true });
+    triggerShake(20, 520);
     if (step === 'incoming') {
       // Hand off to interior with a zoom transition (T1) so it isn't a hard cut.
       setTimeout(() => {
@@ -318,22 +393,26 @@ function loop() {
 
   _tick(now);
 
-  // Camera shake offsets
+  // Camera shake — quadratic decay over the configured duration.
   let sx = 0, sy = 0;
-  if (now < shakeUntil) {
-    const k = (shakeUntil - now) / 380;
-    sx = (Math.random() * 2 - 1) * shakeMag * k;
-    sy = (Math.random() * 2 - 1) * shakeMag * k;
+  const sElapsed = now - shakeStart;
+  if (sElapsed < shakeDur) {
+    const k = 1 - sElapsed / shakeDur;
+    const decay = k * k;
+    sx = (Math.random() * 2 - 1) * shakeIntensity * decay;
+    sy = (Math.random() * 2 - 1) * shakeIntensity * decay;
   }
 
   // Zoom transition (T1): scale around castle center with ease-in-out cubic.
+  // Punch-in to 2.4x; slight darkening at the very end (entering the castle's
+  // shadow). NO white flash — that was breaking the continuity to interior.
   let zoomScale = 1;
-  let fadeAlpha = 0;
+  let dimAlpha = 0;
   if (transitioning) {
     const tn = Math.min(1, (now - transitionT0) / TRANSITION_DUR);
     const eased = tn < 0.5 ? 4 * tn * tn * tn : 1 - Math.pow(-2 * tn + 2, 3) / 2;
-    zoomScale = 1 + eased * 0.85;             // 1 → 1.85
-    fadeAlpha = Math.max(0, tn - 0.75) / 0.25; // last 25%: fade to white 0 → 1
+    zoomScale = 1 + eased * 1.4;              // 1 → 2.4
+    dimAlpha = Math.max(0, tn - 0.65) / 0.35 * 0.5; // last 35%: dim 0 → 0.5
   }
 
   // Whip pan (T2): horizontal slide between two castle "slots".
@@ -347,8 +426,10 @@ function loop() {
     panOffset = eased * W * viewTransition.dir;  // dir=+1: world slides left, ENEMY enters from right
     if (tn >= 1) {
       view = viewTransition.toView;
+      const onComplete = viewTransition.onComplete;
       viewTransition = null;
       panOffset = 0;
+      if (onComplete) onComplete();
     }
   }
 
@@ -361,10 +442,17 @@ function loop() {
     ctx.translate(-cx, -cy);
   }
 
-  _drawSky(ctx);
-  _drawHillsFar(ctx);
-  _drawForestNear(ctx);
-  _drawGround(ctx);
+  // Background parallax during whip pan: far layers move slowly, near layers
+  // move faster — gives genuine "camera glides through 3D space" feel that
+  // Gemini Vision can recognize as motion (vs frozen bg with sliding castles).
+  const bgPanFar  = -panOffset * 0.18;
+  const bgPanMid  = -panOffset * 0.42;
+  const bgPanNear = -panOffset * 0.70;
+
+  ctx.save(); ctx.translate(bgPanFar,  0); _drawSky(ctx);        ctx.restore();
+  ctx.save(); ctx.translate(bgPanFar,  0); _drawHillsFar(ctx);   ctx.restore();
+  ctx.save(); ctx.translate(bgPanMid,  0); _drawForestNear(ctx); ctx.restore();
+  ctx.save(); ctx.translate(bgPanNear, 0); _drawGround(ctx);     ctx.restore();
 
   if (viewTransition) {
     // Render BOTH castles side-by-side. fromView at offset -panOffset, toView at +W-panOffset.
@@ -387,13 +475,19 @@ function loop() {
     _drawCastleSlot(ctx, view, 0);
   }
 
-  _drawProjectiles(ctx, now);
+  // viewOffset = world-x of the left screen edge. OURS frame at 0, ENEMY at W;
+  // panOffset interpolates between them during a viewTransition. World-space
+  // projectiles use this to compute their on-screen position.
+  const viewOffset = (view === 'ENEMY' ? W : 0) + panOffset;
+
+  _drawProjectiles(ctx, now, viewOffset);
+  _drawParticles(ctx, now);
   _drawFloats(ctx, now);
 
   ctx.restore();
 
-  if (fadeAlpha > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${fadeAlpha})`;
+  if (dimAlpha > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${dimAlpha})`;
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -408,15 +502,44 @@ function loop() {
   }
 }
 
+function _computeEnemyRecoil(now) {
+  if (!enemyRecoil) return { dx: 0 };
+  const t = now - enemyRecoil.t0;
+  if (t >= enemyRecoil.dur) { enemyRecoil = null; return { dx: 0 }; }
+  const peak = enemyRecoil.peak;
+  const tOut = 220;
+  let dx;
+  if (t < tOut) {
+    const k = t / tOut;
+    dx = peak * (1 - Math.pow(1 - k, 3));        // easeOutCubic 0→peak
+  } else {
+    const k = (t - tOut) / (enemyRecoil.dur - tOut);
+    dx = peak * (1 - k) * (1 - k);               // easeInQuad peak→0
+  }
+  return { dx };
+}
+
 function _drawCastleSlot(ctx, viewMode, dx) {
   ctx.save();
-  ctx.translate(dx, 0);
+  let dxExtra = 0;
+  if (viewMode === 'ENEMY') {
+    dxExtra = _computeEnemyRecoil(performance.now()).dx;
+    _treadScrollOffset = dxExtra;
+  } else {
+    _treadScrollOffset = 0;
+  }
+  ctx.translate(dx + dxExtra, 0);
   _drawCastleWithBase(ctx, viewMode);
   _drawDamageMasks(ctx, viewMode === 'OURS' ? dmg.OURS : dmg.ENEMY);
   ctx.restore();
+  _treadScrollOffset = 0;
 }
 
 // ── Drawing — backgrounds ────────────────────────────────────────────────────
+// Background extends [-W .. +2W] so horizontal pan never reveals an edge.
+const BG_X0 = -W;
+const BG_W  = 3 * W;
+
 function _drawSky(ctx) {
   // Misty teal-to-pale-green à la source (sec_01, sec_08).
   const g = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
@@ -424,7 +547,7 @@ function _drawSky(ctx) {
   g.addColorStop(0.55, '#BCD4B7');
   g.addColorStop(1, '#C9D9A8');
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, HORIZON_Y);
+  ctx.fillRect(BG_X0, 0, BG_W, HORIZON_Y);
 }
 
 function _drawHillsFar(ctx) {
@@ -437,12 +560,12 @@ function _drawHillsFar(ctx) {
   for (const L of layers) {
     ctx.fillStyle = L.color;
     ctx.beginPath();
-    ctx.moveTo(0, HORIZON_Y + 80);
-    for (let x = 0; x <= W; x += 6) {
+    ctx.moveTo(BG_X0, HORIZON_Y + 80);
+    for (let x = BG_X0; x <= BG_X0 + BG_W; x += 6) {
       const y = HORIZON_Y + L.dy - L.amp * Math.sin((x / L.period) * Math.PI * 2);
       ctx.lineTo(x, y);
     }
-    ctx.lineTo(W, HORIZON_Y + 80);
+    ctx.lineTo(BG_X0 + BG_W, HORIZON_Y + 80);
     ctx.closePath();
     ctx.fill();
   }
@@ -451,8 +574,9 @@ function _drawHillsFar(ctx) {
 function _drawForestNear(ctx) {
   // Lumpy rounded foliage clusters in dark green (not pine triangles).
   ctx.fillStyle = '#2C5443';
-  for (let i = 0; i < 14; i++) {
-    const cx = (i / 14) * W + ((i * 31) % 28);
+  const N = 42;  // wider strip — covers BG range during pan
+  for (let i = 0; i < N; i++) {
+    const cx = BG_X0 + (i / N) * BG_W + ((i * 31) % 28);
     const cy = HORIZON_Y + 22 + ((i * 17) % 14);
     const r  = 22 + ((i * 7) % 12);
     ctx.beginPath();
@@ -471,26 +595,26 @@ function _drawGround(ctx) {
   // Curved grass top edge (organic).
   ctx.fillStyle = '#7CA055';
   ctx.beginPath();
-  ctx.moveTo(0, H);
-  ctx.lineTo(0, HORIZON_Y + 90);
-  for (let x = 0; x <= W; x += 8) {
+  ctx.moveTo(BG_X0, H);
+  ctx.lineTo(BG_X0, HORIZON_Y + 90);
+  for (let x = BG_X0; x <= BG_X0 + BG_W; x += 8) {
     const y = HORIZON_Y + 90 - 6 * Math.sin(x * 0.025);
     ctx.lineTo(x, y);
   }
-  ctx.lineTo(W, H);
+  ctx.lineTo(BG_X0 + BG_W, H);
   ctx.closePath();
   ctx.fill();
   // grass-to-dirt transition strip
   ctx.fillStyle = '#5C7A3C';
-  ctx.fillRect(0, HORIZON_Y + 100, W, 6);
+  ctx.fillRect(BG_X0, HORIZON_Y + 100, BG_W, 6);
   // wet red-brown dirt (deep)
   const dy = HORIZON_Y + 106;
   ctx.fillStyle = '#3B1A1A';
-  ctx.fillRect(0, dy, W, H - dy);
+  ctx.fillRect(BG_X0, dy, BG_W, H - dy);
   // dirt streaks
   ctx.fillStyle = 'rgba(155,40,40,0.32)';
-  for (let i = 0; i < 18; i++) {
-    const x = ((i * 41) % W);
+  for (let i = 0; i < 54; i++) {
+    const x = BG_X0 + ((i * 41) % BG_W);
     ctx.fillRect(x, dy, 2, 90);
   }
 }
@@ -560,10 +684,19 @@ function _drawTreads(ctx) {
     const x = cx - tw / 2;
     ctx.fillStyle = '#1F1F1F';
     ctx.fillRect(x, TREAD_Y, tw, TREAD_H);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, TREAD_Y, tw, TREAD_H);
+    ctx.clip();
     ctx.fillStyle = '#3A3A3A';
-    for (let i = 0; i < tw; i += 14) {
-      ctx.fillRect(x + i + 2, TREAD_Y + 5, 10, TREAD_H - 10);
+    // Treads scroll with castle motion (rolling-without-slipping fakery).
+    // Scroll +dx in cart frame so visible top teeth shift right as castle rolls right.
+    const off = _treadScrollOffset * 1.6;
+    const startI = Math.floor(off / 14) * 14 - 14;
+    for (let i = startI; i < tw + 14; i += 14) {
+      ctx.fillRect(x + i + 2 - off, TREAD_Y + 5, 10, TREAD_H - 10);
     }
+    ctx.restore();
     ctx.fillStyle = '#7C7368';
     for (const wx of [x + 18, x + tw - 18, x + tw / 2]) {
       ctx.beginPath();
@@ -624,11 +757,12 @@ function _drawDamageMasks(ctx, zones) {
   ctx.restore();
 }
 
-function _drawProjectiles(ctx, now) {
+function _drawProjectiles(ctx, now, viewOffset = 0) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     if (now < p.t0) continue;
     const t = (now - p.t0) / p.dur;
+    const dx_screen = p.worldSpace ? -viewOffset : 0;
     if (t >= 1) {
       try {
         // route ours-impact based on current step
@@ -647,8 +781,18 @@ function _drawProjectiles(ctx, now) {
     }
     const pos = _arc(p.from, p.to, t, p.peakLift);
     const ang = _arcAngle(p.from, p.to, t, p.peakLift);
-    if (p.kind === 'rocket') _drawRocketSprite(ctx, pos.x, pos.y, ang, 36);
-    else if (p.kind === 'bomb') _drawBombSprite(ctx, pos.x, pos.y, ang);
+    if (p.kind === 'flock') {
+      drawRavenFlock(ctx, now - p.t0, {
+        from: p.from, to: p.to, durMs: p.dur,
+        sinAmp: p.sinAmp ?? 50,
+        sinHalfCycles: 3,
+        spreadPx: 70,
+        ravenSize: 60,
+        flapSpeed: 5,
+      });
+    }
+    else if (p.kind === 'rocket') _drawRocketSprite(ctx, pos.x + dx_screen, pos.y, ang, 36);
+    else if (p.kind === 'bomb') _drawBombSprite(ctx, pos.x + dx_screen, pos.y, ang);
   }
 }
 
@@ -708,6 +852,69 @@ function _drawBombSprite(ctx, x, y, ang) {
     ctx.arc(x - Math.cos(ang) * k * 8, y - Math.sin(ang) * k * 8, 5 + k * 0.7, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+function _drawParticles(ctx, now) {
+  ctx.save();
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    const dt = (now - p.t0) / 1000; // seconds since spawn
+    if (dt < 0) continue;
+    if (dt * 1000 >= p.life) { particles.splice(i, 1); continue; }
+    // integrate (simple Euler — good enough at 60fps)
+    const px = p.x + p.vx * dt + 0.5 * p.ax * dt * dt;
+    const py = p.y + p.vy * dt + 0.5 * p.ay * dt * dt;
+    const age = (dt * 1000) / p.life;       // 0..1
+    const fade = 1 - age;
+
+    if (p.kind === 'flash') {
+      const r = p.size * (1 + p.sizeGrow * age);
+      ctx.globalAlpha = fade * fade;
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
+      grad.addColorStop(0, p.color);
+      grad.addColorStop(0.6, p.color);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'spark') {
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = p.color;
+      // streak in direction of velocity
+      const ang = Math.atan2(p.vy + p.ay * dt, p.vx);
+      const len = 8 + p.size;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(ang);
+      ctx.fillRect(-len, -p.size/2, len, p.size);
+      ctx.restore();
+    } else if (p.kind === 'debris') {
+      ctx.globalAlpha = Math.min(1, fade * 1.4);
+      ctx.fillStyle = p.color;
+      const rot = p.rot + p.rotSpeed * dt;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(rot);
+      const s = p.size;
+      ctx.fillRect(-s/2, -s/2, s, s * 0.7);
+      // dark edge for readability
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(-s/2, s*0.2, s, s * 0.15);
+      ctx.restore();
+    } else if (p.kind === 'smoke') {
+      const r = p.size * (1 + p.sizeGrow * age);
+      // smoke fades in then out
+      const a = (age < 0.15 ? age / 0.15 : 1) * fade * 0.55;
+      ctx.globalAlpha = a;
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
+      grad.addColorStop(0, 'rgba(80,75,70,1)');
+      grad.addColorStop(0.7, 'rgba(50,46,42,0.7)');
+      grad.addColorStop(1, 'rgba(40,36,32,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 const FLOAT_LIFE_MS = 900;
