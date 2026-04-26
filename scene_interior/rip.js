@@ -7,7 +7,7 @@
  * same anchor (units module is responsible for not drawing dead units).
  */
 
-import { state } from '../shared/state.js';
+import { getActiveUnits } from '../shared/state.js';
 import { getFloorAnchor } from './castle_section.js';
 
 const STONE_W = 70;
@@ -16,18 +16,25 @@ const STONE_H = 90;
 /**
  * Draw RIP gravestones for all dead units, on their respective ledges.
  * @param {CanvasRenderingContext2D} ctx
+ * @param {number} [worldX]
+ * @param {number} [worldY]
+ * @param {number} [worldScale]
  */
-export function drawRipStones(ctx) {
-  for (const unit of state.units) {
+/**
+ * @param {import('../shared/state.js').Unit[]} [units]  override unit list (for world view)
+ */
+export function drawRipStones(ctx, worldX, worldY, worldScale, units) {
+  const scale = worldScale ?? 1;
+  for (const unit of (units ?? getActiveUnits())) {
     if (unit.alive) continue;
-    const a = getFloorAnchor(unit.floor);
+    const a = getFloorAnchor(unit.floor, worldX, worldY, worldScale);
     if (!a) continue;
-    _drawStone(ctx, a.x, a.y);
+    _drawStone(ctx, a.x, a.y, scale);
   }
 }
 
-function _drawStone(ctx, cx, groundY) {
-  const w = STONE_W, h = STONE_H;
+function _drawStone(ctx, cx, groundY, scale = 1) {
+  const w = STONE_W * scale, h = STONE_H * scale;
   const left = cx - w / 2;
   const top = groundY - h;
   const archR = w / 2;
@@ -98,10 +105,10 @@ function _drawStone(ctx, cx, groundY) {
   ctx.stroke();
 
   ctx.fillStyle = '#3A3A3A';
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = `bold ${Math.round(22 * scale)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('RIP', cx, textY + 4);
+  ctx.fillText('RIP', cx, textY + 4 * scale);
 
   ctx.restore();
 }

@@ -14,9 +14,8 @@ import { applyCameraTransform, updateCamera, setPreset, snapPreset, setTarget } 
 import { WORLD, CAM_PRESETS } from '../shared/world.js';
 import { loadCastleAssets, castleAssetsReady, drawWorld } from './castles.js';
 import { loadProjectileAssets, updateAndDraw as drawProjectile, getLeadProjectilePos, getRecentImpact, isFiring } from './projectile.js';
-import { loadEnemyAssets, startEnemyAttack, updateAndDraw as drawEnemy, isAttacking } from './enemy_ai.js';
 import { loadVfxAssets, updateAndDraw as drawVfx, drawRainOverlay } from './vfx.js';
-
+import { isAiming } from '../scene_interior/aim.js';
 let drawScriptOverlay = null;
 import('../playable/script.js').then(m => { drawScriptOverlay = m.drawScriptOverlay || null; }).catch(() => {});
 
@@ -28,7 +27,7 @@ let visible = false;
 let rafId = 0;
 let last_t = 0;
 
-const EXTERIOR_STATES = new Set(['EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
+const EXTERIOR_STATES = new Set(['EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE', 'INTERIOR_AIM']);
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
@@ -41,7 +40,6 @@ export function mount(c) {
   Promise.all([
     loadCastleAssets(),
     loadProjectileAssets(),
-    loadEnemyAssets(),
     loadVfxAssets(),
   ]).catch(e => console.error('[scene_exterior] asset load failed:', e));
 
@@ -54,19 +52,17 @@ export function mount(c) {
       last_t = performance.now();
       loop();
     }
-    if (s === 'EXTERIOR_OBSERVE' && !isAttacking()) {
-      // Snap-cut to player castle for the enemy intro attack (spec §6: enemy shots snap-cut).
+    if (s === 'INTERIOR_AIM') {
+      // Overview: show both castles so player sees the full battlefield while aiming.
+      _enemyShotIncoming = false;
+      setPreset('overview', { ease: 0.018 });
+    }
+    if (s === 'EXTERIOR_OBSERVE') {
       _enemyShotIncoming = true;
       snapPreset('blue');
       pulseEnemyTint();
-      startEnemyAttack({ onComplete: () => {
-        _enemyShotIncoming = false;
-        ready_for_player_input();
-      }});
     }
     if (s === 'EXTERIOR_RESOLVE') {
-      // Player just fired — start camera at blue castle, projectile-follow code below
-      // takes over once a projectile is in flight.
       setPreset('blue', { ease: 0.012 });
     }
   });
@@ -80,11 +76,22 @@ export function mount(c) {
 }
 
 function _driveCamera() {
+  const s = getState();
+
+  // During aim phase: overview by default, zoom to blue when player starts dragging.
+  if (s === 'INTERIOR_AIM') {
+    if (isAiming()) {
+      setTarget(CAM_PRESETS.blue, { ease: 0.06 });
+    } else {
+      setTarget(CAM_PRESETS.overview, { ease: 0.018 });
+    }
+    return;
+  }
+
   // Enemy shots snap-cut, no follow. Already snapped in subscribe handler.
   if (_enemyShotIncoming) return;
 
-  // Player projectile in flight → follow it horizontally. Zoom kept tight
-  // (0.78) so the bg image always covers and we don't reveal void edges.
+  // Player projectile in flight → follow it horizontally.
   const lead = getLeadProjectilePos();
   if (lead) {
     setTarget({
@@ -138,6 +145,7 @@ function loop() {
   const now = performance.now();
   const dt_ms = Math.min(50, now - last_t);
   last_t = now;
+  const t = now / 1000;
 
   const viewport = { w: canvas.width, h: canvas.height };
 
@@ -161,9 +169,8 @@ function loop() {
   try {
     ctx.fillStyle = '#2a2f33';
     ctx.fillRect(-4000, WORLD.ground_y, 12000, 8000);
-    if (castleAssetsReady()) drawWorld(ctx);
+    if (castleAssetsReady()) drawWorld(ctx, t);
     drawVfx(ctx, viewport, dt_ms);
-    drawEnemy(ctx, viewport, dt_ms);
     drawProjectile(ctx, viewport, dt_ms);
   } catch (e) {
     console.error('[scene_exterior] world draw threw:', e);

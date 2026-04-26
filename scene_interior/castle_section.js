@@ -35,17 +35,35 @@ const PIVOT_Y = C_BOTTOM;
 let _anchors  = [null, null, null];
 let _lastTilt = null;
 
+// Native interior dimensions (540×960 canvas coords).
+// Exported so world-space callers can compute the right scale.
+export const NATIVE_PIVOT_X = PIVOT_X;
+export const NATIVE_PIVOT_Y = PIVOT_Y;
+export const NATIVE_HEIGHT  = C_HEIGHT; // 650 — matches WORLD.castle_h when scaled
+
 /**
- * Draw the player castle cross-section.
+ * Draw the castle cross-section.
+ * Without world params → draws in interior canvas coords (540×960).
+ * With world params    → draws scaled/translated into world coords.
+ *
  * @param {CanvasRenderingContext2D} ctx
  * @param {{tilt_deg?: number, damage_level?: number}} [opts]
+ * @param {number} [worldX]     world-space pivot X (base center)
+ * @param {number} [worldY]     world-space pivot Y (ground)
+ * @param {number} [worldScale] scale factor (WORLD.castle_h / NATIVE_HEIGHT)
  */
-export function drawCastleSection(ctx, opts = {}) {
+export function drawCastleSection(ctx, opts = {}, worldX, worldY, worldScale) {
   const tilt = opts.tilt_deg     ?? 0;
   const dmg  = opts.damage_level ?? 0;
   const rad  = (tilt * Math.PI) / 180;
   if (tilt !== _lastTilt) { _anchors = [null, null, null]; _lastTilt = tilt; }
   ctx.save();
+  if (worldX !== undefined) {
+    // Translate so that PIVOT (bottom-center) maps to (worldX, worldY), then scale.
+    ctx.translate(worldX, worldY);
+    ctx.scale(worldScale, worldScale);
+    ctx.translate(-PIVOT_X, -PIVOT_Y);
+  }
   ctx.translate(PIVOT_X, PIVOT_Y);
   ctx.rotate(rad);
   ctx.translate(-PIVOT_X, -PIVOT_Y);
@@ -54,23 +72,33 @@ export function drawCastleSection(ctx, opts = {}) {
 }
 
 /**
- * Returns the SHORT ledge anchor (post-rotation), centered horizontally
- * on the ledge surface. width = usable ledge width (LEDGE_W).
+ * Returns the SHORT ledge anchor (post-rotation), in the target coordinate space.
  * @param {0|1|2} floor
+ * @param {number} [worldX]
+ * @param {number} [worldY]
+ * @param {number} [worldScale]
  * @returns {{x: number, y: number, width: number}}
  */
-export function getFloorAnchor(floor) {
-  if (_anchors[floor]) return _anchors[floor];
+export function getFloorAnchor(floor, worldX, worldY, worldScale) {
+  // Cache is interior-only (no world params). For world-space calls, compute directly.
+  if (worldX === undefined) {
+    if (_anchors[floor]) return _anchors[floor];
+  }
   const rad = ((_lastTilt ?? 0) * Math.PI) / 180;
   const { cx } = _ledgeRect(floor);
   const dx = cx - PIVOT_X;
   const dy = FLOOR_Y[floor] - PIVOT_Y;
-  _anchors[floor] = {
-    x: PIVOT_X + dx * Math.cos(rad) - dy * Math.sin(rad),
-    y: PIVOT_Y + dx * Math.sin(rad) + dy * Math.cos(rad),
-    width: LEDGE_W,
+  const localX = PIVOT_X + dx * Math.cos(rad) - dy * Math.sin(rad);
+  const localY = PIVOT_Y + dx * Math.sin(rad) + dy * Math.cos(rad);
+  if (worldX === undefined) {
+    _anchors[floor] = { x: localX, y: localY, width: LEDGE_W };
+    return _anchors[floor];
+  }
+  return {
+    x: worldX + (localX - PIVOT_X) * worldScale,
+    y: worldY + (localY - PIVOT_Y) * worldScale,
+    width: LEDGE_W * worldScale,
   };
-  return _anchors[floor];
 }
 
 function _ledgeRect(f) {

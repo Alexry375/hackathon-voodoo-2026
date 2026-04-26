@@ -1,12 +1,11 @@
-// Per-impact persistent damage gouges painted on top of each castle.
-// Each impact pushes a dark irregular polygon at its WORLD position; the
-// silhouette accumulates across the playable to read as "brick-by-brick
-// destruction" (spec §4). Drawn in world coords by castles.drawWorld().
+// Per-impact persistent damage gouges. addBite() accumulates impacts;
+// drawEraserBites() renders them as destination-out filled polygons so the
+// caller can punch transparent holes through a castle sprite.
 
 import { WORLD } from '../shared/world.js';
 
 const MAX_BITES_PER_SIDE = 18;
-const MARGIN = 80; // ignore impacts that landed far from any castle (ground hits etc.)
+const MARGIN = 80;
 
 /** @typedef {{x:number, y:number, r:number, verts:{x:number,y:number}[]}} Bite */
 
@@ -38,7 +37,6 @@ function _verts(seed, r) {
   return out;
 }
 
-/** Snap impact x to the nearest castle if close enough; otherwise drop. */
 function _sideFor(x) {
   const dBlue = Math.abs(x - WORLD.blue_castle.x);
   const dRed  = Math.abs(x - WORLD.red_castle.x);
@@ -62,41 +60,28 @@ export function addBite(world_x, world_y, opts = {}) {
 }
 
 /**
- * Draw all accumulated gouges for one side, in world coords. Caller MUST
- * already have applied the camera transform.
- * @param {CanvasRenderingContext2D} ctx
- * @param {'blue' | 'red'} side
+ * Fill bite polygons in world coords using the currently active fill style.
+ * Intended to be called with globalCompositeOperation = 'destination-out' on
+ * an offscreen canvas, with a transform already mapping world → offscreen space.
+ * Colour is irrelevant in destination-out mode; any opaque fill punches a hole.
+ *
+ * @param {CanvasRenderingContext2D} ctx  world→offscreen transform must be set
+ * @param {'blue'|'red'} side
  */
-export function drawBites(ctx, side) {
+export function drawEraserBites(ctx, side) {
   const list = bites[side];
   if (list.length === 0) return;
   ctx.save();
-  // Dark fill = "missing chunk" silhouette.
-  ctx.fillStyle = 'rgba(18,12,22,0.92)';
+  ctx.fillStyle = '#000';
   for (const b of list) {
     ctx.beginPath();
     for (let i = 0; i < b.verts.length; i++) {
       const v = b.verts[i];
-      const x = b.x + v.x;
-      const y = b.y + v.y;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      if (i === 0) ctx.moveTo(b.x + v.x, b.y + v.y);
+      else         ctx.lineTo(b.x + v.x, b.y + v.y);
     }
     ctx.closePath();
     ctx.fill();
-  }
-  // Warm rim = freshly broken stone catching light.
-  ctx.strokeStyle = 'rgba(255,200,130,0.55)';
-  ctx.lineWidth = 1.6;
-  for (const b of list) {
-    ctx.beginPath();
-    for (let i = 0; i < b.verts.length; i++) {
-      const v = b.verts[i];
-      const x = b.x + v.x;
-      const y = b.y + v.y;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.stroke();
   }
   ctx.restore();
 }

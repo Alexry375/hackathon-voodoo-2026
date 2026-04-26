@@ -1,81 +1,50 @@
-// Scene: INTERIOR (cross-section aim phase). Owner: Alexis.
-// Visible only when scene_manager state is 'INTERIOR_AIM'.
-// Composes: castle_section, units, arrow, aim, hud_cards.
-// Reactive bits driven by shared/state.js: damage_level + tilt are derived from hp_self_pct
-// and eased over time so the castle visibly leans / loses bricks as it takes damage.
+// Scene: INTERIOR — screen-space HUD + aim overlay, drawn over the exterior world.
+// Uses its own RAF loop (registered after exterior's) so it draws on top each frame.
+// Does NOT clear the canvas — exterior already painted the world.
 
 import { subscribe } from '../shared/scene_manager.js';
-import { state } from '../shared/state.js';
-import { drawCastleSection } from './castle_section.js';
-import { drawUnits } from './units.js';
-import { drawArrow } from './arrow.js';
+import { getCurrentSide } from '../shared/state.js';
+import { emit } from '../shared/events.js';
 import { installAim, drawAimOverlay } from './aim.js';
 import { drawHudCards } from './hud_cards.js';
-import { drawRipStones } from './rip.js';
-import { getActiveFloor, getActiveUnitId } from './turn.js';
-import { drawTopHud } from '../shared/hud_top.js';
-import { drawScriptOverlay } from '../playable/script.js';
+import { getActiveUnitId } from './turn.js';
+import { computeAiShot } from '../scene_exterior/enemy_ai.js';
+import { pulseEnemyTint } from '../scene_exterior/index.js';
 
-/** @type {HTMLCanvasElement | null} */
-let canvas = null;
 /** @type {CanvasRenderingContext2D | null} */
 let ctx = null;
 let visible = false;
 let rafId = 0;
-let currentTilt = 0;
-
-const TILT_EASE = 0.06;
-
-/** @param {number} hp_pct */
-function targetTiltFor(hp_pct) {
-  // Castle leans further right as it takes damage. Calibrated against frames 13/29/40.
-  if (hp_pct >= 95) return 0;
-  if (hp_pct >= 65) return 4;
-  if (hp_pct >= 35) return 9;
-  if (hp_pct >= 18) return 14;
-  return 18;
-}
-
-/** @param {number} hp_pct */
-function damageLevelFor(hp_pct) {
-  if (hp_pct >= 70) return 0;
-  if (hp_pct >= 50) return 1;
-  if (hp_pct >= 30) return 2;
-  return 3;
-}
+let _aiTimer = null;
 
 /** @param {HTMLCanvasElement} c */
 export function mount(c) {
-  canvas = c;
   ctx = c.getContext('2d');
   installAim(c);
   subscribe((s) => {
-    visible = (s === 'INTERIOR_AIM');
+    if (s !== 'INTERIOR_AIM') {
+      if (_aiTimer !== null) { clearTimeout(_aiTimer); _aiTimer = null; }
+    }
+    visible = (s === 'INTERIOR_AIM') && getCurrentSide() === 'blue';
     if (visible && !rafId) loop();
+    if (s === 'INTERIOR_AIM' && getCurrentSide() === 'red') {
+      const shot = computeAiShot(20);
+      _aiTimer = setTimeout(() => {
+        _aiTimer = null;
+        pulseEnemyTint();
+        emit('player_fire', shot);
+      }, 600);
+    }
   });
 }
 
 function loop() {
   if (!visible) { rafId = 0; return; }
   rafId = requestAnimationFrame(loop);
-  if (!ctx || !canvas) return;
-
-  const t = performance.now() / 1000;
-
-  const targetTilt = targetTiltFor(state.hp_self_pct);
-  currentTilt += (targetTilt - currentTilt) * TILT_EASE;
-  const damageLevel = damageLevelFor(state.hp_self_pct);
-
-  ctx.fillStyle = '#88CCAA';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  drawCastleSection(ctx, { tilt_deg: currentTilt, damage_level: damageLevel });
-  drawUnits(ctx, t);
-  drawRipStones(ctx);
-  const activeFloor = getActiveFloor();
-  if (activeFloor !== null) drawArrow(ctx, t, activeFloor);
+  if (!ctx) return;
+  // Draw aim overlay + HUD cards in screen space.
+  // No canvas clear — exterior already painted the world this frame.
+  // Arrow and units are drawn in world space by castles.js (proper z-order).
   drawAimOverlay(ctx);
   drawHudCards(ctx, getActiveUnitId());
-  drawTopHud(ctx);
-  drawScriptOverlay(ctx, t);
 }

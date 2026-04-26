@@ -48,12 +48,10 @@ on('cut_to_interior', (payload) => {
   for (const id of (payload.units_destroyed_ids || [])) killUnit(id);
   state.turn_index += 1;
 
-  if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
-  if (state.hp_self_pct <= 0)   { transition('END_DEFEAT');  return; }
-  // Hand the turn to the enemy. EXTERIOR_OBSERVE replays the intro-style
-  // attack cinematic, then scene_exterior calls ready_for_player_input()
-  // which transitions us into INTERIOR_AIM for the next player shot.
-  transition('EXTERIOR_OBSERVE');
+  if (state.hp_enemy_pct <= 0) { transition('END_VICTORY'); return; } // blue wins
+  if (state.hp_self_pct  <= 0) { transition('END_DEFEAT');  return; } // red wins
+  // Hotseat: show the other side's interior so they can aim.
+  transition('INTERIOR_AIM');
 });
 
 on('unit_killed', (payload) => {
@@ -62,7 +60,7 @@ on('unit_killed', (payload) => {
 
 // Public starter — call once from index.html after scenes are mounted.
 export function start() {
-  transition('EXTERIOR_OBSERVE');
+  transition('INTERIOR_AIM');
 }
 
 // Test hook — exterior calls this once it has shown the opening damage cinematic
@@ -70,7 +68,7 @@ export function start() {
 export function ready_for_player_input() {
   // Enemy attack just finished; bail to defeat screen if it killed us.
   if (state.hp_self_pct <= 0) { transition('END_DEFEAT'); return; }
-  if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
+  if (state.hp_enemy_pct <= 0) { transition('END_VICTORY'); return; }
   transition('INTERIOR_AIM');
 }
 

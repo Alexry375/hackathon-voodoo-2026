@@ -12,7 +12,8 @@
  * @property {number} hp_self_pct       0..100, player castle (left/blue)
  * @property {number} hp_enemy_pct      0..100, enemy castle (right/red)
  * @property {number} turn_index        0-based, increments after each EXTERIOR_RESOLVE
- * @property {Unit[]} units             player units roster, ordered by floor (0 = top)
+ * @property {Unit[]} units             blue player units roster, ordered by floor (0 = top)
+ * @property {Unit[]} enemy_units       red player units roster
  */
 
 /** @type {GameState} */
@@ -24,6 +25,9 @@ export const state = {
     { id: 'skeleton', alive: true, floor: 0 },
     { id: 'cyclop',   alive: true, floor: 1 },
     { id: 'orc',      alive: true, floor: 2 },
+  ],
+  enemy_units: [
+    { id: 'orc', alive: true, floor: 1 },
   ],
 };
 
@@ -46,4 +50,17 @@ export function killUnit(id) {
 /** @returns {Unit[]} */
 export function aliveUnits() {
   return state.units.filter(u => u.alive);
+}
+
+/** @returns {'blue' | 'red'} */
+export function getCurrentTurnSide() {
+  return state.turn_index % 2 === 0 ? 'blue' : 'red';
+}
+
+/** Alias used by interior/projectile modules. */
+export const getCurrentSide = getCurrentTurnSide;
+
+/** @returns {Unit[]} */
+export function getActiveUnits() {
+  return getCurrentTurnSide() === 'blue' ? state.units : state.enemy_units;
 }

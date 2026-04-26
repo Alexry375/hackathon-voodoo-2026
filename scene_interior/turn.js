@@ -5,7 +5,7 @@
 // Sami's exterior doesn't care which player unit is "active" — it only sees `player_fire`
 // payloads. Keeping turn state local avoids extending the locked shared/ contract.
 
-import { state } from '../shared/state.js';
+import { state, getCurrentSide } from '../shared/state.js';
 import { on } from '../shared/events.js';
 
 // Order matches B01.mp4 source: Cyclop (floor 1) → Skeleton (0) → Orc (2) → repeat.
@@ -20,6 +20,10 @@ let cursor = 0;
  * @returns {0|1|2|null}
  */
 export function getActiveFloor() {
+  if (getCurrentSide() === 'red') {
+    const u = state.enemy_units.find(x => x.alive);
+    return u ? /** @type {0|1|2} */ (u.floor) : null;
+  }
   for (let i = 0; i < TURN_ORDER.length; i++) {
     const floor = TURN_ORDER[(cursor + i) % TURN_ORDER.length];
     const u = state.units.find(x => x.floor === floor);
@@ -33,6 +37,10 @@ export function getActiveFloor() {
  * @returns {'cyclop' | 'skeleton' | 'orc' | null}
  */
 export function getActiveUnitId() {
+  if (getCurrentSide() === 'red') {
+    const u = state.enemy_units.find(x => x.alive);
+    return u ? /** @type {any} */ (u.id) : null;
+  }
   const f = getActiveFloor();
   if (f === null) return null;
   const u = state.units.find(x => x.floor === f);

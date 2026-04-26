@@ -14,19 +14,24 @@ export const WORLD = /** @type {const} */ ({
   ground_y: 760,
 
   // Castle pivot (base center) world positions.
-  blue_castle: { x: 320,  y: 760 },
-  red_castle:  { x: 1080, y: 760 },
+  blue_castle: { x: 200,  y: 760 },
+  red_castle:  { x: 1200, y: 760 },
 
   // Castle render height in world units (controls scale for the PNG).
   castle_h: 560,
 });
 
-/** Convenience for camera presets. */
+/** Convenience for camera presets.
+ *  y = WORLD.ground_y - castle_h/2 = 760 - 280 = 480 centers the castle
+ *  vertically on the 960-px canvas for both zoom levels:
+ *    zoom 0.70 → castle 392 px tall, 284 px margin top & bottom
+ *    zoom 0.45 → castle 252 px tall, 354 px margin top & bottom
+ */
 export const CAM_PRESETS = /** @type {const} */ ({
   // Both castles visible — used for intro overview + post-impact wide.
-  overview: { x: WORLD.width / 2, y: WORLD.ground_y - 200, zoom: 0.55 },
-  // Tight on the player's castle — used during aim phase if camera ever shows exterior.
-  blue:     { x: WORLD.blue_castle.x,  y: WORLD.ground_y - 200, zoom: 0.85 },
-  // Tight on the enemy castle — default exterior view.
-  red:      { x: WORLD.red_castle.x,   y: WORLD.ground_y - 200, zoom: 0.85 },
+  overview: { x: WORLD.width / 2,      y: WORLD.ground_y - 280, zoom: 0.34 },
+  // Medium on the player's castle — used at player launch.
+  blue:     { x: WORLD.blue_castle.x,  y: WORLD.ground_y - 280, zoom: 0.70 },
+  // Medium on the enemy castle — default exterior view.
+  red:      { x: WORLD.red_castle.x,   y: WORLD.ground_y - 280, zoom: 0.70 },
 });

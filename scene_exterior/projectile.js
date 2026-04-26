@@ -6,7 +6,7 @@
 // once the LAST sub-shot of a wave has resolved.
 
 import { on, emit } from '../shared/events.js';
-import { state } from '../shared/state.js';
+import { state, getCurrentSide } from '../shared/state.js';
 import { playSfx } from '../shared/audio.js';
 import { WORLD } from '../shared/world.js';
 import { getImage, isImageReady } from '../shared/assets.js';
@@ -14,14 +14,14 @@ import { addBite } from './damage_overlay.js';
 
 const POST_IMPACT_MS = 150;
 const SMOKE_EVERY_MS = 40;
-const DAMAGE_MIN = 8;
-const DAMAGE_MAX = 28;
+const DAMAGE_MIN = 25;
+const DAMAGE_MAX = 25;
 
 // Weapon-specific tuning. Speed in WORLD units / ms; world battlefield is
 // ~760 units wide between castle pivots so a power=0.7 rocket lands in ~600ms.
 const WEAPON_TUNING = {
   rocket: { speed: 1.05, gravity: 0.0010, sprite: 44, splits: 1, angleJitter: 0,    damageMul: 1.0 },
-  volley: { speed: 0.95, gravity: 0.0024, sprite: 26, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
+  volley: { speed: 0.95, gravity: 0.0010, sprite: 26, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
   beam:   { speed: 0,    gravity: 0,      sprite: 0,  splits: 0, angleJitter: 0,    damageMul: 1.1 },
 };
 const VOLLEY_STAGGER_MS = 90;
@@ -41,6 +41,7 @@ const BEAM_DURATION_MS  = 400;
  * @property {boolean} damageEmitted
  * @property {number} sprite_size
  * @property {number} batchId           // shots sharing a batchId resolve as one cut_to_interior
+ * @property {'blue'|'red'} side        // which player fired this shot
  */
 
 /**
@@ -50,6 +51,7 @@ const BEAM_DURATION_MS  = 400;
  * @property {number} t_ms
  * @property {number} damage
  * @property {boolean} damageEmitted
+ * @property {'blue'|'red'} side
  */
 
 /** @type {Projectile[]} */
@@ -65,11 +67,11 @@ const pending = [];
 // emitted once, when the last shot of the batch impacts. Damage accumulates
 // from each sub-shot's `damage` field.
 let _nextBatchId = 1;
-/** @type {Map<number, { remaining:number, totalDamage:number }>} */
+/** @type {Map<number, { remaining:number, totalDamage:number, side:'blue'|'red' }>} */
 const batches = new Map();
-function _newBatch(splits) {
+function _newBatch(splits, side) {
   const id = _nextBatchId++;
-  batches.set(id, { remaining: splits, totalDamage: 0 });
+  batches.set(id, { remaining: splits, totalDamage: 0, side });
   return id;
 }
 
@@ -91,65 +93,67 @@ function _baseDamage(power) {
   return Math.round(DAMAGE_MIN + (DAMAGE_MAX - DAMAGE_MIN) * Math.max(0.1, Math.min(1, power)));
 }
 
-// World-space launch + target. Launch from top of blue castle; target the
-// upper-mid of the red castle.
-const _LAUNCH_X = WORLD.blue_castle.x;
+// World-space launch + target heights. X positions depend on firing side.
 const _LAUNCH_Y = WORLD.ground_y - WORLD.castle_h * 0.75;
-const _TARGET_X = WORLD.red_castle.x;
 const _TARGET_Y = WORLD.ground_y - WORLD.castle_h * 0.55;
-// Half-width of the red castle silhouette in world units (rough). A projectile
-// impact inside this band counts as a hit; outside = miss (no damage, no bite).
-const _RED_HIT_HALF_W = WORLD.castle_h * 0.22;
+// Half-width of a castle silhouette in world units (rough).
+const _HIT_HALF_W = WORLD.castle_h * 0.22;
 
-function _hitsRedCastle(x) {
-  return Math.abs(x - WORLD.red_castle.x) <= _RED_HIT_HALF_W;
+function _launchX(side) { return side === 'red' ? WORLD.red_castle.x : WORLD.blue_castle.x; }
+function _targetX(side) { return side === 'red' ? WORLD.blue_castle.x : WORLD.red_castle.x; }
+function _hitsTarget(x, side) {
+  return Math.abs(x - _targetX(side)) <= _HIT_HALF_W;
 }
 
-function _spawnRocketLike(payload, weapon_type, angleOffset, batchId) {
+function _spawnRocketLike(payload, weapon_type, angleOffset, batchId, side) {
   const tune = WEAPON_TUNING[weapon_type];
   const angle = ((payload.angle_deg ?? 45) + angleOffset) * Math.PI / 180;
   const power = Math.max(0.1, Math.min(1, payload.power ?? 0.7));
   const speed = power * tune.speed;
-  const vx = Math.cos(angle) * speed;
+  // Red fires right-to-left, so vx is negated.
+  const dir = side === 'red' ? -1 : 1;
+  const vx = dir * Math.cos(angle) * speed;
   const vy = -Math.sin(angle) * speed;
   const damage = Math.round(_baseDamage(power) * tune.damageMul);
   active.push({
-    x: _LAUNCH_X, y: _LAUNCH_Y, vx, vy,
+    x: _launchX(side), y: _LAUNCH_Y, vx, vy,
     gravity: tune.gravity,
     t_ms: 0, smoke_acc_ms: 0,
     impacted: false, post_impact_ms: 0,
     damage, weapon_type, damageEmitted: false,
     sprite_size: tune.sprite,
-    batchId,
+    batchId, side,
   });
 }
 
-function _spawnBeam(payload) {
+function _spawnBeam(payload, side) {
   const power = Math.max(0.1, Math.min(1, payload.power ?? 0.7));
   const damage = Math.round(_baseDamage(power) * WEAPON_TUNING.beam.damageMul);
+  const lx = _launchX(side), tx = _targetX(side);
   beams.push({
-    x0: _LAUNCH_X, y0: _LAUNCH_Y,
-    x1: _TARGET_X, y1: _TARGET_Y,
-    t_ms: 0, damage, damageEmitted: false,
+    x0: lx, y0: _LAUNCH_Y,
+    x1: tx, y1: _TARGET_Y,
+    t_ms: 0, damage, damageEmitted: false, side,
   });
-  safeVfx('triggerExplosion', _TARGET_X, _TARGET_Y, { size: 'big', palette: 'player' });
+  safeVfx('triggerExplosion', tx, _TARGET_Y, { size: 'big', palette: 'player' });
   playSfx({ volume: 0.9, rate: 1.4 });
-  _markImpact(_TARGET_X, _TARGET_Y, 'big');
+  _markImpact(tx, _TARGET_Y, 'big');
 }
 
 function spawnFromPayload(payload) {
   const weapon_type = payload.weapon_type || 'rocket';
+  const side = getCurrentSide();
   if (weapon_type === 'beam') {
-    _spawnBeam(payload);
+    _spawnBeam(payload, side);
     return;
   }
   const tune = WEAPON_TUNING[weapon_type] || WEAPON_TUNING.rocket;
-  const batchId = _newBatch(tune.splits);
+  const batchId = _newBatch(tune.splits, side);
   if (tune.splits <= 1) {
-    _spawnRocketLike(payload, weapon_type, 0, batchId);
+    _spawnRocketLike(payload, weapon_type, 0, batchId, side);
   } else {
-    _spawnRocketLike(payload, weapon_type, _jitter(tune.angleJitter), batchId);
-    volleyQueues.push({ payload, t_ms: 0, remaining: tune.splits - 1, batchId });
+    _spawnRocketLike(payload, weapon_type, _jitter(tune.angleJitter), batchId, side);
+    volleyQueues.push({ payload, t_ms: 0, remaining: tune.splits - 1, batchId, side });
   }
 }
 
@@ -160,11 +164,12 @@ function _resolveDamage(entity) {
   entity.damageEmitted = true;
   // A miss still advances the turn (cut_to_interior MUST fire) but does no damage.
   const dmg = entity.didHit === false ? 0 : entity.damage;
+  const side = entity.side ?? 'blue';
   // Beams are batch-of-1 implicit. Rockets use the explicit batch tracker.
   if (entity.batchId == null) {
     emit('cut_to_interior', {
-      hp_self_after: state.hp_self_pct,
-      hp_enemy_after: Math.max(0, state.hp_enemy_pct - dmg),
+      hp_self_after:  side === 'red' ? Math.max(0, state.hp_self_pct  - dmg) : state.hp_self_pct,
+      hp_enemy_after: side === 'red' ? state.hp_enemy_pct : Math.max(0, state.hp_enemy_pct - dmg),
       units_destroyed_ids: [],
     });
     return;
@@ -176,8 +181,8 @@ function _resolveDamage(entity) {
   if (b.remaining <= 0) {
     batches.delete(entity.batchId);
     emit('cut_to_interior', {
-      hp_self_after: state.hp_self_pct,
-      hp_enemy_after: Math.max(0, state.hp_enemy_pct - b.totalDamage),
+      hp_self_after:  b.side === 'red' ? Math.max(0, state.hp_self_pct  - b.totalDamage) : state.hp_self_pct,
+      hp_enemy_after: b.side === 'red' ? state.hp_enemy_pct : Math.max(0, state.hp_enemy_pct - b.totalDamage),
       units_destroyed_ids: [],
     });
   }
@@ -203,7 +208,7 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
     while (q.remaining > 0 && q.t_ms >= VOLLEY_STAGGER_MS) {
       q.t_ms -= VOLLEY_STAGGER_MS;
       const tune = WEAPON_TUNING[q.payload.weapon_type] || WEAPON_TUNING.volley;
-      _spawnRocketLike(q.payload, q.payload.weapon_type, _jitter(tune.angleJitter), q.batchId);
+      _spawnRocketLike(q.payload, q.payload.weapon_type, _jitter(tune.angleJitter), q.batchId, q.side);
       q.remaining -= 1;
     }
     if (q.remaining === 0) volleyQueues.splice(i, 1);
@@ -255,10 +260,11 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
 
       const descending = p.vy > 0;
       const groundHit = descending && p.y >= WORLD.ground_y;
-      if ((descending && p.y >= tY) || groundHit || p.x > WORLD.width + 80 || p.t_ms > 3000) {
+      const outOfBounds = p.side === 'red' ? p.x < -80 : p.x > WORLD.width + 80;
+      if ((descending && p.y >= tY) || groundHit || outOfBounds || p.t_ms > 3000) {
         p.impacted = true;
         const size = p.weapon_type === 'volley' ? 'small' : 'big';
-        const hit = _hitsRedCastle(p.x) && !groundHit;
+        const hit = _hitsTarget(p.x, p.side) && !groundHit;
         p.didHit = hit;
         safeVfx('triggerExplosion', p.x, p.y, { size: hit ? size : 'small', palette: 'player' });
         playSfx({ volume: hit ? 0.9 : 0.5, rate: p.weapon_type === 'volley' ? 1.1 : 0.7 });
