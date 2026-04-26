@@ -1,18 +1,38 @@
 {
   "id": "V4",
-  "name": "level-preview",
   "axis": "endcard",
-  "branch": "iter/r3-V4-level-preview",
+  "name": "level-preview",
   "baseline": "iter/run3-gold-baseline",
-  "hypothesis": "A 'LEVEL 2 ->' wood panel slides in above the 3 stars 800ms after the endcard appears, framing a dark dragon silhouette with a glowing red eye. Zeigarnik bait ('who is this dragon?') pushes the user toward CTA / install.",
-  "diff_from_baseline": {
-    "added_files": ["playable/endcard_level_preview.js"],
-    "modified_files": {
-      "playable/endcard.js": "+2 lines: 1 import, 1 draw call appended after _drawTapHint inside drawEndcard"
-    },
-    "removed_lines": 0,
-    "additive_only": true
-  },
+  "branch": "iter/r3-V4-level-preview",
+  "title": "Level-preview JUICY — fog-reveal + breathing dragon (eye+lens-flare+breath particles) + parallax 3-layer + scale-punch + chromatic LEVEL 2 lettering",
+  "hypothesis": "ADDITIVE on top of Sami's juicy endcard: a 'LEVEL 2 →' panel above the wordmark tears a fog-of-war veil to reveal a breathing dragon boss with a glowing pulsing red eye, lens-flare, and smoke-breath. Parallaxed sky/mountains/fog drift at three different speeds, scale-punch entry with cyan radial flash, chromatic-aberration title with violet/cyan halo. Zeigarnik visuel concret + sense of escalation push to install. Layered juice without modifying any existing endcard draw call.",
+  "diff_from_baseline": [
+    "playable/endcard_level_preview.js (NEW ~360 LOC): module dédié exposant drawLevelPreview(ctx, t, entryT). State machine timing-driven (pre-entry → reveal 800-1400ms ease-out-expo radial mask → punch 1400-1650ms scale-overshoot + cyan flash → settled bobbing+breath loop). Sub-helpers: _drawSky, _drawMountains, _drawDragon (head+horn+wing+open-maw+teeth + glowing red eye with pulse 0.8Hz + lens-flare 6 rays rotating), _drawFogVeil (destination-out radial hole expanding), _drawCornerWisps, _drawFogDrift, _updateBreath/_drawBreath (pool ≤60, hue red→orange→dark, additive), _drawChromaticLabel (RGB displacement + violet/cyan glow halo + scale-pulse).",
+    "playable/endcard.js: 1 import + 1 call drawLevelPreview(ctx, t, _entryT) inserted as the very last paint inside drawEndcard (after drawConfetti, before ctx.restore). NONE of the existing draw functions, ordering, timings, or tap handler are modified. Pure additive layer.",
+    "Effect 1 — Fog-of-war reveal: solid grey-black veil over the panel, then radial destination-out hole expands ease-out-expo (radius 0→Math.hypot(w,h)*0.6 over 600ms starting at +800ms). Residual wisps remain in the corners post-reveal.",
+    "Effect 2 — Dragon silhouette: hand-coded polygon (snout+horn+head+jaw+wing+body+open maw with 4 teeth). Glowing red eye = additive radial gradient + iris (hsl-pulsing) + slit pupil; eye + glow scale with sin pulse 0.8Hz.",
+    "Effect 3 — Lens-flare on eye: 6 rotating rays (0.3 rad/s), additive cyan-orange stroke that pulses synced with eye dilation.",
+    "Effect 4 — Breath particles: spawn ~5/s from the maw post-reveal, buoyant velocity, hue-cycling red→orange→black, additive radial gradient render, lifetime 1.1-1.5s, pool capped at 60.",
+    "Effect 5 — Parallax 3 layers: sky gradient (slow hue-shift via Math.sin phase) + 14 twinkling stars + dark mountain silhouette with 1px horizontal drift + foreground low-fog rectangles drifting horizontally at 30px/s.",
+    "Effect 6 — Scale-punch entry: at +1400ms the panel scales 1.0→1.06→1.0 over 250ms (sin curve) accompanied by a full-screen cyan radial flash (alpha 0.3→0, additive blend).",
+    "Effect 7 — Bobbing post-settle: panel translates ±3px sin 0.5Hz vertical (life without instability).",
+    "Effect 8 — Chromatic LEVEL 2 → label: bold italic 36px, RGB aberration (R offset -2px, B offset +2px), violet/cyan glow halo (additive layered offsets), white fill + 4px black stroke on top, persistent scale-pulse ±4% at 0.6Hz."
+  ],
+  "juicy_checklist_validated": [
+    "particles_2_types_breath_and_corner_wisps",
+    "color_shift_dynamic_sky_hue_and_eye_pulse",
+    "scale_punch_with_overshoot_panel_entry",
+    "glow_bloom_eye_and_label_halo",
+    "trail_persistence_breath_particles_1100ms+",
+    "layered_timing_4_events_reveal_punch_flash_label",
+    "lettering_animated_chromatic_pulse",
+    "parallax_three_layers_sky_mountains_fog"
+  ],
+  "juicy_omitted": [
+    "screen_shake_graduated: endcard is a static composition; shaking the whole canvas would break social-proof readability and Sami's CTA shimmer composure",
+    "slow_mo_flash: no time-driven gameplay event on endcard to anchor a slow-mo trigger",
+    "audio_stinger: skipped to keep mute-safe parity with the rest of the playable"
+  ],
   "preserved_baseline_juice": [
     "3 stars staggered easeOutBack",
     "confetti burst",
@@ -21,6 +41,11 @@
     "tap-anywhere handler",
     "VICTORY title, subtitle, tap-hint"
   ],
+  "axis_isolated": true,
+  "additive_constraint_respected": true,
+  "untouched": ["combat loop", "intro", "palette globally", "mechanic", "stars/confetti/social-proof/CTA/shimmer/tap-handler in endcard.js"],
   "target_metric": "CTA pull / install rate",
-  "review": "pending"
+  "review": "pending",
+  "build_kb": 2900,
+  "build_ok": true
 }
