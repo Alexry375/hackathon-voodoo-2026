@@ -109,83 +109,101 @@ function _drawBackground(ctx) {
 
   const BLEED = 800;
 
-  // --- Sky gradient: warm teal-green daylight (matches source) ---
-  const sky = ctx.createLinearGradient(0, 0, 0, GY);
-  sky.addColorStop(0,    '#8EC8E4');
-  sky.addColorStop(0.3,  '#AADCCA');
-  sky.addColorStop(0.7,  '#C4E8B8');
-  sky.addColorStop(1,    '#D4F0B8');
+  // --- Sky gradient: pale olive-green → minty teal (source palette Q9) ---
+  const sky = ctx.createLinearGradient(0, -BLEED, 0, GY);
+  sky.addColorStop(0,    '#C6D4B2');
+  sky.addColorStop(1,    '#A2CDAF');
   ctx.fillStyle = sky;
   ctx.fillRect(-BLEED, -BLEED, W + BLEED * 2, GY + BLEED);
 
-  // --- Distant rolling hills: soft aqua-green, gentle humps ---
-  ctx.fillStyle = '#82B895';
+  // --- Cartoony cloud blobs near the top ---
+  _drawClouds(ctx, -BLEED, W + BLEED);
+
+  // --- Layer 1: distant rolling hills (lightest, grayish-teal) ---
+  ctx.fillStyle = '#8EBFA1';
   ctx.beginPath();
   ctx.moveTo(-BLEED, GY);
-  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 280, GY - 180, 7, 0);
+  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 290, GY - 200, 7, 0);
   ctx.lineTo(W + BLEED, GY);
   ctx.closePath();
   ctx.fill();
 
-  // --- Mid hills: deeper green, slightly in front ---
-  ctx.fillStyle = '#5A9A6A';
+  // --- Layer 2: mid jungle silhouettes (medium teal-green) ---
+  ctx.fillStyle = '#549C89';
   ctx.beginPath();
   ctx.moveTo(-BLEED, GY);
-  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 210, GY - 110, 9, 42);
+  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 220, GY - 130, 9, 42);
   ctx.lineTo(W + BLEED, GY);
   ctx.closePath();
   ctx.fill();
-
-  // --- Near tree canopy: rounded tropical crowns (dark jungle green) ---
-  ctx.fillStyle = '#2E6535';
+  // Tree crowns sitting on mid layer.
   _drawRoundedTreeCanopy(ctx, GY, -BLEED, W + BLEED, 0.72);
 
-  // --- Foreground canopy layer: near-black silhouette ---
-  ctx.fillStyle = '#1A3020';
-  _drawRoundedTreeCanopy(ctx, GY, -BLEED, W + BLEED, 0.88);
-
-  // --- Green grass ground surface strip ---
-  const grass = ctx.createLinearGradient(0, GY - 40, 0, GY + 30);
-  grass.addColorStop(0,   '#72B855');
-  grass.addColorStop(0.3, '#5A9640');
-  grass.addColorStop(1,   '#8B3A10');
-  ctx.fillStyle = grass;
-  ctx.fillRect(-BLEED, GY - 40, W + BLEED * 2, 70);
-
-  // --- Earth floor ---
-  const earth = ctx.createLinearGradient(0, GY, 0, H + BLEED);
-  earth.addColorStop(0,   '#7A2A1A');
-  earth.addColorStop(0.3, '#5A1A0A');
-  earth.addColorStop(1,   '#3A0E06');
-  ctx.fillStyle = earth;
-  ctx.fillRect(-BLEED, GY, W + BLEED * 2, H - GY + BLEED);
-
-  // --- Terrain mounds under each castle ---
-  ctx.fillStyle = '#8B4010';
+  // --- Layer 3: foreground darkest teal landmass with bushes ---
+  ctx.fillStyle = '#317C6B';
   ctx.beginPath();
-  ctx.moveTo(-200, GY + 80);
-  ctx.bezierCurveTo(0, GY + 80,  150, GY + 20,  200, GY - 40);
-  ctx.bezierCurveTo(250, GY - 80, 350, GY - 70,  400, GY - 50);
-  ctx.bezierCurveTo(500, GY - 20, 600, GY + 30,  700, GY + 50);
-  ctx.bezierCurveTo(800, GY + 60, 900, GY + 20,  980, GY - 40);
-  ctx.bezierCurveTo(1030, GY - 75, 1130, GY - 75, 1180, GY - 45);
-  ctx.bezierCurveTo(1280, GY - 10, 1400, GY + 40, 1600, GY + 80);
-  ctx.lineTo(1600, GY + 200);
-  ctx.lineTo(-200, GY + 200);
+  ctx.moveTo(-BLEED, GY);
+  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 150, GY - 70, 11, 17);
+  ctx.lineTo(W + BLEED, GY);
   ctx.closePath();
   ctx.fill();
+  _drawRoundedTreeCanopy(ctx, GY, -BLEED, W + BLEED, 0.88);
 
-  // --- Grass tufts at mound bases ---
-  ctx.fillStyle = '#4A8E50';
-  const tufts = [
-    [160, GY - 10], [220, GY - 25], [280, GY - 40], [380, GY - 48], [450, GY - 30],
-    [550, GY + 10], [650, GY + 35], [750, GY + 42],
-    [860, GY + 15], [960, GY - 30], [1020, GY - 55], [1100, GY - 58], [1180, GY - 38], [1260, GY - 10],
+  // --- Grass + earth (source: thin grass strip, dominant red-brown earth below) ---
+  // Verified against clip2_0001 / clip2_0046: grass is a thin ~18px band; the
+  // visible foreground below it is entirely red-brown maroon earth.
+  ctx.fillStyle = '#6EB05B';
+  ctx.fillRect(-BLEED, GY - 6, W + BLEED * 2, 22);
+  // Lighter highlight along top edge
+  ctx.fillStyle = '#96CD65';
+  _drawWavyBand(ctx, -BLEED, W + BLEED, GY - 6, 4, 36, 0.04);
+  // Dark olive separator line
+  ctx.fillStyle = '#334626';
+  ctx.fillRect(-BLEED, GY + 16, W + BLEED * 2, 3);
+  // Dominant red-brown earth gradient — fills the rest of the screen down.
+  const earth = ctx.createLinearGradient(0, GY + 19, 0, H + BLEED);
+  earth.addColorStop(0,    '#7A2A1A');
+  earth.addColorStop(0.45, '#552219');
+  earth.addColorStop(1,    '#2D100F');
+  ctx.fillStyle = earth;
+  ctx.fillRect(-BLEED, GY + 19, W + BLEED * 2, H - GY - 19 + BLEED);
+}
+
+/** Pseudo-random but deterministic puffy clouds along a horizontal band. */
+function _drawClouds(ctx, x0, x1) {
+  ctx.save();
+  ctx.fillStyle = '#E0E6C0';
+  const clouds = [
+    { x: x0 + 240, y: 90,  r: 32 },
+    { x: x0 + 620, y: 60,  r: 26 },
+    { x: x0 + 1000, y: 110, r: 36 },
+    { x: x0 + 1380, y: 75,  r: 28 },
+    { x: x0 + 1780, y: 100, r: 34 },
   ];
-  for (const [tx, ty] of tufts) {
-    ctx.beginPath(); ctx.ellipse(tx, ty, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(tx + 10, ty - 6, 9, 6, -0.3, 0, Math.PI * 2); ctx.fill();
+  for (const c of clouds) {
+    if (c.x < x0 || c.x > x1) continue;
+    // Three overlapping circles per cloud.
+    ctx.beginPath();
+    ctx.arc(c.x - c.r * 0.7, c.y, c.r * 0.7, 0, Math.PI * 2);
+    ctx.arc(c.x,             c.y - c.r * 0.2, c.r, 0, Math.PI * 2);
+    ctx.arc(c.x + c.r * 0.8, c.y, c.r * 0.75, 0, Math.PI * 2);
+    ctx.fill();
   }
+  ctx.restore();
+}
+
+/** Fill a thin wavy band of `bandH` px tall along [x0..x1] at baseline `y`. */
+function _drawWavyBand(ctx, x0, x1, y, bandH, period, amp) {
+  ctx.beginPath();
+  ctx.moveTo(x0, y);
+  for (let x = x0; x <= x1; x += period / 4) {
+    const dy = Math.sin(x * amp) * 3;
+    ctx.lineTo(x, y + dy);
+  }
+  ctx.lineTo(x1, y + bandH);
+  ctx.lineTo(x0, y + bandH);
+  ctx.closePath();
+  ctx.fill();
 }
 
 /**
@@ -222,8 +240,9 @@ function _drawCastle(ctx, which, pivot, hp_pct) {
   }
 
   const hpClamped = Math.max(0, Math.min(100, hp_pct));
-  // Castles tilt AWAY from the impact direction (blue tilts left as it takes hits, red tilts right).
-  const lean = (1 - hpClamped / 100) * (Math.PI / 180) * 22;
+  // Verified against frames clip2_0001 (upright at full HP) and clip2_0046
+  // (blue leans LEFT/away-from-enemy, red leans RIGHT/away-from-enemy).
+  const lean = (1 - hpClamped / 100) * (Math.PI / 180) * 25;
   const tilt = which === 'blue' ? -lean : lean;
   const darken = (1 - hpClamped / 100) * 0.35;
 
