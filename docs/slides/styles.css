@@ -235,6 +235,9 @@ h2 em { font-style: italic; color: var(--accent); }
   flex: 1; min-height: 0;
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
 }
+.side-by-side.three {
+  grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+}
 .sbs-card {
   display: flex; flex-direction: column; gap: 8px;
   min-height: 0;
