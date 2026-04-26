@@ -47,6 +47,7 @@ Travaille ces étapes **séquentiellement**. Lis chacun de ces fichiers au momen
 - **Cinématique = mécanique** : caméra, rythme, transitions et frame d'opening sont des sous-systèmes load-bearing. Les locker en step 01b avant tout scaffold (sinon le pacing devient arbitraire et plombe la fidélité finale).
 - **Gate score Gemini ≥ 9/10** : aucune livraison sous **9/10** sur le scoring segmenté de step 5.5 (intro / aim / fire-cinematic / impact / endcard). En-dessous → re-itération obligatoire. Vise le 10. La step 5 documente la procédure de critique itérative.
 - **Validation finale = clip-vs-clip**, pas image-vs-image. L'image-only sert à itérer vite en step 04 ; jamais comme gate.
+- **Re-lis `pipeline/` au fil du run** : avant d'attaquer chaque étape, re-lis le `.md` correspondant en entier. Si pendant une étape tu te poses une question méta-stratégique (*comment je m'organise ? puis-je paralléliser ? comment scorer ?*), reviens lire [`pipeline/03-asset-fanout.md`](pipeline/03-asset-fanout.md) (pattern sub-agents parallèles, **transférable hors-assets** — applicable dès que ton travail se partitionne par fichier/module) et [`pipeline/05-playwright-loop.md`](pipeline/05-playwright-loop.md) (boucle d'itération + gate score). Ces deux fichiers contiennent des patterns qui s'appliquent au-delà de leurs steps respectifs.
 
 ---
 
