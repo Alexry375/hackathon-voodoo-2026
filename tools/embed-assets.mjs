@@ -15,16 +15,21 @@ const ASSETS = {
   // castles
   BLUE_CASTLE: ['assets_unpack/Blue Castle.png',  'image/png'],
   RED_CASTLE:  ['assets_unpack/Red Castle.png',   'image/png'],
+  // castle damage tiers (Seb's branch — replaces overlay system)
+  CASTLE_75:        ['castles/castle-75.png',         'image/png'],
+  CASTLE_50:        ['castles/castle-50.png',         'image/png'],
+  CASTLE_25:        ['castles/castle-25.png',         'image/png'],
+  CASTLE_BLUE_75:   ['castles/castle-blue-75.png',    'image/png'],
+  CASTLE_BLUE_50:   ['castles/castle-blue-50.png',    'image/png'],
+  CASTLE_BLUE_25:   ['castles/castle-blue-25.png',    'image/png'],
   // projectiles
   ROCKET:     ['assets_unpack/Projectile_1.png',  'image/png'],
   BOMB:       ['assets_unpack/Projectile_2.png',  'image/png'],
-  // weapons (legacy procedural slots, kept as fallback)
-  BAZOOKA:    ['assets_unpack/Weapon_1.png',      'image/png'],
-  CANNON:     ['assets_unpack/Weapon_2.png',      'image/png'],
-  // mob-held weapons (CC0 — Snoops "Bows and Guns" + OGA bomb)
-  WEAPON_SKELETON: ['weapon_assets/candidates/skeleton/snoops_3_multibarrel.png', 'image/png'],
-  WEAPON_CYCLOP:   ['weapon_assets/candidates/cyclop/snoops_1_bomb-fuse.png',     'image/png'],
-  WEAPON_ORC:      ['weapon_assets/candidates/cyclop/snoops_2_bomb-stripes.png',  'image/png'],
+  // mob-held weapons — source-video assets for skeleton (Weapon_1) + cyclop
+  // (Weapon_2). Orc keeps the Snoops multibarrel since no source asset exists.
+  WEAPON_SKELETON: ['assets_unpack/Weapon_1.png',                                  'image/png'],
+  WEAPON_CYCLOP:   ['assets_unpack/Weapon_2.png',                                  'image/png'],
+  WEAPON_ORC:      ['weapon_assets/candidates/skeleton/snoops_3_multibarrel.png',  'image/png'],
   // tank treads (extracted from B01.mp4 + rembg)
   TREAD_OURS:      ['treads/tread_ours.png',  'image/png'],
   TREAD_ENEMY:     ['treads/tread_enemy.png', 'image/png'],

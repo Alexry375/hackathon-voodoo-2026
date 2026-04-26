@@ -23,6 +23,22 @@ export function getImage(name) {
   return img;
 }
 
+/**
+ * Same as getImage but returns null when the asset key is missing instead of
+ * throwing. Used by optional assets (e.g. damage-tier sprites).
+ * @param {string} name
+ * @returns {HTMLImageElement | null}
+ */
+export function tryGetImage(name) {
+  if (_cache[name]) return _cache[name];
+  const src = /** @type {any} */ (window).ASSETS?.[name];
+  if (!src) return null;
+  const img = new Image();
+  img.src = src;
+  _cache[name] = img;
+  return img;
+}
+
 /** @param {string} name */
 export function isImageReady(name) {
   const img = _cache[name];

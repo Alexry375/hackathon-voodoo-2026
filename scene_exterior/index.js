@@ -24,7 +24,7 @@ import { on, emit } from '../shared/events.js';
 import { state } from '../shared/state.js';
 import { subscribe, ready_for_player_input } from '../shared/scene_manager.js';
 import { drawTopHud } from '../shared/hud_top.js';
-import { getImage, isImageReady } from '../shared/assets.js';
+import { getImage, tryGetImage, isImageReady } from '../shared/assets.js';
 import { drawScriptOverlay } from '../playable/script.js';
 import { drawRaven } from './raven.js';
 import { drawRavenFlock } from './raven_flock.js';
@@ -66,58 +66,64 @@ const muzzlePos = () => ({ x: CASTLE_X + MUZZLE_OFFSET.x, y: CASTLE_TOP_Y + MUZZ
 /** @type {'OURS'|'ENEMY'} */
 let view = 'OURS';
 
-/** Damage marks per side (don't bleed across views). Each zone caches a
- *  jagged polygon outline + crack rays so it doesn't shimmer between frames. */
-/** @typedef {{x:number,y:number,r:number,
- *             poly:[number,number][], cracks:[number,number][],
- *             innerRim:[number,number][],
- *             innerChunks:{x:number,y:number,w:number,h:number,rot:number,shade:number,lit:boolean}[]}} DamageZone */
-const dmg = { OURS: /** @type {DamageZone[]} */ ([]),
-              ENEMY: /** @type {DamageZone[]} */ ([]) };
+// ── ENEMY damage tier (Seb's PNGs) ────────────────────────────────────────────
+// HP-driven sprite swap replaces the legacy chunk/crack overlay system. PNGs
+// are sized so their content height matches CASTLE_H; alpha-bbox cached once.
+// OURS has no visual damage anymore (matching OURS PNGs to come later).
 
-function _makeDamageZone(x, y, r) {
-  // Irregular polygon: 12 spokes around the centre with ±35% radius jitter.
-  const poly = /** @type {[number,number][]} */ ([]);
-  const N = 12;
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2 + Math.random() * 0.35;
-    const rr = r * (0.65 + Math.random() * 0.55);
-    poly.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+/** @type {Map<HTMLImageElement, {minY:number, contentH:number}>} */
+const _contentBounds = new Map();
+function _getContentBounds(img) {
+  if (_contentBounds.has(img)) return _contentBounds.get(img);
+  let bounds;
+  try {
+    const tmp = document.createElement('canvas');
+    tmp.width = img.naturalWidth; tmp.height = img.naturalHeight;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(img, 0, 0);
+    const data = tctx.getImageData(0, 0, tmp.width, tmp.height).data;
+    let minY = tmp.height, maxY = 0;
+    for (let y = 0; y < tmp.height; y++)
+      for (let x = 0; x < tmp.width; x++)
+        if (data[(y * tmp.width + x) * 4 + 3] > 8) {
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+    bounds = maxY >= minY ? { minY, contentH: maxY - minY + 1 }
+                          : { minY: 0, contentH: img.naturalHeight };
+  } catch (_) {
+    bounds = { minY: 0, contentH: img.naturalHeight };
   }
-  // Inner jagged rim at ~55-73% radius — drawn in warm stone color so the
-  // hole reads as broken masonry instead of a flat black polygon.
-  const innerRim = /** @type {[number,number][]} */ ([]);
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2 + Math.random() * 0.4;
-    const rr = r * (0.55 + Math.random() * 0.18);
-    innerRim.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  _contentBounds.set(img, bounds);
+  return bounds;
+}
+
+// OURS visual tier is decoupled from HP: the playable should feel "still
+// holding" after the 2nd hit, so we step down every 2 attacks instead of
+// continuously following HP.
+//   0 attacks → intact
+//   1-2 attacks → CASTLE_BLUE_75 (1st destruction asset, persists thru hit 2)
+//   3-4 attacks → CASTLE_BLUE_50
+//   5+ attacks  → CASTLE_BLUE_25
+let _oursAttacksTaken = 0;
+
+function _damagePng(side) {
+  const prefix = side === 'OURS' ? 'CASTLE_BLUE_' : 'CASTLE_';
+  let suffix = null;
+  if (side === 'OURS') {
+    if (_oursAttacksTaken === 0) return null;
+    if (_oursAttacksTaken <= 2)      suffix = '75';
+    else if (_oursAttacksTaken <= 4) suffix = '50';
+    else                              suffix = '25';
+  } else {
+    const hp = state.hp_enemy_pct;
+    if      (hp <= 25) suffix = '25';
+    else if (hp <= 50) suffix = '50';
+    else if (hp <= 75) suffix = '75';
+    if (!suffix) return null;
   }
-  // 5-8 crack rays extending past the polygon edge.
-  const cracks = /** @type {[number,number][]} */ ([]);
-  const nC = 5 + Math.floor(Math.random() * 4);
-  for (let i = 0; i < nC; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const rr = r * (1.05 + Math.random() * 0.6);
-    cracks.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
-  }
-  // Pre-baked stone fragments visible INSIDE the hole — kills the "giant black
-  // blob" reading. Generated once at impact so they don't shimmer.
-  const innerChunks = /** @type {{x:number,y:number,w:number,h:number,rot:number,shade:number,lit:boolean}[]} */ ([]);
-  const nChunks = 7 + Math.floor(Math.random() * 4);
-  for (let i = 0; i < nChunks; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const rr = r * (0.15 + Math.random() * 0.42);
-    innerChunks.push({
-      x: x + Math.cos(a) * rr,
-      y: y + Math.sin(a) * rr,
-      w: 3 + Math.random() * 5,
-      h: 3 + Math.random() * 4,
-      rot: Math.random() * Math.PI * 2,
-      shade: Math.random(),
-      lit: Math.random() < 0.35,
-    });
-  }
-  return { x, y, r, poly, cracks, innerRim, innerChunks };
+  const img = tryGetImage(prefix + suffix);
+  return (img && img.complete && img.naturalWidth > 0) ? img : null;
 }
 
 /** Castle tilt angle (radians) for firing animation. */
@@ -290,11 +296,12 @@ function _onCanvasTap() {
 }
 
 // ── Deterministic impact cycles ──────────────────────────────────────────────
-// Random impacts cluster visually 2-3 shots in a row even with a wide range,
-// so we cycle through hand-placed targets covering the full castle face. The
-// OURS cycle is shared by the intro raven and every enemy-riposte flock so a
-// fresh shot never lands on the previous crater. Same idea on ENEMY for the
-// player's own shots. nx is normalized inside CASTLE_W (0..1), y is absolute.
+// Random impacts cluster visually so we cycle through hand-placed targets.
+// OURS: enemy ripostes plus opening raven. Damage on OURS is purely particle
+// (no persistent overlay), but the cycle keeps successive impacts spatially
+// varied so the screen-shake/explosion don't all originate from one spot.
+// ENEMY: player shots, ordered to land where Seb's tier PNGs reveal new damage
+// (left tower → right tower roof → centre keep) so the swap reads as causal.
 /** @typedef {{nx:number, y:number}} ImpactSpot */
 /** @type {ImpactSpot[]} */
 const OURS_IMPACT_CYCLE = [
@@ -306,12 +313,15 @@ const OURS_IMPACT_CYCLE = [
   { nx: 0.46, y: 575 }, // base centre
 ];
 /** @type {ImpactSpot[]} */
+// PNG c75 destroys the LEFT tower → first 2 hits aim there.
+// PNG c50 destroys the RIGHT tower roof → next 2 hits aim there.
+// PNG c25 covers the whole keep → final hits aim centre/base.
 const ENEMY_IMPACT_CYCLE = [
-  { nx: 0.68, y: 370 }, // upper-right tower
-  { nx: 0.28, y: 395 }, // upper-left tower
-  { nx: 0.52, y: 500 }, // mid keep
-  { nx: 0.76, y: 545 }, // lower-right wall
-  { nx: 0.24, y: 520 }, // lower-left wall
+  { nx: 0.28, y: 395 }, // upper-left tower (c75 reveal)
+  { nx: 0.22, y: 470 }, // mid-left wall    (c75 reveal)
+  { nx: 0.72, y: 380 }, // upper-right tower roof (c50 reveal)
+  { nx: 0.78, y: 460 }, // mid-right wall   (c50 reveal)
+  { nx: 0.50, y: 520 }, // centre keep      (c25 coup de grâce)
   { nx: 0.50, y: 590 }, // base centre
 ];
 let _oursCycleIdx = 0;
@@ -340,6 +350,7 @@ function _startIncoming() {
   // Reset cycles on each fresh playthrough so the sequence is reproducible.
   _oursCycleIdx = 0;
   _enemyCycleIdx = 0;
+  _oursAttacksTaken = 0;
   pendingPlayerImpact = _nextOursImpact();
 }
 
@@ -379,7 +390,7 @@ function _startIntroPanAndFlock() {
 }
 
 function _impactOurs(at, d) {
-  dmg.OURS.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
+  _oursAttacksTaken++;
   state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: true });
@@ -553,7 +564,6 @@ function _spawnEnemyRiposteFlock() {
 }
 
 function _impactEnemy(at, d) {
-  dmg.ENEMY.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
   state.hp_enemy_pct = Math.max(0, state.hp_enemy_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: true });
@@ -593,7 +603,7 @@ function _emitCutToInterior() {
 // (the original _impactOurs handles incoming-opening differently).
 const _origImpactOurs = _impactOurs;
 function _impactOursDuringResolve(at, d) {
-  dmg.OURS.push(_makeDamageZone(at.x, at.y, 50 + Math.random() * 14));
+  _oursAttacksTaken++;
   state.hp_self_pct = Math.max(30, state.hp_self_pct - d);  // never KO during ad
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: false });
@@ -613,7 +623,7 @@ function _routeOursImpact(at, d) {
     _impactOursDuringResolve(at, d);
   } else {
     // opening incoming
-    dmg.OURS.push(_makeDamageZone(at.x, at.y, 55));
+    _oursAttacksTaken++;
     state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
     floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
     _spawnExplosion(at.x, at.y, { heavy: true });
@@ -900,7 +910,6 @@ function _drawCastleSlot(ctx, viewMode, dx) {
   }
   ctx.translate(dx + dxExtra, 0);
   _drawCastleWithBase(ctx, viewMode);
-  _drawDamageMasks(ctx, viewMode === 'OURS' ? dmg.OURS : dmg.ENEMY);
   ctx.restore();
   _treadScrollOffset = 0;
 }
@@ -1007,9 +1016,18 @@ function _drawCastleWithBase(ctx, viewMode) {
     ctx.rotate(tiltAngle);
     ctx.translate(-cx, -cy);
   }
-  _drawCastle(ctx, viewMode);
-  _drawBase(ctx);
-  _drawTreads(ctx, viewMode);
+  const v = viewMode || view;
+  // PNG-tier mode bakes treads + base directly into the sprite; skip our
+  // procedural base/treads to avoid doubling. Both sides use the same logic
+  // — only the asset key prefix differs (CASTLE_BLUE_* vs CASTLE_*).
+  const tierPng = _damagePng(v);
+  if (tierPng) {
+    _drawDamagePng(ctx, tierPng);
+  } else {
+    _drawCastle(ctx, viewMode);
+    _drawBase(ctx);
+    _drawTreads(ctx, viewMode);
+  }
   ctx.restore();
 }
 
@@ -1023,6 +1041,26 @@ function _drawCastle(ctx, viewMode) {
     ctx.fillStyle = v === 'OURS' ? '#3D6FA8' : '#9B2E29';
     ctx.fillRect(CASTLE_X, CASTLE_TOP_Y, CASTLE_W, CASTLE_H);
   }
+}
+
+// Damage-tier PNG renderer (both OURS and ENEMY). Sprite content is normalized
+// to a known height (CASTLE_H + base + treads bakery) and anchored on the same
+// ground line as the procedural base would be.
+function _drawDamagePng(ctx, img) {
+  const { minY, contentH } = _getContentBounds(img);
+  // Total castle+base+treads area in our screen layout: CASTLE_TOP_Y to
+  // BASE_Y + BASE_H + TREAD_H ≈ from CASTLE_H + base/tread band. Map the
+  // sprite's content height to that whole footprint so the sprite's chenilles
+  // sit on the ground line.
+  const targetH = CASTLE_H + BASE_H + TREAD_H - 6;
+  const scale = targetH / contentH;
+  const targetW = img.naturalWidth * scale;
+  const dx = (W - targetW) / 2;
+  const dy = (BASE_Y + BASE_H + TREAD_H - 6) - targetH - minY * scale;
+  ctx.drawImage(img,
+    0, 0, img.naturalWidth, img.naturalHeight,
+    dx, dy, targetW, img.naturalHeight * scale,
+  );
 }
 
 function _drawBase(ctx) {
@@ -1073,104 +1111,7 @@ function _drawTreads(ctx, viewMode) {
   ctx.drawImage(img, cxR - tw / 2, y, tw, th);
 }
 
-// ── Drawing — damage / projectiles / floats ──────────────────────────────────
-// Stone-destruction palette. Avoid pure-black flat fill which Gemini flagged
-// as a giant placeholder polygon — layered gradient + colored rim + visible
-// fragments make the hole read as broken masonry instead.
-const HOLE_DEEP   = '#0A0A0C'; // deepest interior
-const HOLE_MID    = '#1F1A18'; // brown-black mid-rim
-const HOLE_OUTER  = '#3A3530'; // warm dark outer rim (jagged)
-const STONE_FRAG_DARK = '#5C5450';
-const STONE_FRAG_MID  = '#7C7368';
-const STONE_FRAG_LIT  = '#9A8E7E';
-const STONE_FRAG_HI   = '#B8AC9A';
-
-function _polyPath(ctx, pts) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.closePath();
-}
-
-function _drawDamageMasks(ctx, zones) {
-  if (!zones.length) return;
-  ctx.save();
-  for (const z of zones) {
-    // 1. Outer jagged rim — warm dark stone color (NOT pure black).
-    //    Drawn slightly larger so it peeks out around the inner hole.
-    ctx.fillStyle = HOLE_OUTER;
-    _polyPath(ctx, z.poly);
-    ctx.fill();
-
-    // 2. Mid rim — brown-black, drawn from inner-rim polygon, gives a 2nd
-    //    chamfer that breaks the silhouette.
-    ctx.fillStyle = HOLE_MID;
-    _polyPath(ctx, z.innerRim);
-    ctx.fill();
-
-    // 3. Deep core — radial gradient from the center toward the inner rim
-    //    so the hole has perceived depth instead of reading as a black blob.
-    const grad = ctx.createRadialGradient(z.x, z.y, Math.max(2, z.r * 0.05),
-                                          z.x, z.y, z.r * 0.7);
-    grad.addColorStop(0,    HOLE_DEEP);
-    grad.addColorStop(0.55, HOLE_MID);
-    grad.addColorStop(1,    'rgba(31,26,24,0)');
-    ctx.fillStyle = grad;
-    _polyPath(ctx, z.innerRim);
-    ctx.fill();
-
-    // 4. Outer ragged edge stroke — dark warm brown rather than pitch-black,
-    //    so the silhouette doesn't collapse into a hard shape.
-    ctx.lineJoin = 'miter';
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#15110F';
-    _polyPath(ctx, z.poly);
-    ctx.stroke();
-
-    // 5. Crack rays — same as before, slight zig-zag.
-    ctx.strokeStyle = '#1A1614';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    for (const [cx, cy] of z.cracks) {
-      ctx.beginPath();
-      ctx.moveTo(z.x, z.y);
-      const mx = (z.x + cx) / 2 + (cy - z.y) * 0.08;
-      const my = (z.y + cy) / 2 - (cx - z.x) * 0.08;
-      ctx.lineTo(mx, my);
-      ctx.lineTo(cx, cy);
-      ctx.stroke();
-    }
-
-    // 6. Inner stone fragments — visible against the dark core. Pre-baked
-    //    on _makeDamageZone (no per-frame randomness → no shimmer).
-    for (const c of z.innerChunks) {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.rotate(c.rot);
-      ctx.fillStyle = c.shade < 0.33 ? STONE_FRAG_DARK
-                    : c.shade < 0.75 ? STONE_FRAG_MID
-                                     : STONE_FRAG_LIT;
-      ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
-      if (c.lit) {
-        ctx.fillStyle = STONE_FRAG_HI;
-        ctx.fillRect(-c.w / 2, -c.h / 2, c.w, 1); // top-light highlight
-      }
-      ctx.restore();
-    }
-
-    // 7. Outer scattered chunks (kept from previous version, slightly
-    //    lighter palette so they read as dust-covered rubble).
-    for (let k = 0; k < 6; k++) {
-      const a = Math.PI * 2 * (k / 6) + (z.x % 1);
-      const rr = z.r * 1.05 + (k * 5) % 14;
-      const px = z.x + Math.cos(a) * rr;
-      const py = z.y + Math.sin(a) * rr;
-      ctx.fillStyle = k % 2 ? STONE_FRAG_MID : STONE_FRAG_DARK;
-      ctx.fillRect(px, py, 5 + (k % 3) * 2, 4 + ((k * 3) % 3));
-    }
-  }
-  ctx.restore();
-}
+// ── Drawing — projectiles / floats ───────────────────────────────────────────
 
 function _drawProjectiles(ctx, now, viewOffset = 0) {
   for (let i = projectiles.length - 1; i >= 0; i--) {

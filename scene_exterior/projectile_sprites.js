@@ -30,9 +30,12 @@ try { getImage('ROCKET'); getImage('BOMB'); } catch (_) {}
 
 /** @type {Record<'skeleton'|'cyclop'|'orc', ShotPlan>} */
 export const SHOT_BY_UNIT = {
-  // 4-shot burst of small Projectile_1 missiles. Stagger 110 ms so they read
-  // as a "rafale" without collapsing into one blob.
-  skeleton: { count: 4, staggerMs: 110, assetKey: 'ROCKET', kind: 'rocket_p1',
+  // 12-shot burst of small Projectile_1 missiles (cosmetic only — only the
+  // last triggers HP damage, the others just splash visually so the castle
+  // doesn't take 12× the damage). Stagger 40 ms keeps the total burst span
+  // (~440 ms) close to the original 4-shot version, so timing vs camera pan
+  // and impact resolution stays intact while the rafale reads way denser.
+  skeleton: { count: 12, staggerMs: 40, assetKey: 'ROCKET', kind: 'rocket_p1',
               size: 30, durMs: 1500, peakLift: 360 },
   // Single Projectile_2 bomb, slower and chunkier. Heavy peakLift + slightly
   // slower than rocket so the flashy trail reads.
