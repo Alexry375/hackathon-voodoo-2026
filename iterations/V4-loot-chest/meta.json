@@ -1,0 +1,13 @@
+{
+  "id": "V4",
+  "title": "Loot-chest — chest opens, gems fly to CTA, single arrow CTA",
+  "axis": "endcard",
+  "hypothesis": "On both win endcard and fail screen, a wood chest drops, opens at 600ms, then 12 gems arc toward the CTA button — each gem ticks a counter (💎 X/12) and pulses the button (scale 1→1.08→1, 250ms). Loss screen collapses dual-CTA to a single 'PLAY →' (2-4 words + arrow per +26% data). Reward juice + Zeigarnik amplify CTA pull.",
+  "diff_from_baseline": [
+    "playable/loot_chest.js (NEW, ~230 LOC): shared reward layer — triggerLootSequence/updateLoot/drawLoot, chest sprite, 12 gems quadratic-Bezier flight (90ms stagger, 700ms travel) toward CTA, onLootTick callback",
+    "playable/endcard.js: triggers loot once opacity>0.5; renders chest/gems above CTA; CTA combines ambient pulse + transient tick pulse; '💎 X/12' counter under button",
+    "playable/fail_screen.js: dual-CTA collapsed → single 'PLAY →'; resetLoot on entry; loot triggers at opacity>0.6; counter under CTA; existing input ownership preserved",
+    "playable/persistent_cta.js: adds pulseCTA() API; auto-subscribes to onLootTick; flips on gem-counter overlay below button label after first landing"
+  ],
+  "review": "pending"
+}
