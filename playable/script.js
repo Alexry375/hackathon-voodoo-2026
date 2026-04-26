@@ -111,11 +111,18 @@ function _updatePhase(elapsed) {
     game.phase === 'tutorial' || game.phase === 'freeplay' ||
     game.phase === 'forcewin'
   );
-  // Instruction text: phase-specific persistent hint. Tutorial nudges first
-  // shot; freeplay nudges the player to keep firing; everything else hides it.
-  if (game.phase === 'tutorial') setInstruction('DRAG TO AIM!');
-  else if (game.phase === 'freeplay') setInstruction('FIRE BACK!');
-  else setInstruction(null);
+  // Instruction text follows the scene flow, not just the phase:
+  //   exterior overview → "TAP YOUR CASTLE!" (player must tap to zoom in)
+  //   interior aim     → "DRAG TO AIM!" (player drags the unit)
+  //   resolving shots  → no hint (cinematic, hands-off)
+  if (game.phase === 'tutorial' || game.phase === 'freeplay') {
+    const scene = getSceneState();
+    if (scene === 'EXTERIOR_OBSERVE')   setInstruction('TAP YOUR CASTLE!');
+    else if (scene === 'INTERIOR_AIM')  setInstruction('DRAG TO AIM!');
+    else                                setInstruction(null);
+  } else {
+    setInstruction(null);
+  }
 
   switch (game.phase) {
     case 'intro':
