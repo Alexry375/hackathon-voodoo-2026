@@ -14,7 +14,7 @@ import { applyCameraTransform, updateCamera, setPreset, snapPreset, snapTo, setT
 import { WORLD, CAM_PRESETS } from '../shared/world.js';
 import { loadCastleAssets, castleAssetsReady, drawWorld } from './castles.js';
 import { loadProjectileAssets, updateAndDraw as drawProjectile, getLeadProjectilePos, getRecentImpact, isFiring } from './projectile.js';
-import { loadEnemyAssets, startEnemyAttack, updateAndDraw as drawEnemy, isAttacking } from './enemy_ai.js';
+import { loadEnemyAssets, startEnemyAttack, updateAndDraw as drawEnemy, isAttacking, startIntroCrow, getIntroCrowPos, stopIntroCrow } from './enemy_ai.js';
 import { loadVfxAssets, updateAndDraw as drawVfx, drawRainOverlay } from './vfx.js';
 
 let drawScriptOverlay = null;
@@ -52,7 +52,7 @@ export function mount(c) {
     loadVfxAssets(),
   ]).catch(e => console.error('[scene_exterior] asset load failed:', e));
 
-  // Source clip2.mp4 opens on the red (enemy) castle being attacked by a crow.
+  // INTRO: hold camera on red castle; crow pan fires after the player taps.
   snapTo({ x: WORLD.red_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 });
 
   subscribe((s) => {
@@ -62,16 +62,29 @@ export function mount(c) {
       loop();
     }
     if (s === 'EXTERIOR_OBSERVE' && !isAttacking()) {
-      // Tight on blue castle (player) — matches source: camera always on the castle being attacked.
-      _enemyShotIncoming = true;
-      setTarget({ x: WORLD.blue_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 }, { ease: 0.008 });
-      pulseEnemyTint();
-      const intensity = _firstWaveFired ? 'normal' : 'opening';
-      _firstWaveFired = true;
-      startEnemyAttack({ intensity, onComplete: () => {
-        _enemyShotIncoming = false;
-        ready_for_player_input();
-      }});
+      if (!_firstWaveFired) {
+        // Opening: cinematic crow pan (red → blue), then the first enemy wave.
+        // Camera snaps to red so the crow emerges from there.
+        _firstWaveFired = true;
+        snapTo({ x: WORLD.red_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 });
+        startIntroCrow(() => {
+          // Crow has arrived at blue — now the real battle opens.
+          _enemyShotIncoming = true;
+          pulseEnemyTint();
+          startEnemyAttack({ intensity: 'opening', onComplete: () => {
+            _enemyShotIncoming = false;
+            ready_for_player_input();
+          }});
+        });
+      } else {
+        // Subsequent loops: no pan, just chip-damage wave.
+        _enemyShotIncoming = true;
+        pulseEnemyTint();
+        startEnemyAttack({ intensity: 'normal', onComplete: () => {
+          _enemyShotIncoming = false;
+          ready_for_player_input();
+        }});
+      }
     }
     if (s === 'EXTERIOR_RESOLVE') {
       // Start on blue castle; _driveCamera takes over once projectile is in flight.
@@ -84,18 +97,26 @@ export function mount(c) {
   on('player_fire', () => {
     _enemyShotIncoming = false;
     // Widen to show trajectory arc — overview zoom but higher pivot.
-    setTarget({ x: WORLD.width / 2, y: WORLD.ground_y - 280, zoom: 0.72 }, { ease: 0.018 });
+    setTarget({ x: WORLD.width / 2, y: WORLD.ground_y - 280, zoom: 0.60 }, { ease: 0.018 });
   });
 }
 
 function _driveCamera() {
+  // Opening pan: cinematic crow flies red → blue after first tap.
+  // Fires during EXTERIOR_OBSERVE before the enemy wave starts.
+  const crow = getIntroCrowPos();
+  if (crow) {
+    setTarget({ x: crow.x, y: WORLD.ground_y - 280, zoom: 0.82 }, { ease: 0.035 });
+    return;
+  }
+
   // Enemy shots snap-cut, no follow. Already snapped in subscribe handler.
   if (_enemyShotIncoming) return;
 
   // Player projectile in flight → widen to show the arc.
   const lead = getLeadProjectilePos();
   if (lead) {
-    setTarget({ x: WORLD.width / 2, y: WORLD.ground_y - 280, zoom: 0.72 }, { ease: 0.018 });
+    setTarget({ x: WORLD.width / 2, y: WORLD.ground_y - 280, zoom: 0.60 }, { ease: 0.018 });
     return;
   }
 

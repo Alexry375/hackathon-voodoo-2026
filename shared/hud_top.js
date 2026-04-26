@@ -9,8 +9,8 @@
 import { state } from './state.js';
 import { getImage, isImageReady } from './assets.js';
 
-const ICON_SZ = 44;
-const BAR_H   = 20;
+const ICON_SZ = 52;
+const BAR_H   = 28;
 const TOP     = 0;
 
 /** @param {CanvasRenderingContext2D} ctx */
@@ -54,10 +54,10 @@ export function drawTopHud(ctx) {
   ctx.stroke();
 
   // ── VS text centered on bar ───────────────────────────────────────────────
-  ctx.font = 'bold 17px sans-serif';
+  ctx.font = 'bold 22px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 5;
   ctx.strokeStyle = '#000';
   ctx.strokeText('VS', centerX, barY + BAR_H / 2);
   ctx.fillStyle = '#FFFFFF';
@@ -71,10 +71,10 @@ export function drawTopHud(ctx) {
   const pctY = TOP + ICON_SZ + 2;
   const iconCenterL = 2 + ICON_SZ / 2;
   const iconCenterR = W - ICON_SZ - 2 + ICON_SZ / 2;
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 22px sans-serif';
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 5;
   ctx.strokeStyle = '#000';
 
   ctx.strokeText(`${Math.round(state.hp_self_pct)}%`, iconCenterL, pctY);

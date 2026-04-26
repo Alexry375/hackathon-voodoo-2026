@@ -20,8 +20,8 @@ const DAMAGE_MAX = 28;
 // Weapon-specific tuning. Speed in WORLD units / ms; world battlefield is
 // ~760 units wide between castle pivots so a power=0.7 rocket lands in ~600ms.
 const WEAPON_TUNING = {
-  rocket: { speed: 1.05, gravity: 0.0010, sprite: 44, splits: 1, angleJitter: 0,    damageMul: 1.0 },
-  volley: { speed: 0.95, gravity: 0.0024, sprite: 26, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
+  rocket: { speed: 1.05, gravity: 0.0010, sprite: 65, splits: 1, angleJitter: 0,    damageMul: 1.0 },
+  volley: { speed: 0.95, gravity: 0.0024, sprite: 45, splits: 3, angleJitter: 0.12, damageMul: 0.45 },
   beam:   { speed: 0,    gravity: 0,      sprite: 0,  splits: 0, angleJitter: 0,    damageMul: 1.1 },
 };
 const VOLLEY_STAGGER_MS = 90;
@@ -73,8 +73,21 @@ function _newBatch(splits) {
   return id;
 }
 
+// Map weapon_type → sprite asset key.
+const WEAPON_SPRITE = {
+  rocket: 'PROJECTILE_BOMB',   // cyclop fires the dark green bomb (Projectile_2)
+  volley: 'PROJECTILE_ROCKET', // skeleton fires the grey rocket (Projectile_1)
+  beam:   'PROJECTILE_ROCKET', // orc beam — fallback sprite, barely visible
+};
+
 export function loadProjectileAssets() {
-  try { getImage('ROCKET'); } catch (e) { console.warn('[projectile] preload failed:', e); }
+  try {
+    getImage('ROCKET');
+    getImage('PROJECTILE_ROCKET');
+    getImage('PROJECTILE_BOMB');
+    getImage('WEAPON_RED');
+    getImage('WEAPON_BLUE');
+  } catch (e) { console.warn('[projectile] preload failed:', e); }
   return Promise.resolve();
 }
 
@@ -280,14 +293,17 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
       }
     }
 
-    if (!p.impacted && isImageReady('ROCKET')) {
-      const rot = Math.atan2(p.vy, p.vx);
-      const s = p.sprite_size;
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(rot);
-      ctx.drawImage(getImage('ROCKET'), -s / 2, -s / 2, s, s);
-      ctx.restore();
+    if (!p.impacted) {
+      const sprKey = WEAPON_SPRITE[p.weapon_type] || 'PROJECTILE_BOMB';
+      if (isImageReady(sprKey)) {
+        const rot = Math.atan2(p.vy, p.vx);
+        const s = p.sprite_size;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(rot);
+        ctx.drawImage(getImage(sprKey), -s / 2, -s / 2, s, s);
+        ctx.restore();
+      }
     }
   }
 }

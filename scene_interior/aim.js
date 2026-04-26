@@ -14,10 +14,12 @@ import { getActiveFloor, getActiveUnitId } from './turn.js';
 
 const HIT_RADIUS = 60;
 const ORIGIN_LIFT = 40;
+// Weapon barrel offset from unit center: right edge of weapon sprite (55 unit half + ~64 weapon).
+const BARREL_OFFSET_X = 110;
 const FULL_POWER_PX = 200;
-const SIM_STEPS = 60;
-const SIM_GRAVITY = 0.5;
-const SIM_V0 = 18;
+const SIM_STEPS = 80;
+const SIM_GRAVITY = 0.22;
+const SIM_V0 = 22;
 const DOT_EVERY = 5;    // ~40px center-to-center pitch at typical power (Q7: 30-50px)
 const DOT_RADIUS = 6;   // ~12px diameter (Q7: 10-15px, Q6: 10-15px)
 const DOT_MAX = 9;      // Q7: max ~9 dots visible along full line
@@ -136,7 +138,10 @@ export function drawAimOverlay(ctx) {
   const rad = angle_deg * Math.PI / 180;
   const cw = ctx.canvas.width;
 
-  let px = o.x, py = o.y;
+  // Trajectory starts at weapon barrel tip, not unit center.
+  const barrelX = o.x + BARREL_OFFSET_X;
+  const barrelY = o.y - 10; // slightly above center to match barrel height
+  let px = barrelX, py = barrelY;
   let vx = power * SIM_V0 * Math.cos(rad);
   let vy = -power * SIM_V0 * Math.sin(rad); // canvas y-down → up = negative
 
@@ -148,11 +153,11 @@ export function drawAimOverlay(ctx) {
   const leftAngle  = rad - halfAngle;
   const rightAngle = rad + halfAngle;
   ctx.beginPath();
-  ctx.moveTo(o.x, o.y);
-  ctx.lineTo(o.x + Math.cos(leftAngle)  * coneLen, o.y - Math.sin(leftAngle)  * coneLen);
-  ctx.lineTo(o.x + Math.cos(rightAngle) * coneLen, o.y - Math.sin(rightAngle) * coneLen);
+  ctx.moveTo(barrelX, barrelY);
+  ctx.lineTo(barrelX + Math.cos(leftAngle)  * coneLen, barrelY - Math.sin(leftAngle)  * coneLen);
+  ctx.lineTo(barrelX + Math.cos(rightAngle) * coneLen, barrelY - Math.sin(rightAngle) * coneLen);
   ctx.closePath();
-  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.fill();
 
   ctx.fillStyle = DOT_COLOR;

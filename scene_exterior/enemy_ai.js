@@ -20,6 +20,12 @@ import * as vfx from './vfx.js';
  * }} */
 let wave = null;
 
+// Single cinematic crow for the opening pan — no damage, just camera bait.
+/** @type {Projectile | null} */
+let _introCrow = null;
+/** @type {(() => void) | null} */
+let _introCrowOnArrived = null;
+
 /**
  * @typedef {Object} Projectile
  * @property {number} x @property {number} y
@@ -39,6 +45,35 @@ export function loadEnemyAssets() {
 
 /** @returns {boolean} */
 export function isAttacking() { return wave !== null; }
+
+/**
+ * Spawn the opening cinematic crow: flies red castle → blue castle, no damage.
+ * @param {() => void} [onArrived]  called once crow reaches blue castle
+ */
+export function startIntroCrow(onArrived) {
+  _introCrow = _makeIntroCrow();
+  _introCrowOnArrived = onArrived || null;
+}
+
+function _makeIntroCrow() {
+  const x = WORLD.red_castle.x + rand(20, 60);
+  const y = WORLD.ground_y - WORLD.castle_h * rand(0.55, 0.80);
+  const tx = WORLD.blue_castle.x + rand(-60, 60);
+  const ty = WORLD.ground_y - WORLD.castle_h * 0.6 + rand(-30, 30);
+  // ~3s to cross — slow enough to be a smooth cinematic pan.
+  const flightMs = rand(2800, 3400);
+  return { x, y, vx: (tx - x) / flightMs, vy: (ty - y) / flightMs,
+           tx, ty, ttlMs: flightMs, totalMs: flightMs, smokeAccumMs: 0, resolved: false };
+}
+
+/** Returns the current intro crow world position (or null if not active). */
+export function getIntroCrowPos() {
+  if (!_introCrow || _introCrow.resolved) return null;
+  return { x: _introCrow.x, y: _introCrow.y };
+}
+
+/** Stop the intro crow early (e.g. if EXTERIOR_OBSERVE fires before pan completes). */
+export function stopIntroCrow() { _introCrow = null; _introCrowOnArrived = null; }
 
 /**
  * @param {{ onComplete: () => void, intensity?: 'opening' | 'normal' }} opts
@@ -113,6 +148,26 @@ function resolveImpact(p) {
  * @param {number} dt_ms
  */
 export function updateAndDraw(ctx, viewport, dt_ms) {
+  // Update + draw intro crow independently of the wave system.
+  if (_introCrow) {
+    const dt = Math.min(dt_ms, 64);
+    _introCrow.x += _introCrow.vx * dt;
+    _introCrow.y += _introCrow.vy * dt;
+    _introCrow.ttlMs -= dt;
+    _introCrow.smokeAccumMs += dt;
+    if (_introCrow.smokeAccumMs > 80) {
+      _introCrow.smokeAccumMs = 0;
+      try { vfx.triggerSmokeTrail(_introCrow.x, _introCrow.y, -_introCrow.vx * 0.3, -_introCrow.vy * 0.3, 'crow'); } catch (_) {}
+    }
+    if (_introCrow.ttlMs <= 0) {
+      const cb = _introCrowOnArrived;
+      _introCrow = null;
+      _introCrowOnArrived = null;
+      if (cb) try { cb(); } catch (e) { console.error('[enemy_ai] introCrowOnArrived threw:', e); }
+    }
+    if (_introCrow) _drawCrow(ctx, _introCrow);
+  }
+
   if (!wave) return;
   const dt = Math.min(dt_ms, 64); // clamp to avoid huge jumps on tab refocus
 
@@ -142,59 +197,11 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
   // Render crows — black bird silhouette matching source clip2.mp4.
   for (const p of wave.projectiles) {
     if (p.resolved) continue;
-    // Use elapsed flight time for per-crow phase offset so wings don't all flap in sync.
-    const flightElapsed = (p.totalMs - p.ttlMs) / 1000;
-    const wingFlap = Math.sin(flightElapsed * 8) * 12;
-
-    const angle = Math.atan2(p.vy, p.vx);
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(angle);
-    ctx.fillStyle = '#1A1A1A';
-
-    // Body: filled ellipse torso
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Head: small circle at the front
-    ctx.beginPath();
-    ctx.arc(10, -2, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Beak: small triangle tip
-    ctx.beginPath();
-    ctx.moveTo(13, -3); ctx.lineTo(17, -1); ctx.lineTo(13, 1);
-    ctx.closePath();
-    ctx.fill();
-
-    // Left wing: bezier arc flapping up from body center
-    const wingSpan = 12;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-4, -wingFlap * 0.5, -wingSpan * 0.7, -wingFlap, -wingSpan, -wingFlap);
-    ctx.bezierCurveTo(-wingSpan * 0.6, -wingFlap * 0.3, -3, 4, 0, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Right wing: mirror of left wing
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-4, wingFlap * 0.5, -wingSpan * 0.7, wingFlap, -wingSpan, wingFlap);
-    ctx.bezierCurveTo(-wingSpan * 0.6, wingFlap * 0.3, -3, -4, 0, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // Tail feathers: small fan at rear
-    ctx.beginPath();
-    ctx.moveTo(-8, 0); ctx.lineTo(-14, -4); ctx.lineTo(-12, 0); ctx.lineTo(-14, 4);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
+    _drawCrow(ctx, p);
   }
 
   // Cinematic complete? All spawned, all resolved, then cooldown.
+
   const allDone = wave.pendingSpawns === 0 && wave.projectiles.every(p => p.resolved);
   if (allDone) {
     wave.cooldownMs -= dt;
@@ -205,4 +212,32 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
       try { cb(); } catch (e) { console.error('[enemy_ai] onComplete threw:', e); }
     }
   }
+}
+
+function _drawCrow(ctx, p) {
+  const flightElapsed = (p.totalMs - p.ttlMs) / 1000;
+  const wingFlap = Math.sin(flightElapsed * 8) * 12;
+  const angle = Math.atan2(p.vy, p.vx);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#1A1A1A';
+  // Body
+  ctx.beginPath(); ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+  // Head
+  ctx.beginPath(); ctx.arc(10, -2, 4, 0, Math.PI * 2); ctx.fill();
+  // Beak
+  ctx.beginPath(); ctx.moveTo(13, -3); ctx.lineTo(17, -1); ctx.lineTo(13, 1); ctx.closePath(); ctx.fill();
+  // Left wing
+  const ws = 12;
+  ctx.beginPath(); ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-4, -wingFlap * 0.5, -ws * 0.7, -wingFlap, -ws, -wingFlap);
+  ctx.bezierCurveTo(-ws * 0.6, -wingFlap * 0.3, -3, 4, 0, 0); ctx.closePath(); ctx.fill();
+  // Right wing
+  ctx.beginPath(); ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-4, wingFlap * 0.5, -ws * 0.7, wingFlap, -ws, wingFlap);
+  ctx.bezierCurveTo(-ws * 0.6, wingFlap * 0.3, -3, -4, 0, 0); ctx.closePath(); ctx.fill();
+  // Tail
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-14, -4); ctx.lineTo(-12, 0); ctx.lineTo(-14, 4); ctx.closePath(); ctx.fill();
+  ctx.restore();
 }

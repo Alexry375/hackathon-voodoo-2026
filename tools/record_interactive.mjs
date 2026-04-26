@@ -164,7 +164,7 @@ const recStatus = await page.evaluate(() => {
 });
 console.error(`[interactive] recorder: ${recStatus}`);
 
-// Dismiss the intro overlay.
+// Wait to capture the intro crow pan cinematic before tapping.
 await page.waitForTimeout(500);
 console.error('[interactive] tapping intro…');
 await page.mouse.click(270, 480);

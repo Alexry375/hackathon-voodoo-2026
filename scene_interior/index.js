@@ -80,9 +80,7 @@ function loop() {
   drawUnits(ctx, t);
   drawRipStones(ctx);
   const activeFloor = getActiveFloor();
-  if (activeFloor !== null) drawArrow(ctx, t, activeFloor);
   drawAimOverlay(ctx);
-  drawHudCards(ctx, getActiveUnitId());
   drawTopHud(ctx);
   drawScriptOverlay(ctx, t);
 }
