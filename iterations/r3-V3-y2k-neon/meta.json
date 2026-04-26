@@ -2,12 +2,17 @@
   "id": "V3",
   "axis": "palette",
   "name": "y2k-neon",
-  "title": "Y2K-neon JUICY — 8-effect cyber stack (animated wash+chromatic+glitch+neon-trails+scan-wave+CRT-boot+vignette+neon-outline)",
-  "hypothesis": "An 8-effect compounded Y2K post-FX stack — animated diagonal wash (rotating 0.05Hz), permanent 1-pass chromatic aberration (R/B 2px split), block-displacement glitch bursts on every impact, neon trails (12-pos history) on projectiles, drifting scan-line wave (lighter blend), CRT-boot vignette+sweep+flicker on the first 600ms of intro, soft violet corner vignette, and a per-projectile cyan/pink neon outline+inner-glow — produces an aggressively distinctive thumb-stop palette signature on a TikTok/Reels 2026 feed while preserving combat-loop legibility and Sami's endcard juice.",
+  "title": "Y2K-neon JUICY \u2014 8-effect cyber stack (animated wash+chromatic+glitch+neon-trails+scan-wave+CRT-boot+vignette+neon-outline)",
+  "hypothesis": "An 8-effect compounded Y2K post-FX stack \u2014 animated diagonal wash (rotating 0.05Hz), permanent 1-pass chromatic aberration (R/B 2px split), block-displacement glitch bursts on every impact, neon trails (12-pos history) on projectiles, drifting scan-line wave (lighter blend), CRT-boot vignette+sweep+flicker on the first 600ms of intro, soft violet corner vignette, and a per-projectile cyan/pink neon outline+inner-glow \u2014 produces an aggressively distinctive thumb-stop palette signature on a TikTok/Reels 2026 feed while preserving combat-loop legibility and Sami's endcard juice.",
   "diff_from_baseline": {
-    "added_files": ["playable/y2k_overlay.js"],
-    "modified_files": ["playable/script.js", "scene_exterior/index.js"],
-    "scope": "palette + projectile FX only — endcard / forcewin phases skip ALL post-FX so confetti, stars, white flash, shimmer remain pristine.",
+    "added_files": [
+      "playable/y2k_overlay.js"
+    ],
+    "modified_files": [
+      "playable/script.js",
+      "scene_exterior/index.js"
+    ],
+    "scope": "palette + projectile FX only \u2014 endcard / forcewin phases skip ALL post-FX so confetti, stars, white flash, shimmer remain pristine.",
     "bullets": [
       "+ animated diagonal wash (pink->cyan->purple) with 0.05Hz angle drift, multiply alpha 0.12",
       "+ 1-pass chromatic aberration (R-left / B-right 2px split via offscreen ghost canvas, screen blend)",
@@ -20,19 +25,21 @@
     ]
   },
   "juicy_checklist": [
-    "1. wash_diagonal_animated — DONE (multiply alpha 0.12, 0.05Hz angle drift +-30deg)",
-    "2. chromatic_aberration_permanent — DONE (1-pass downgrade, 2px R/B split, screen blend, alpha 0.32)",
-    "3. glitch_micro_flickers_on_impact — DONE (90ms burst, 10-band displacement + inversion on freshest frame, triggered from _impactEnemy and _impactOurs)",
-    "4. neon_trails_persistent — DONE (12-entry ring buffer per projectile, cyan/pink alternated, exponential fade, lighter blend)",
-    "5. scan_line_wave_drift — DONE (3px lines every 6px, vertical drift, skipped during endcard/forcewin)",
-    "6. crt_boot_at_splash — DONE (anchored to first 600ms of intro phase since no dedicated splash phase exists; tube-open vignette + cyan sweep + 200ms flicker)",
-    "7. violet_corner_vignette — DONE (radial gradient transparent -> rgba(120,40,200,0.45))",
-    "8. neon_outline_projectiles — DONE (3px stroke + inner glow disk, ownership-tinted: ours=cyan, enemy=pink)"
+    "1. wash_diagonal_animated \u2014 DONE (multiply alpha 0.12, 0.05Hz angle drift +-30deg)",
+    "2. chromatic_aberration_permanent \u2014 DONE (1-pass downgrade, 2px R/B split, screen blend, alpha 0.32)",
+    "3. glitch_micro_flickers_on_impact \u2014 DONE (90ms burst, 10-band displacement + inversion on freshest frame, triggered from _impactEnemy and _impactOurs)",
+    "4. neon_trails_persistent \u2014 DONE (12-entry ring buffer per projectile, cyan/pink alternated, exponential fade, lighter blend)",
+    "5. scan_line_wave_drift \u2014 DONE (3px lines every 6px, vertical drift, skipped during endcard/forcewin)",
+    "6. crt_boot_at_splash \u2014 DONE (anchored to first 600ms of intro phase since no dedicated splash phase exists; tube-open vignette + cyan sweep + 200ms flicker)",
+    "7. violet_corner_vignette \u2014 DONE (radial gradient transparent -> rgba(120,40,200,0.45))",
+    "8. neon_outline_projectiles \u2014 DONE (3px stroke + inner glow disk, ownership-tinted: ours=cyan, enemy=pink)"
   ],
   "juicy_omitted": [
     "barrel_distortion (item 7 optional): canvas filter via SVG distort URL too costly per-frame on AppLovin Preview hardware (>16ms budget); violet vignette alone covers the peripheral darkening.",
     "chromatic_3-pass_full_RGB: downgraded to 1-pass (offscreen snapshot + 2 offset composites) to keep frame budget; documented inline in y2k_overlay.js."
   ],
   "review": "pass",
-  "review_notes": "All 3 critical color signatures present (pink rgba(255,90,210), cyan rgba(60,220,255), violet vignette rgba(120,40,200)). Bundle 2892KB (+3KB vs baseline; tight because y2k_overlay.js compresses well). Axis 'palette' respected — endcard/forcewin phases skip post-FX as documented, preserving Sami's juice. 8/8 juicy_checklist items DONE; barrel_distortion + 3-pass chromatic justifiably omitted for frame budget."
+  "review_notes": "All 3 critical color signatures present (pink rgba(255,90,210), cyan rgba(60,220,255), violet vignette rgba(120,40,200)). Bundle 2892KB (+3KB vs baseline; tight because y2k_overlay.js compresses well). Axis 'palette' respected \u2014 endcard/forcewin phases skip post-FX as documented, preserving Sami's juice. 8/8 juicy_checklist items DONE; barrel_distortion + 3-pass chromatic justifiably omitted for frame budget.",
+  "winner": true,
+  "winner_rationale": "Run-3 winner over V1/V2/V4. Maximum thumb-stop differentiation in TikTok/Reels 2026 feeds (where the first 200ms of impression decides scroll-vs-stop). The 8-effect cyber stack \u2014 animated wash + chromatic aberration + glitch on impact + neon trails + scan-line wave + CRT boot + violet vignette + neon projectile outline \u2014 produces an instantly recognizable visual signature WITHOUT any new asset (zero Scenario MCP calls, zero new sprites). This is the strongest demonstration of the pipeline deliverable: pure spec-driven canvas post-processing achieving non-trivial stylistic transformation. V1 dragon-tease is a strong narrative second (retention@5s) but V3 wins on cold-traffic feed performance + on demo value (proves the pipeline can do palette-grade reskins). V2 combo-meter and V4 level-preview kick in too late in the timeline to dominate thumb-stop. Run-1 winner was V1 cold-open (hook), run-2 winner was V3 comic-pop (palette) \u2014 Y2K-neon is a distinct palette execution from comic-pop (high-saturation cyber vs warm-saturated comics)."
 }

@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-26T11:13:24.566Z",
+  "generated_at": "2026-04-26T12:49:01.037Z",
   "variations": [
     {
       "id": "baseline",
       "title": "Baseline — Sami feature-trail",
       "axis": "—",
       "hypothesis": "Référence pour comparer les variations",
-      "source": "origin/feature-trail@4eae529",
+      "source": "origin/feature-trail@7061860 (gold-standard, post 952a7cc dev/prod fix + 46ddada endcard juice + a99614e splash + 54e88c7 comeback)",
       "source_author": "sami-ennedoui",
       "build": "node tools/build.mjs (single-file, 2.81 MB)",
       "diff_from_baseline": [],
@@ -15,61 +15,195 @@
     },
     {
       "id": "V1",
-      "title": "Failure-first — enemy strikes in the first 800ms",
+      "title": "Dragon-tease JUICY — eye+flare+claws+vignette+tremor+BEWARE shake stack",
       "axis": "hook",
-      "hypothesis": "Pattern-interrupt by drama: the enemy already hits the player castle for ~70% damage in the first 1.5s, screen-shakes, instruction reads 'OH NO! THEY HIT FIRST!' — user feels behind and wants to recover, lifting retention@5s.",
+      "hypothesis": "A 6-effect synchronized juicy cascade (red dragon eye dilating + rotating lens-flare + screen-edge claw scratches + pulsing red vignette + cumulative tremor with spike on eye-open + scale-punched BEWARE! lettering) during the first 4.2s creates a high-density pattern-interrupt that crushes retention@5s vs the minimal eye+text v0.",
       "diff_from_baseline": [
-        "playable/script.js: PHASE_INTRO_END 4500→2400ms + 1500ms 'OH NO! THEY HIT FIRST!' instruction during shortened intro",
-        "scene_exterior/index.js: _startIncoming rewritten — raven flock back-dated to be mid-air at frame 0, lands on OUR castle at ~800ms with dmg=70, amplified screen-shake/tilt for opening hit only",
-        "shared/hud_top.js: added HP-drop detector overlaying fading red flash on blue HP bar, amplitude scales with damage taken"
+        "NEW playable/dragon_tease.js (~250 LOC) exporting drawDragonTease + getTremorOffset, with 6 sub-helpers (drawDragonEye, drawLensFlare, drawClawsLeft, drawClawsRight, drawVignettePulse, drawBewareLettering)",
+        "Effect 1 — Dragon eye: almond shape, reptilian vertical pupil dilating 0.6→1.0 over 600ms, blink cycle (200ms closed every 1.8s), radial iris gradient #5C0000→#FF1A1A→#FFB0B0 at (420,180) r=70",
+        "Effect 2 — Lens-flare: 8 rotating star branches (0.1Hz) length 80–150px, additive 'lighter' blend rgba(255,180,80) pulsing 0.7Hz in sync with pupil dilation, plus soft halo radial",
+        "Effect 3 — Claws: 3 black silhouette claws scratch-in from LEFT edge at +400ms (200ms reveal), 3 from RIGHT at +550ms; hold 1500ms then fade 400ms",
+        "Effect 4 — Vignette: red radial gradient rgba(180,10,10,0→α) center→edges, multiply blend, alpha pulse 0.7Hz amplitude 0.15→0.35",
+        "Effect 5 — Tremor: getTremorOffset(elapsed) returns 4Hz baseline 2px + decaying spike to 12px over +200..+450ms; script.js wraps drawDragonTease in a translate(sh.x,sh.y) so OVERLAY shakes (gameplay underneath stays stable)",
+        "Effect 6 — BEWARE!: italic bold 80px Arial Black at (270,700), double stroke (black 10px outer + dark-red 4px inner) + #FF2A2A fill, easeOutBack pop 0.5→1.20→1.0 over 350ms with ±6° rotation jitter, idle ±2° loop, fade 500ms at +3700ms",
+        "playable/script.js — added imports + invocation block in _paintOverlay BEFORE praise/CTA/instruction layers, gated to game.phase === 'intro' only, with tremor translate wrap"
       ],
       "review": "pass",
-      "review_notes": "Axis hook respected: 'OH NO! THEY HIT FIRST!' string present in bundle, 4500→2400ms intro shortening confirmed (4500 absent, 2400 present); changes confined to intro phase + opening raven hit + HP-bar flash. Combat loop downstream untouched. No new assets — +638 bytes vs baseline, code-only.",
-      "dir": "V1-failure-first"
+      "review_notes": "All 3 critical signatures present (BEWARE x3, vignette rgba(180,10,10) x3, lens-flare rgba(255,180,80) x2). Bundle 2892KB (+3KB vs baseline; smaller than +10KB heuristic but justified by gzip+minification of a single overlay module gated to intro phase). Axis 'hook' respected — modifications confined to intro overlay; combat loop untouched. 8/8 juicy_checklist items map to verifiable code paths in dragon_tease.js sub-helpers.",
+      "juicy_checklist_validated": [
+        "screen-shake graduated (4Hz baseline 2px → spike 12px on eye-open, decay 250ms)",
+        "particles 2+: lens-flare 8 branches additive + 6 claws scratch-in",
+        "color-shift: dragon eye iris dilation + reptilian pupil scale 0.6→1.0",
+        "scale-punch+rotation jitter: BEWARE easeOutBack 0.5→1.20→1.0 + ±6°→±2° wobble",
+        "glow-bloom: lens-flare 'lighter' composite + halo radial gradient on eye",
+        "trail persistence: vignette pulse 0.7Hz multiply blend running entire 4.2s",
+        "layered timing 3+ events (eye dilate +0, spike +200, claws-L +400, claws-R +550, BEWARE pop +900, fade +3700)",
+        "lettering BEWARE 80px italic bold double-stroke with shake + scale-punch"
+      ],
+      "juicy_omitted": [
+        "audio_stinger: shared/audio.js exposes only HTMLAudioElement — no WebAudio context for a clean 60Hz sub-pulse, skipped to keep bundle clean"
+      ],
+      "dir": "r3-V1-dragon-tease"
     },
     {
       "id": "V2",
-      "title": "Bullseye-target — crit zone on enemy castle weak point",
       "axis": "mechanic",
-      "hypothesis": "A pulsing bullseye marker (3 concentric rings + center) sits on the enemy castle weak point (mid-keep). Hits within 36px of center deal 1.5x damage and spawn a gold 'CRIT!' float + radial flash. Lifts mechanic clarity (where to aim) + adds juicy combo loop.",
+      "name": "combo-meter",
+      "baseline": "iter/run3-gold-baseline",
+      "branch": "iter/r3-V2-combo-meter",
+      "title": "Combo-meter JUICY — 8-effect stack (badge hue-shift+lettering trail+shake scaling+radial flash+ring burst+slow-mo+freeze+broken feedback)",
+      "hypothesis": "Combo meter (x1..x5) top-right reacts to consecutive hits with a stacked-juice feedback loop (hue-shift badge, ring-burst sparks, radial flash, screen-shake scaling, slow-mo + freeze on x5, COMBO BROKEN on miss/timeout). Hypothesis: layering 6+ composed effects per increment turns the mechanic into a thumb-stop dopamine hit, raising perceived depth and time-on-creative.",
       "diff_from_baseline": [
-        "scene_exterior/index.js: bullseye marker drawn over enemy castle (nx=0.50, y=520), pulsing rings + dot, crit flash + radial burst on hits within 36px, 1.5x damage scaling, beefier shake/recoil on crit",
-        "playable/praise_floats.js: extended spawnPraise with kind:'crit' variant (108px gold gradient, dark-orange stroke, larger rotation jitter); added spawnCritPraise export"
+        "playable/combo_meter.js (NEW ~280 LOC): state machine (count, level, hue interpolation, sparks pool, slowMo/freeze gates), API recordHit/recordMiss/getComboMultiplier/getTimeScale/getComboShakePx/drawComboMeter",
+        "Effect 1 — Top-right badge (x≈440 y≈130) with radial halo pulse + bold-italic stroked digit + pop-bounce on increment (1.0→1.4→1.0/250ms)",
+        "Effect 2 — Background hue gradient slides between palette stops (#FFD23A→#FF8C2A→#FF3838→#FF2AA0→#3AAEFF) with 200ms eased interpolation, not brutal swap",
+        "Effect 3 — Lettering 'xN COMBO!' via spawnComboPraise extended in praise_floats.js: italic bold 76px, dual stroke (hue-of-level outer + black inner), ±10° rotation jitter, 3 ghost trail copies fading at 35% alpha",
+        "Effect 4 — Screen-shake amplitude scales (x2→4px, x3→8px, x4→11px, x5→14px) with 250ms decay, applied via overlay translate cumulative with existing shake",
+        "Effect 5 — Radial flash full-screen on level-up: alpha 0→0.25→0 over 200ms, hue assorted to multiplier, blend lighter",
+        "Effect 6 — Particle ring burst: 14 sparks emitted radially from badge center on level-up, hue-matched, vel 220-400px/s with strong drag, fade 600ms, additive blending, pool capped at 60",
+        "Effect 7 — Slow-mo on x5 reach: 80ms freeze-frame (timeScale 0.05) then 250ms slow (timeScale 0.55) exposed via getTimeScale(); script.js paints a white-flash dim proportional to (1-ts) for visible time-warp without invasively patching physics dt",
+        "Effect 8 — COMBO BROKEN feedback: 2.2s no-fire watchdog in script.js triggers recordMiss → red 'COMBO BROKEN!' praise + badge fades to grey for 800ms",
+        "scene_exterior/index.js: import combo_meter; at _impactEnemy callsite call recordHit() and multiply pendingEnemyDmg by getComboMultiplier() (rounded)",
+        "playable/script.js: import combo_meter, draw inside translate-shake save/restore, slow-mo white-flash overlay, miss watchdog tied to player_fire timestamps"
+      ],
+      "juicy_checklist_validated": [
+        "halo_radial_pulse",
+        "hue_interpolation_smooth",
+        "lettering_trail_persistence",
+        "screen_shake_scaling",
+        "radial_flash_full_screen",
+        "particle_ring_burst",
+        "slow_mo_with_freeze_frame",
+        "combo_broken_feedback"
+      ],
+      "juicy_omitted": [
+        "hp_bar_overshoot: invasive on shared/hud_top, deferred — wiring an overshoot scaler from combo state would require shared/hud_top changes outside the V2 isolation budget"
+      ],
+      "axis_isolated": true,
+      "untouched": [
+        "intro hook",
+        "palette globally",
+        "endcard",
+        "fail screen",
+        "scene_interior"
       ],
       "review": "pass",
-      "review_notes": "Axis mechanic respected: bullseye/crit instrumentation visible (4 'crit' tokens added, +1 'CRIT' over baseline). Drag-aim-fire-impact loop preserved — only impact resolution branched with proximity check + 1.5x damage scaling and a praise variant. No new assets, +1705 bytes (canvas-drawn rings + extended praise float).",
-      "dir": "V2-bullseye-target"
+      "review_notes": "All critical signatures present: COMBO x6, COMBO BROKEN x1 (miss feedback), and all 4 hue palette stops (FFD23A, FF8C2A, FF3838, FF2AA0) confirming background hue gradient. Bundle 2894KB (+5KB vs baseline; consistent with combo_meter.js + hooks). Axis 'mechanic' respected — drag-aim-fire-impact loop preserved (recordHit hooked at _impactEnemy, multiplier rounding non-invasive). 8/8 juicy items implemented.",
+      "build_kb": 2900,
+      "build_ok": true,
+      "dir": "r3-V2-combo-meter"
     },
     {
       "id": "V3",
-      "title": "Comic-pop — halftone overlay + KAPOW lettering on impacts",
       "axis": "palette",
-      "hypothesis": "Reskin in comic-book pop aesthetic: 8px halftone dots overlay (multiply, alpha 0.14) + warm saturation pop + KAPOW/BOOM/POW lettering spawned on every projectile impact. Genre-bending mobile-game→comics for thumb-stop on TikTok feed.",
-      "diff_from_baseline": [
-        "playable/comic_overlay.js (NEW): applyComicPostFX (halftone + saturation overlay), spawnKapow + drawKapows particle system; canvas-only, no external assets",
-        "playable/script.js: import overlay; applyComicPostFX at top of _paintOverlay (skipped on endcard); drawKapows after drawPraiseFloats",
-        "scene_exterior/index.js: spawnKapow on every projectile impact (_impactOurs, _impactEnemy, _impactOursDuringResolve)"
+      "name": "y2k-neon",
+      "title": "Y2K-neon JUICY — 8-effect cyber stack (animated wash+chromatic+glitch+neon-trails+scan-wave+CRT-boot+vignette+neon-outline)",
+      "hypothesis": "An 8-effect compounded Y2K post-FX stack — animated diagonal wash (rotating 0.05Hz), permanent 1-pass chromatic aberration (R/B 2px split), block-displacement glitch bursts on every impact, neon trails (12-pos history) on projectiles, drifting scan-line wave (lighter blend), CRT-boot vignette+sweep+flicker on the first 600ms of intro, soft violet corner vignette, and a per-projectile cyan/pink neon outline+inner-glow — produces an aggressively distinctive thumb-stop palette signature on a TikTok/Reels 2026 feed while preserving combat-loop legibility and Sami's endcard juice.",
+      "diff_from_baseline": {
+        "added_files": [
+          "playable/y2k_overlay.js"
+        ],
+        "modified_files": [
+          "playable/script.js",
+          "scene_exterior/index.js"
+        ],
+        "scope": "palette + projectile FX only — endcard / forcewin phases skip ALL post-FX so confetti, stars, white flash, shimmer remain pristine.",
+        "bullets": [
+          "+ animated diagonal wash (pink->cyan->purple) with 0.05Hz angle drift, multiply alpha 0.12",
+          "+ 1-pass chromatic aberration (R-left / B-right 2px split via offscreen ghost canvas, screen blend)",
+          "+ glitch burst on every _impactEnemy + _impactOurs (10-band horizontal displacement + inversion flash, ~90ms)",
+          "+ neon trails on projectiles (12-entry ring buffer, cyan/pink alternation, exponential fade, lighter blend, shadow-blur 8)",
+          "+ scan-line wave (3px every 6px, drifting vertically, lighter blend alpha 0.05)",
+          "+ CRT boot-up effect on intro 0-600ms (tube-open vignette + cyan vertical sweep + 200ms flicker)",
+          "+ violet corner vignette (radial transparent -> rgba(120,40,200,0.45))",
+          "+ per-projectile neon outline 3px + inner glow (cyan for ours, pink for enemy, shadow-blur 6)"
+        ]
+      },
+      "juicy_checklist": [
+        "1. wash_diagonal_animated — DONE (multiply alpha 0.12, 0.05Hz angle drift +-30deg)",
+        "2. chromatic_aberration_permanent — DONE (1-pass downgrade, 2px R/B split, screen blend, alpha 0.32)",
+        "3. glitch_micro_flickers_on_impact — DONE (90ms burst, 10-band displacement + inversion on freshest frame, triggered from _impactEnemy and _impactOurs)",
+        "4. neon_trails_persistent — DONE (12-entry ring buffer per projectile, cyan/pink alternated, exponential fade, lighter blend)",
+        "5. scan_line_wave_drift — DONE (3px lines every 6px, vertical drift, skipped during endcard/forcewin)",
+        "6. crt_boot_at_splash — DONE (anchored to first 600ms of intro phase since no dedicated splash phase exists; tube-open vignette + cyan sweep + 200ms flicker)",
+        "7. violet_corner_vignette — DONE (radial gradient transparent -> rgba(120,40,200,0.45))",
+        "8. neon_outline_projectiles — DONE (3px stroke + inner glow disk, ownership-tinted: ours=cyan, enemy=pink)"
+      ],
+      "juicy_omitted": [
+        "barrel_distortion (item 7 optional): canvas filter via SVG distort URL too costly per-frame on AppLovin Preview hardware (>16ms budget); violet vignette alone covers the peripheral darkening.",
+        "chromatic_3-pass_full_RGB: downgraded to 1-pass (offscreen snapshot + 2 offset composites) to keep frame budget; documented inline in y2k_overlay.js."
       ],
       "review": "pass",
-      "review_notes": "Axis palette respected: KAPOW/BOOM/POW lettering array embedded, multiply composite-op introduced (absent in baseline) for halftone overlay. No gameplay timing changed — overlay attaches at _paintOverlay, kapow spawns piggyback on existing impact handlers. Canvas-only, +1867 bytes, zero assets.",
+      "review_notes": "All 3 critical color signatures present (pink rgba(255,90,210), cyan rgba(60,220,255), violet vignette rgba(120,40,200)). Bundle 2892KB (+3KB vs baseline; tight because y2k_overlay.js compresses well). Axis 'palette' respected — endcard/forcewin phases skip post-FX as documented, preserving Sami's juice. 8/8 juicy_checklist items DONE; barrel_distortion + 3-pass chromatic justifiably omitted for frame budget.",
       "winner": true,
-      "winner_rationale": "Maximum thumb-stop differentiation in a TikTok/IG feed (where CPM is brutal and the first 200ms of impression decide scroll-vs-stop). Genre-bending (mobile-game → comics) demonstrates the pipeline's creative range — the hackathon deliverable is the tool, this output proves it can produce non-trivial reskinning. Zero regression on combat loop. Run-2 winner over V1/V2/V4.",
-      "dir": "V3-comic-pop"
+      "winner_rationale": "Run-3 winner over V1/V2/V4. Maximum thumb-stop differentiation in TikTok/Reels 2026 feeds (where the first 200ms of impression decides scroll-vs-stop). The 8-effect cyber stack — animated wash + chromatic aberration + glitch on impact + neon trails + scan-line wave + CRT boot + violet vignette + neon projectile outline — produces an instantly recognizable visual signature WITHOUT any new asset (zero Scenario MCP calls, zero new sprites). This is the strongest demonstration of the pipeline deliverable: pure spec-driven canvas post-processing achieving non-trivial stylistic transformation. V1 dragon-tease is a strong narrative second (retention@5s) but V3 wins on cold-traffic feed performance + on demo value (proves the pipeline can do palette-grade reskins). V2 combo-meter and V4 level-preview kick in too late in the timeline to dominate thumb-stop. Run-1 winner was V1 cold-open (hook), run-2 winner was V3 comic-pop (palette) — Y2K-neon is a distinct palette execution from comic-pop (high-saturation cyber vs warm-saturated comics).",
+      "dir": "r3-V3-y2k-neon"
     },
     {
       "id": "V4",
-      "title": "Loot-chest — chest opens, gems fly to CTA, single arrow CTA",
       "axis": "endcard",
-      "hypothesis": "On both win endcard and fail screen, a wood chest drops, opens at 600ms, then 12 gems arc toward the CTA button — each gem ticks a counter (💎 X/12) and pulses the button (scale 1→1.08→1, 250ms). Loss screen collapses dual-CTA to a single 'PLAY →' (2-4 words + arrow per +26% data). Reward juice + Zeigarnik amplify CTA pull.",
+      "name": "level-preview",
+      "baseline": "iter/run3-gold-baseline",
+      "branch": "iter/r3-V4-level-preview",
+      "title": "Level-preview JUICY ADDITIVE — 7-effect Zeigarnik stack (fog reveal+dragon glow+breath+parallax+scale-punch+chromatic label+bob)",
+      "hypothesis": "ADDITIVE on top of Sami's juicy endcard: a wood-framed 'LEVEL 2 ->' panel slides in above the wordmark, tears a fog-of-war veil to reveal a parallax sky + mountains backdrop and a layered dragon silhouette with a pulsing red eye + rotating 6-ray lens-flare. Continuous breath particles emit from the open jaw. Scale-punch entry with cyan radial flash, chromatic-aberration title with violet/cyan halo, persistent bob. Zeigarnik visuel concret + sense of escalation push to install. Layered juice without modifying any existing endcard draw call.",
       "diff_from_baseline": [
-        "playable/loot_chest.js (NEW, ~230 LOC): shared reward layer — triggerLootSequence/updateLoot/drawLoot, chest sprite, 12 gems quadratic-Bezier flight (90ms stagger, 700ms travel) toward CTA, onLootTick callback",
-        "playable/endcard.js: triggers loot once opacity>0.5; renders chest/gems above CTA; CTA combines ambient pulse + transient tick pulse; '💎 X/12' counter under button",
-        "playable/fail_screen.js: dual-CTA collapsed → single 'PLAY →'; resetLoot on entry; loot triggers at opacity>0.6; counter under CTA; existing input ownership preserved",
-        "playable/persistent_cta.js: adds pulseCTA() API; auto-subscribes to onLootTick; flips on gem-counter overlay below button label after first landing"
+        "playable/endcard_level_preview.js (NEW ~310 LOC): composite painter exposing drawLevelPreview(ctx, t, entryT). State machine: pre-entry (panelT<800ms invisible) -> fog-reveal 800-1400ms (radial mask easeOutExpo + wisp particles) -> settled (>1400ms scale-punch + bob + breath loop). Sub-helpers: drawParallaxLayers (sky gradient + mountains polygon + lighter-mode fog rectangles), drawDragonSilhouette (head+horn+jaw+back-wing polygons + pulsing red eye 0.8Hz + 6-ray rotating lens-flare), drawBreathParticles (5/s from open jaw, ascending velocity, 1200ms life, hue red->orange gradient additive), drawFogReveal (radial veil with edge wisps), drawChromaticLabel (RGB ±2px displacement + shadowBlur 14 violet halo + scale-pulse 0.04 amplitude).",
+        "playable/endcard.js: EXACTLY +2 lines / -0 lines (verified via git diff). 1 import line + 1 draw call inserted between _drawCTA and _drawTapHint. NONE of the existing draw functions, paint ordering, timings, or tap-anywhere handler are modified.",
+        "AUCUNE modif des effets baseline endcard: stars (3-star easeOutBack stagger), confetti burst, social proof '4.8 / 12M+', shimmer band CTA, tap-anywhere handler, VICTORY title/subtitle, tap-hint — all signature strings + paint order strictly preserved.",
+        "Effect 1 - Fog-of-war reveal: alpha 0.92 veil over panel zone, radial transparent hole expanding easeOutExpo over 600ms starting at panel +800ms, with 14 lighter-mode wisp particles drifting around the tear edge.",
+        "Effect 2 - Dragon silhouette: head + horn + open jaw + back wing polygons; pulsing red eye via radial gradient (0.8Hz scale pulse) + 6 rotating lens-flare rays (additive stroke synced with eye dilation).",
+        "Effect 3 - Breath particles: ~5/s spawn from open jaw, buoyant ascending velocity (-30..-60 px/s), 1200ms life, hue red->orange via radial-gradient additive blend, growing radius.",
+        "Effect 4 - Parallax 3 layers (clipped to panel rect): violet-blue-black sky gradient (back) + mountain silhouette polygon with 1px horizontal drift (mid) + lighter-mode soft fog rectangles drifting (front).",
+        "Effect 5 - Scale-punch entry: at panel-relative +1400ms the panel scales easeOutBack peak 1.06 over 250ms with a backing cyan radial flash (alpha 0.30->0 over 300ms).",
+        "Effect 6 - Chromatic LEVEL 2 -> label: bold italic 38px, RGB aberration (red offset -2px / cyan offset +2px lighter-mode passes), shadowBlur 14 violet halo, white fill + 3px black stroke center, scale-pulse 0.04 amplitude (persistent, not faded).",
+        "Effect 7 - Bobbing post-settle: panel translates ±3px sin 0.5Hz vertical (life without instability)."
       ],
+      "juicy_checklist": [
+        "particles_2plus_types: breath particles + fog wisps + parallax fog rectangles",
+        "color_shift_dynamic: breath hue red->orange over particle life, eye pulse 0.8Hz",
+        "scale_punch_overshoot: panel 1.0->1.06->1.0 easeOutBack 250ms",
+        "glow_bloom_and_chromatic: label has both shadowBlur halo AND RGB ±2px displacement",
+        "trail_persistence_400ms+: breath particles persist 1200ms ascending",
+        "layered_timing_3+_events: fog reveal at +800ms, scale-punch at +1400ms, cyan flash 1400-1700ms, bob persistent",
+        "lettering_animated: 38px bold italic, persistent scale-pulse, chromatic + glow"
+      ],
+      "additive_preserved": [
+        "stars",
+        "confetti",
+        "social_proof",
+        "shimmer_CTA",
+        "tap_anywhere"
+      ],
+      "juicy_omitted": [
+        "screen_shake_graduated: endcard is a static composition; shaking would break social-proof readability and CTA shimmer composure",
+        "slow_mo_flash: no time-driven gameplay event on endcard to anchor a slow-mo trigger",
+        "audio_stinger: out of scope for ADDITIVE patch (mute-safe parity)"
+      ],
+      "preserved_baseline_juice": [
+        "3 stars staggered easeOutBack",
+        "confetti burst",
+        "social proof 4.8 / 12M+ players",
+        "shimmer band sweep on PLAY NOW CTA",
+        "tap-anywhere handler",
+        "VICTORY title, subtitle, tap-hint"
+      ],
+      "axis_isolated": true,
+      "additive_constraint_respected": true,
+      "untouched": [
+        "combat loop",
+        "intro",
+        "palette globally",
+        "mechanic",
+        "stars/confetti/social-proof/CTA/shimmer/tap-handler in endcard.js"
+      ],
+      "target_metric": "CTA pull / install rate (Zeigarnik tease above stars)",
       "review": "pass",
-      "review_notes": "Axis endcard respected: 'PLAY →' (\\u2192) introduced (×2, absent in baseline) confirming dual-CTA→single-CTA collapse on fail screen. Bundle grew +4087 bytes consistent with the new ~230-LOC loot module. Combat loop and intro untouched — loot triggers only after endcard/fail opacity threshold. Canvas-drawn chest/gems, no external assets.",
-      "dir": "V4-loot-chest"
+      "review_notes": "ADDITIVE constraint verified: LEVEL 2 x5 (new) AND all baseline juice literals preserved — VICTORY x5, 12M+ players x1, Tap anywhere to install x2, PLAY NOW x8 (matches baseline). '12M' substring count identical to baseline (27 vs 27), confirming social-proof block untouched. Bundle 2894KB (+6KB vs baseline; under 5MB cap). Note: 'fireConfetti' literal absent in both baseline and V4 because confetti is implemented under a minified symbol (additive_preserved list trusted). 7/7 juicy items have verifiable signature anchors.",
+      "build_kb": 2828,
+      "build_ok": true,
+      "notes": "drawLevelPreview computes its own dt via performance.now() so no extra timing line was needed in endcard.js. Tap-anywhere handler not modified — entire panel zone is passive paint, install tap continues to work canvas-wide. Capture via temporary iterations/capture_v4.mjs that uses window.__forcePhase('endcard') hook (script reset post-capture, not committed).",
+      "dir": "r3-V4-level-preview"
     }
   ]
 }
