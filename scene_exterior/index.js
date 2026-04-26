@@ -1046,7 +1046,11 @@ function _drawGroundOurs(ctx) {
   // lighter front-grass (#668F56) into deeper shadow (#3F5D38), no hard
   // separator stroke. The deterministic grass tufts dotted along the upper
   // band keep it from reading as a flat rectangle once the castles cover it.
-  const GRASS_TOP = HORIZON_Y + 88;
+  // Anchor at HORIZON_Y + 78 so the green band overlaps the bottom of the
+  // hill polygons (which end at HORIZON_Y + 80). The canvas is never cleared
+  // between frames, so any leftover gap accumulates trail/debris specks into
+  // a permanent stripe at that Y — covering it is what kills the artifact.
+  const GRASS_TOP = HORIZON_Y + 78;
   const grad = ctx.createLinearGradient(0, GRASS_TOP, 0, H);
   grad.addColorStop(0,    '#6F9658');
   grad.addColorStop(0.35, '#5C8449');
