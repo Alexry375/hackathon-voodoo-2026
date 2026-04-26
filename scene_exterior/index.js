@@ -28,10 +28,23 @@ let visible = false;
 let rafId = 0;
 let last_t = 0;
 
+// Screen shake state — triggered on crow impact.
+let _shakeMs = 0;
+const SHAKE_DURATION = 320;
+const SHAKE_AMP = 7; // world-space pixels
+
+/** Trigger a screen shake (called from enemy_ai on crow impact). */
+export function triggerShake() { _shakeMs = SHAKE_DURATION; }
+
 // INTRO is included so the exterior scene renders during the "TAP TO START"
 // pause — camera stays on the red castle (set by mount's snapPreset('red'))
 // until the player taps and scene_manager.start() advances to EXTERIOR_OBSERVE.
 const EXTERIOR_STATES = new Set(['INTRO', 'EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
+
+// Slide-out: when interior takes over, exterior slides upward off-screen.
+let _slideOutY = 0;
+let _slideOutActive = false;
+const SLIDE_OUT_EASE = 0.13;
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
@@ -56,7 +69,17 @@ export function mount(c) {
   snapTo({ x: WORLD.red_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 });
 
   subscribe((s) => {
+    const wasVisible = visible;
     visible = EXTERIOR_STATES.has(s);
+    if (visible && !wasVisible) {
+      // Coming back into view — reset slide-out.
+      _slideOutY = 0;
+      _slideOutActive = false;
+    }
+    if (!visible && wasVisible && s === 'INTERIOR_AIM') {
+      // Interior is taking over — slide exterior upward.
+      _slideOutActive = true;
+    }
     if (visible && !rafId) {
       last_t = performance.now();
       loop();
@@ -156,7 +179,7 @@ function _drawEnemyTint(ctx, viewport, dt_ms) {
 }
 
 function loop() {
-  if (!visible) { rafId = 0; return; }
+  if (!visible && !_slideOutActive) { rafId = 0; return; }
   rafId = requestAnimationFrame(loop);
   if (!ctx || !canvas) return;
 
@@ -165,6 +188,20 @@ function loop() {
   last_t = now;
 
   const viewport = { w: canvas.width, h: canvas.height };
+
+  // Slide-out: ease exterior upward then stop the loop.
+  if (_slideOutActive) {
+    const target = -canvas.height;
+    _slideOutY += (target - _slideOutY) * SLIDE_OUT_EASE;
+    if (Math.abs(_slideOutY - target) < 2) {
+      _slideOutActive = false;
+      rafId = 0;
+      return; // exterior fully off-screen, stop drawing
+    }
+  }
+
+  ctx.save();
+  ctx.translate(0, _slideOutY);
 
   // Warm teal-green sky fill — matches source game palette.
   const sky = ctx.createLinearGradient(0, 0, 0, viewport.h);
@@ -183,6 +220,15 @@ function loop() {
   // strand the saved camera transform on the ctx state stack — that would
   // accumulate translates/scales every frame and ruin all subsequent renders.
   applyCameraTransform(ctx, viewport);
+  // Screen shake — random offset decaying over SHAKE_DURATION.
+  if (_shakeMs > 0) {
+    _shakeMs -= dt_ms;
+    const intensity = Math.max(0, _shakeMs / SHAKE_DURATION);
+    ctx.translate(
+      (Math.random() * 2 - 1) * SHAKE_AMP * intensity,
+      (Math.random() * 2 - 1) * SHAKE_AMP * intensity,
+    );
+  }
   try {
     ctx.fillStyle = '#3A0E06';
     ctx.fillRect(-4000, WORLD.ground_y, 12000, 8000);
@@ -201,4 +247,6 @@ function loop() {
   _drawEnemyTint(ctx, viewport, dt_ms);
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
+
+  ctx.restore(); // closes the slide-out translate
 }

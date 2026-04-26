@@ -23,8 +23,13 @@ let ctx = null;
 let visible = false;
 let rafId = 0;
 let currentTilt = 0;
+// Slide-in transition: interior enters from below. slideY starts at canvas.height
+// and eases to 0. Matches source footage where the interior pans up from below.
+let slideY = 0;
+let slideActive = false;
 
 const TILT_EASE = 0.06;
+const SLIDE_EASE = 0.13; // fast enough to feel snappy, slow enough to read
 
 /** @param {number} hp_pct */
 function targetTiltFor(hp_pct) {
@@ -50,7 +55,13 @@ export function mount(c) {
   ctx = c.getContext('2d');
   installAim(c);
   subscribe((s) => {
+    const wasVisible = visible;
     visible = (s === 'INTERIOR_AIM');
+    if (visible && !wasVisible) {
+      // Kick off slide-in from below.
+      slideY = canvas ? canvas.height : 960;
+      slideActive = true;
+    }
     if (visible && !rafId) loop();
   });
 }
@@ -66,9 +77,18 @@ function loop() {
   currentTilt += (targetTilt - currentTilt) * TILT_EASE;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
+  // Ease slide-in to zero.
+  if (slideActive) {
+    slideY += (0 - slideY) * SLIDE_EASE;
+    if (Math.abs(slideY) < 1) { slideY = 0; slideActive = false; }
+  }
+
   // Interior: much darker than exterior sky — only a sliver of daylight shows
   // through the castle's broken top cutout. Background gets near-black to
   // make units and platforms read clearly against a dim stone environment.
+  ctx.save();
+  ctx.translate(0, slideY);
+
   ctx.fillStyle = '#0A1210';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   // Subtle sky tint only at very top (where cutout peeks through).
@@ -88,4 +108,6 @@ function loop() {
   drawAimOverlay(ctx);
   drawTopHud(ctx);
   drawScriptOverlay(ctx, t);
+
+  ctx.restore();
 }

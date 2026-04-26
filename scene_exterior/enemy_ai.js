@@ -8,6 +8,9 @@ import { WORLD } from '../shared/world.js';
 import { getImage, isImageReady } from '../shared/assets.js';
 import { addBite } from './damage_overlay.js';
 import * as vfx from './vfx.js';
+// Lazy import to avoid a circular dep at module parse time — index.js imports us.
+let _triggerShake = null;
+import('./index.js').then(m => { _triggerShake = m.triggerShake; }).catch(() => {});
 
 // Active wave state. Null when idle.
 /** @type {null | {
@@ -140,6 +143,7 @@ function resolveImpact(p) {
   applyDamageToSelf(-dmg);
   const size = dmg >= 5 ? 'big' : 'small';
   try { vfx.spawnCrowImpact(p.x, p.y); } catch (_) {}
+  if (_triggerShake) try { _triggerShake(); } catch (_) {}
   playSfx({ volume: 0.9, rate: 0.65 });
   addBite(p.x, p.y, { size });
 }
