@@ -117,9 +117,10 @@ function _updatePhase(elapsed) {
   //   resolving shots  → no hint (cinematic, hands-off)
   if (game.phase === 'tutorial' || game.phase === 'freeplay') {
     const scene = getSceneState();
-    if (scene === 'EXTERIOR_OBSERVE')   setInstruction('TAP YOUR CASTLE!');
-    else if (scene === 'INTERIOR_AIM')  setInstruction('DRAG TO AIM!');
-    else                                setInstruction(null);
+    // Camera auto-pans now — no "TAP YOUR CASTLE!" beat anymore. Only
+    // surface the drag hint once the player is inside the interior aim view.
+    if (scene === 'INTERIOR_AIM')  setInstruction('DRAG TO AIM!');
+    else                           setInstruction(null);
   } else {
     setInstruction(null);
   }
@@ -174,6 +175,24 @@ function _updatePhase(elapsed) {
 
 function _paintOverlay(ctx, t, elapsed) {
   const W = ctx.canvas.width, H = ctx.canvas.height;
+
+  // Critical-HP red vignette — soft pulsing radial overlay when blue is at
+  // ≤5% HP. Sits BELOW HUD/CTA so HP/install button stay readable, but
+  // above gameplay so the danger reads instantly.
+  if (state.hp_self_pct <= 5 &&
+      game.phase !== 'endcard' && game.phase !== 'forcewin' &&
+      !isFailScreenShown()) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 2 * Math.PI * 1.6);
+    const peak = 0.55 + 0.20 * pulse;
+    const grad = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, 620);
+    grad.addColorStop(0, 'rgba(255,0,0,0)');
+    grad.addColorStop(0.55, `rgba(220,30,30,${peak * 0.4})`);
+    grad.addColorStop(1, `rgba(180,10,10,${peak})`);
+    ctx.save();
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
 
   // Praise floats + persistent CTA paint over EVERY non-endcard phase, including
   // tutorial (which returns early below for hand-cursor reasons).

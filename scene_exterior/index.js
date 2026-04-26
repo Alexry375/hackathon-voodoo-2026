@@ -342,9 +342,9 @@ function _startDezoomToAwait(action) {
 }
 
 function _onCanvasTap() {
-  if (!awaitingTap || zoomInT0 !== 0 || dezoomT0 !== 0) return;
-  zoomInT0 = performance.now();
-  awaitingTap = false;
+  // Tap-to-zoom disabled — the camera now auto-pans (see dezoom completion
+  // in the loop where zoomInT0 is set immediately). Kept as a no-op so any
+  // older callers don't crash.
 }
 
 // ── Deterministic impact cycles ──────────────────────────────────────────────
@@ -793,7 +793,10 @@ function loop() {
     overviewT = 1 - eased;
     if (k >= 1) {
       dezoomT0 = 0;
-      awaitingTap = true;
+      // Auto-pan: skip the awaitingTap pause and zoom straight back in. The
+      // camera reads as one continuous pan-out → pan-in (matches the
+      // projectile-follow camera in the rest of the scene).
+      zoomInT0 = now;
     }
   } else if (awaitingTap) {
     overviewT = 0;

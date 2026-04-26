@@ -5,7 +5,7 @@
 const W = 540;
 // y=92 mirrors persistent_cta — sits below the 80px HUD strip with blue HP.
 const PILL = { x: 14, y: 92, w: 124, h: 46, r: 16 };
-const START_SECONDS = 90;       // shows "01:30" initially
+const START_SECONDS = 60;       // shows "01:00" initially
 const DECAY_PER_SEC  = 0.6;     // ticks ~slower than realtime so it lingers
 
 let _t0 = 0;
