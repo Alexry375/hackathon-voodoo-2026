@@ -222,6 +222,20 @@ const TRANSITION_DUR = 1300;
 // kept static for simplicity (still reads as a pan thanks to parallax-by-zero).
 let viewTransition = /** @type {null|{fromView:'OURS'|'ENEMY',toView:'OURS'|'ENEMY',t0:number,dur:number,dir:1|-1}} */ (null);
 const VIEW_PAN_DUR = 750;
+
+// "Camera-zoom-on-click" beat (Seb feature port).
+// At intro impact and after every enemy riposte impact, instead of cutting
+// straight to interior we render a WIDE 2-castle overview, draw a tap-prompt
+// hand on top of OURS, and wait for the player's pointerdown. Tap kicks off
+// a 700ms zoom anim (overview → close on OURS) before firing the original
+// handoff action (ready_for_player_input or emit cut_to_interior).
+let awaitingTap = false;
+let pendingTapAction = /** @type {(()=>void)|null} */ (null);
+let overviewZoomT0 = 0; // performance.now() when zoom anim started; 0 = not animating
+const OVERVIEW_ZOOM_DUR = 700;
+const OVERVIEW_SCALE = 0.55;
+const OVERVIEW_OURS_DX  = -W * 0.40;  // OURS pushed left in wide
+const OVERVIEW_ENEMY_DX = +W * 0.40;  // ENEMY pushed right in wide
 let pendingPlayerDmg = 0;
 let pendingEnemyDmg = 0;
 let pendingPlayerImpact = /** @type {{x:number,y:number}|null} */ (null);
@@ -248,6 +262,24 @@ export function mount(c) {
     if (visible && !rafId) loop();
   });
   on('player_fire', startPlayerShot);
+
+  // Tap-to-zoom: while awaitingTap is true the canvas-wide pointerdown
+  // commits us to interior. We listen at the canvas level so any tap
+  // inside the playable counts (not just the small hand sprite).
+  c.addEventListener('pointerdown', _onCanvasTap);
+}
+
+function _startAwaitTap(action) {
+  awaitingTap = true;
+  pendingTapAction = action;
+  overviewZoomT0 = 0;
+}
+
+function _onCanvasTap() {
+  if (!awaitingTap || overviewZoomT0 !== 0) return;
+  // Kick off the zoom animation. Action fires when it lands.
+  overviewZoomT0 = performance.now();
+  awaitingTap = false; // suppress further taps during the anim
 }
 
 // ── Deterministic impact cycles ──────────────────────────────────────────────
@@ -348,11 +380,12 @@ function _impactOurs(at, d) {
   tiltAngle = -0.08;
   tiltUntil = performance.now() + 700;
   if (step === 'incoming') {
-    // After the impact beat, run the zoom-in punch transition (900ms) before
-    // handing off to interior — without this wrapper the cut is sec.
+    // After the impact beat, hand off to the await-tap overview beat. The
+    // exterior renders a wide 2-castle shot until the player taps; on tap
+    // a 700ms zoom anim eases into close on OURS and we then enter interior.
     setTimeout(() => {
       step = 'idle';
-      _startExitTransition(() => ready_for_player_input());
+      _startAwaitTap(() => ready_for_player_input());
     }, 400);
   }
 }
@@ -462,10 +495,13 @@ function _tick(now) {
   // already in OURS view post pan-back).
   if (step === 'ours_dwell' && now - stepT0 > 1500) {
     step = 'idle';
-    emit('cut_to_interior', {
-      hp_self_after:  state.hp_self_pct,
-      hp_enemy_after: state.hp_enemy_pct,
-      units_destroyed_ids: pendingKills,
+    // Same await-tap beat as intro: wide overview → tap → zoom → interior.
+    _startAwaitTap(() => {
+      emit('cut_to_interior', {
+        hp_self_after:  state.hp_self_pct,
+        hp_enemy_after: state.hp_enemy_pct,
+        units_destroyed_ids: pendingKills,
+      });
     });
   }
 }
@@ -666,7 +702,37 @@ function loop() {
   ctx.save(); ctx.translate(bgPanMid,  0); _drawForestNear(ctx); ctx.restore();
   ctx.save(); ctx.translate(bgPanNear, 0); _drawGround(ctx);     ctx.restore();
 
-  if (viewTransition) {
+  // Overview-tap beat: render BOTH castles small + horizontally spread, easing
+  // back to the normal close-on-OURS framing during the post-tap zoom anim.
+  // overviewT goes 0 (full wide) → 1 (full close, identical to default render).
+  let overviewT = -1;
+  if (awaitingTap) {
+    overviewT = 0;
+  } else if (overviewZoomT0 > 0) {
+    const k = Math.min(1, (now - overviewZoomT0) / OVERVIEW_ZOOM_DUR);
+    overviewT = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; // ease-in-out cubic
+    if (k >= 1) {
+      overviewZoomT0 = 0;
+      const action = pendingTapAction;
+      pendingTapAction = null;
+      if (action) action();
+    }
+  }
+
+  if (overviewT >= 0) {
+    const scale = OVERVIEW_SCALE + (1 - OVERVIEW_SCALE) * overviewT;
+    const dxOurs  = OVERVIEW_OURS_DX  * (1 - overviewT);
+    const dxEnemy = OVERVIEW_ENEMY_DX + (W * 1.6 - OVERVIEW_ENEMY_DX) * overviewT;
+    const cx = W / 2, cy = BASE_Y - 40;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+    // Draw enemy first so OURS reads on top when they overlap during zoom.
+    _drawCastleSlot(ctx, 'ENEMY', dxEnemy);
+    _drawCastleSlot(ctx, 'OURS',  dxOurs);
+    ctx.restore();
+  } else if (viewTransition) {
     // Render BOTH castles side-by-side. fromView at offset -panOffset, toView at +W-panOffset.
     const dxFrom = -panOffset;
     const dxTo   = (viewTransition.dir > 0 ? W : -W) - panOffset;
@@ -740,6 +806,7 @@ function loop() {
 
   drawTopHud(ctx);
   drawScriptOverlay(ctx, now / 1000);
+  if (awaitingTap) _drawTapPrompt(ctx, now / 1000);
 
   // Fire the end action once the iris is fully closed (~92% of duration) so
   // the actual scene swap is hidden behind black. Then keep drawing exterior
@@ -757,6 +824,30 @@ function loop() {
   if (transitioning && (now - transitionT0) >= TRANSITION_DUR) {
     transitioning = false;
   }
+}
+
+// Tap-to-zoom prompt: pulsing ring + Kenney hand pointer over OURS in wide.
+// In overview the OURS castle centre lands at screen X = W/2 + (OURS_DX * SCALE).
+function _drawTapPrompt(ctx, t_sec) {
+  const cx = W / 2 + OVERVIEW_OURS_DX * OVERVIEW_SCALE;
+  const cy = BASE_Y - 40 - 60;  // above the castle silhouette
+  const pulse = 0.5 + 0.5 * Math.sin(t_sec * 2 * Math.PI * 1.4);
+  const ringR = 38 + pulse * 18;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,255,255,${0.35 + 0.45 * (1 - pulse)})`;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+  if (isImageReady('HAND_POINTER')) {
+    const img = getImage('HAND_POINTER');
+    const HAND_SIZE = 92;
+    ctx.translate(cx, cy);
+    ctx.rotate(-0.18);
+    ctx.translate(10, 34);   // tip-anchor offset
+    ctx.drawImage(img, -HAND_SIZE / 2, -HAND_SIZE / 2, HAND_SIZE, HAND_SIZE);
+  }
+  ctx.restore();
 }
 
 function _computeEnemyRecoil(now) {
