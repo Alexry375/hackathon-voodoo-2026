@@ -4,6 +4,16 @@
 //
 // Pure visual, no input. Drawn on top of everything (after hud_top).
 
+import { getImage, isImageReady } from '../shared/assets.js';
+
+// Source PNG is 128×256 (portrait, finger pointing up). Drawn at 56×112 on canvas.
+const HAND_W = 56;
+const HAND_H = 112;
+// Finger tip in source is roughly (44, 12) → relative to image centre (64,128):
+// scaled to drawn size: (-9, -50). The tip lands exactly on (target.x, target.y).
+const HAND_TIP_OFFSET = { x: -9, y: -50 };
+const HAND_ROT = -0.12;      // slight tilt so it reads as "pointing into" the target
+
 let _target = null; // {x, y} canvas coords, or null = hidden
 let _drag = null;   // {from:{x,y}, to:{x,y}, progress:0..1} or null
 
@@ -56,26 +66,15 @@ export function drawHandCursor(ctx, t) {
   ctx.lineWidth = 4;
   ctx.beginPath(); ctx.arc(x, y, ringR, 0, Math.PI * 2); ctx.stroke();
 
-  // Hand shape — simple stylized index-finger pointer
-  // (white silhouette with black outline for legibility on any bg).
-  const hx = x + 6, hy = y + 4;
-  ctx.translate(hx, hy);
-  ctx.rotate(-0.35);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(8, -22);
-  ctx.lineTo(16, -20);
-  ctx.lineTo(14, -2);
-  ctx.lineTo(20, -2);
-  ctx.lineTo(22, 14);
-  ctx.lineTo(20, 26);
-  ctx.lineTo(2, 28);
-  ctx.lineTo(-6, 22);
-  ctx.lineTo(-8, 8);
-  ctx.closePath();
-  ctx.fill(); ctx.stroke();
+  // Stylish PNG pointer (Kenney CC0). Rotated slightly so the index finger
+  // reads as pointing into the target. Anchor the tip on (x, y) by offsetting
+  // the draw rect from the image centre.
+  const img = getImage('HAND_POINTER');
+  if (isImageReady('HAND_POINTER')) {
+    ctx.translate(x, y);
+    ctx.rotate(HAND_ROT);
+    ctx.translate(-HAND_TIP_OFFSET.x, -HAND_TIP_OFFSET.y);
+    ctx.drawImage(img, -HAND_W / 2, -HAND_H / 2, HAND_W, HAND_H);
+  }
   ctx.restore();
 }

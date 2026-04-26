@@ -24,3 +24,4 @@ input/*/input/*.mp4
 input/*/input/*.mov
 input/*/SANDBOX/
 # Note : input/<jeu>/shots/ reste committée pour que l'humain dev review l'avancement
+.superpowers/

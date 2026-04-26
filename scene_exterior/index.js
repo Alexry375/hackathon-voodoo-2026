@@ -24,10 +24,24 @@ import { on, emit } from '../shared/events.js';
 import { state } from '../shared/state.js';
 import { subscribe, ready_for_player_input } from '../shared/scene_manager.js';
 import { drawTopHud } from '../shared/hud_top.js';
-import { getImage, isImageReady } from '../shared/assets.js';
+import { getImage, tryGetImage, isImageReady } from '../shared/assets.js';
 import { drawScriptOverlay } from '../playable/script.js';
+import { isFailScreenShown } from '../playable/fail_screen.js';
 import { drawRaven } from './raven.js';
 import { drawRavenFlock } from './raven_flock.js';
+import { planForUnit, drawProjectileP1, drawProjectileP2 } from './projectile_sprites.js';
+import { playSfx } from '../shared/audio.js';
+
+const FIRING_SFX_BY_UNIT = {
+  skeleton: 'SFX_FIRE_RAFALE',
+  cyclop:   'SFX',  // legacy rocket sample
+  orc:      'SFX',  // reuses rocket per user spec
+};
+const IMPACT_SFX_BY_KIND = {
+  rocket_p1: 'SFX_IMPACT_RAFALE',  // skeleton's mini-missile salvo
+  bomb_p2:   'SFX_IMPACT_ROCKET',  // cyclop's chunky bomb
+  rocket:    'SFX_IMPACT_ROCKET',  // orc — reuses rocket explosion
+};
 
 // ── Layout constants (canvas 540×960) ────────────────────────────────────────
 const W = 540, H = 960;
@@ -53,29 +67,68 @@ const muzzlePos = () => ({ x: CASTLE_X + MUZZLE_OFFSET.x, y: CASTLE_TOP_Y + MUZZ
 /** @type {'OURS'|'ENEMY'} */
 let view = 'OURS';
 
-/** Damage marks per side (don't bleed across views). Each zone caches a
- *  jagged polygon outline + crack rays so it doesn't shimmer between frames. */
-const dmg = { OURS: /** @type {{x:number,y:number,r:number,poly:[number,number][],cracks:[number,number][]}[]} */ ([]),
-              ENEMY: /** @type {{x:number,y:number,r:number,poly:[number,number][],cracks:[number,number][]}[]} */ ([]) };
+// ── ENEMY damage tier (Seb's PNGs) ────────────────────────────────────────────
+// HP-driven sprite swap replaces the legacy chunk/crack overlay system. PNGs
+// are sized so their content height matches CASTLE_H; alpha-bbox cached once.
+// OURS has no visual damage anymore (matching OURS PNGs to come later).
 
-function _makeDamageZone(x, y, r) {
-  // Irregular polygon: 12 spokes around the centre with ±35% radius jitter.
-  const poly = /** @type {[number,number][]} */ ([]);
-  const N = 12;
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2 + Math.random() * 0.35;
-    const rr = r * (0.65 + Math.random() * 0.55);
-    poly.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+/** @type {Map<HTMLImageElement, {minY:number, contentH:number}>} */
+const _contentBounds = new Map();
+function _getContentBounds(img) {
+  if (_contentBounds.has(img)) return _contentBounds.get(img);
+  let bounds;
+  try {
+    const tmp = document.createElement('canvas');
+    tmp.width = img.naturalWidth; tmp.height = img.naturalHeight;
+    const tctx = tmp.getContext('2d');
+    tctx.drawImage(img, 0, 0);
+    const data = tctx.getImageData(0, 0, tmp.width, tmp.height).data;
+    let minY = tmp.height, maxY = 0;
+    for (let y = 0; y < tmp.height; y++)
+      for (let x = 0; x < tmp.width; x++)
+        if (data[(y * tmp.width + x) * 4 + 3] > 8) {
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+    bounds = maxY >= minY ? { minY, contentH: maxY - minY + 1 }
+                          : { minY: 0, contentH: img.naturalHeight };
+  } catch (_) {
+    bounds = { minY: 0, contentH: img.naturalHeight };
   }
-  // 5-8 crack rays extending past the polygon edge.
-  const cracks = /** @type {[number,number][]} */ ([]);
-  const nC = 5 + Math.floor(Math.random() * 4);
-  for (let i = 0; i < nC; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const rr = r * (1.05 + Math.random() * 0.6);
-    cracks.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  _contentBounds.set(img, bounds);
+  return bounds;
+}
+
+// OURS visual tier is decoupled from HP: the playable should feel "still
+// holding" after the 2nd hit, so we step down every 2 attacks instead of
+// continuously following HP.
+//   0 attacks → intact
+//   1-2 attacks → CASTLE_BLUE_75 (1st destruction asset, persists thru hit 2)
+//   3-4 attacks → CASTLE_BLUE_50
+//   5+ attacks  → CASTLE_BLUE_25
+let _oursAttacksTaken = 0;
+
+function _damagePng(side) {
+  // Intact PNGs (BLUE_CASTLE / RED_CASTLE) now bake base + treads in too —
+  // mirrored from the tier-75 sprite so each side keeps its distinct
+  // tread/wood-base style. Treat them as a "tier-100" so the renderer skips
+  // the procedural base/treads (which would draw underneath at the wrong size
+  // and double up).
+  let key;
+  if (side === 'OURS') {
+    if      (_oursAttacksTaken === 0) key = 'BLUE_CASTLE';
+    else if (_oursAttacksTaken <= 2)  key = 'CASTLE_BLUE_75';
+    else if (_oursAttacksTaken <= 4)  key = 'CASTLE_BLUE_50';
+    else                               key = 'CASTLE_BLUE_25';
+  } else {
+    const hp = state.hp_enemy_pct;
+    if      (hp <= 25) key = 'CASTLE_25';
+    else if (hp <= 50) key = 'CASTLE_50';
+    else if (hp <= 75) key = 'CASTLE_75';
+    else                key = 'RED_CASTLE';
   }
-  return { x, y, r, poly, cracks };
+  const img = tryGetImage(key);
+  return (img && img.complete && img.naturalWidth > 0) ? img : null;
 }
 
 /** Castle tilt angle (radians) for firing animation. */
@@ -101,7 +154,7 @@ function triggerShake(intensity, durMs) {
 /** @type {{x:number,y:number,t0:number,text:string,color:string}[]} */
 const floats = [];
 
-/** @typedef {{kind:'rocket'|'bomb'|'raven', from:{x:number,y:number}, to:{x:number,y:number},
+/** @typedef {{kind:'rocket'|'rocket_p1'|'bomb'|'bomb_p2'|'raven'|'flock', from:{x:number,y:number}, to:{x:number,y:number},
  *             t0:number, dur:number, peakLift:number, sinAmp?:number, sinPhase?:number,
  *             sinFreq?:number, onLand:()=>void}} Projectile */
 /** @type {Projectile[]} */
@@ -157,6 +210,53 @@ function _spawnExplosion(x, y, opts) {
   }
 }
 
+// In-flight trail emission (rocket/bomb/raven flock).
+const TRAIL_EVERY_MS = 55;
+
+function _emitTrailParticle(kind, x, y, dirAng, now) {
+  // Forward = direction of travel; back = opposite (where the trail belongs).
+  const fx = Math.cos(dirAng), fy = Math.sin(dirAng);
+  // Perpendicular (for the raven sine drift axis).
+  const px = -fy;
+  const py =  fx;
+
+  if (kind === 'rocket' || kind === 'rocket_p1') {
+    particles.push({
+      kind: 'trail_core', x, y,
+      vx: -fx * 30, vy: -fy * 30 - 8,
+      ax: 0, ay: -8, t0: now,
+      life: 140, size: 6, color: '#FF4A3A',
+      rot: 0, rotSpeed: 0, sizeGrow: 0.4,
+    });
+    particles.push({
+      kind: 'trail_puff', x, y,
+      vx: -fx * 50 + px * (Math.random() - 0.5) * 8,
+      vy: -fy * 50 + py * (Math.random() - 0.5) * 8 - 12,
+      ax: 0, ay: -18, t0: now,
+      life: 330, size: 6, color: '#822018',
+      rot: 0, rotSpeed: 0, sizeGrow: 0.6,
+    });
+  } else if (kind === 'bomb' || kind === 'bomb_p2') {
+    particles.push({
+      kind: 'trail_puff', x, y,
+      vx: -fx * 45 + px * (Math.random() - 0.5) * 6,
+      vy: -fy * 45 + py * (Math.random() - 0.5) * 6 - 10,
+      ax: 0, ay: -14, t0: now,
+      life: 350, size: 10, color: '#3A3A3A',
+      rot: 0, rotSpeed: 0, sizeGrow: 1.0,
+    });
+  } else if (kind === 'raven') {
+    particles.push({
+      kind: 'trail_wave', x, y, vx: 0, vy: -4, ax: 0, ay: -5, t0: now,
+      life: 290, size: 6, color: '#3A3A3A',
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: 3,
+      sizeGrow: 0.7,
+      driftAxisX: px, driftAxisY: py, driftAmp: 8,
+    });
+  }
+}
+
 // Cinematic step machine (resolve)
 let step = 'idle'; // idle | fire | cut_to_enemy | enemy_dwell | cut_to_ours | ours_dwell | incoming
 let stepT0 = 0;
@@ -169,7 +269,10 @@ let stepT0 = 0;
 let transitioning = false;
 let transitionT0 = 0;
 let transitionEndAction = /** @type {(()=>void)|null} */ (null);
-const TRANSITION_DUR = 900;
+let transitionEndFired = false;
+// Longer + harder ease so the dive reads as cinematic, not as a cut. The iris
+// (radial vignette closing on the castle keep) covers the actual scene swap.
+const TRANSITION_DUR = 1300;
 
 // View whip-pan transition (T2 from Gemini critique).
 // During cut OURS→ENEMY (and back) we slide both castles horizontally so the
@@ -177,6 +280,33 @@ const TRANSITION_DUR = 900;
 // kept static for simplicity (still reads as a pan thanks to parallax-by-zero).
 let viewTransition = /** @type {null|{fromView:'OURS'|'ENEMY',toView:'OURS'|'ENEMY',t0:number,dur:number,dir:1|-1}} */ (null);
 const VIEW_PAN_DUR = 750;
+
+// "Camera-zoom-on-click" beat (Seb feature port).
+// At intro impact and after every enemy riposte impact, instead of cutting
+// straight to interior we render a WIDE 2-castle overview, draw a tap-prompt
+// hand on top of OURS, and wait for the player's pointerdown. Tap kicks off
+// a 700ms zoom anim (overview → close on OURS) before firing the original
+// handoff action (ready_for_player_input or emit cut_to_interior).
+// Four phases for the overview beat: dezoom (close→wide entry), await (idle
+// at full wide), zoom-in (wide→close on tap), then chain into the existing
+// _startExitTransition for the iris-dive into interior. Timestamps drive the
+// active phase — zero means inactive. At any time at most one of dezoomT0 /
+// zoomInT0 is non-zero, with awaitingTap covering the static beat between.
+let awaitingTap = false;
+let pendingTapAction = /** @type {(()=>void)|null} */ (null);
+let dezoomT0 = 0;
+let zoomInT0 = 0;
+// One-shot flag: when set, the next dezoom completion stays in overview
+// (no auto zoom-in) and emits 'reached_frozen_overview' so the script can
+// show the end-of-turn fail / forcewin screen with both castles in view.
+let _freezeOverview = false;
+/** @param {boolean} v */
+export function setFreezeOverview(v) { _freezeOverview = !!v; }
+const DEZOOM_DUR  = 600;
+const ZOOM_IN_DUR = 600;
+const OVERVIEW_SCALE = 0.55;
+const OVERVIEW_OURS_DX  = -W * 0.40;  // OURS pushed left in wide
+const OVERVIEW_ENEMY_DX = +W * 0.40;  // ENEMY pushed right in wide
 let pendingPlayerDmg = 0;
 let pendingEnemyDmg = 0;
 let pendingPlayerImpact = /** @type {{x:number,y:number}|null} */ (null);
@@ -197,43 +327,128 @@ export function mount(c) {
     visible = s === 'EXTERIOR_OBSERVE' || s === 'EXTERIOR_RESOLVE'
             || s === 'INTRO_INCOMING'  || s === 'END_VICTORY' || s === 'END_DEFEAT';
     if (s === 'EXTERIOR_OBSERVE') { view = 'OURS'; }
-    if (s === 'INTRO_INCOMING')   { view = 'OURS'; _startIncoming(); }
+    if (s === 'INTRO_INCOMING')   { view = 'ENEMY'; _startIncoming(); }
     if (s === 'END_VICTORY')      { view = 'ENEMY'; }
     if (s === 'END_DEFEAT')       { view = 'OURS'; }
     if (visible && !rafId) loop();
   });
   on('player_fire', startPlayerShot);
+
+  // Tap-to-zoom: while awaitingTap is true the canvas-wide pointerdown
+  // commits us to interior. We listen at the canvas level so any tap
+  // inside the playable counts (not just the small hand sprite).
+  c.addEventListener('pointerdown', _onCanvasTap);
+}
+
+function _startDezoomToAwait(action) {
+  pendingTapAction = action;
+  dezoomT0 = performance.now();
+  awaitingTap = false;
+  zoomInT0 = 0;
+}
+
+function _onCanvasTap() {
+  // Tap-to-zoom disabled — the camera now auto-pans (see dezoom completion
+  // in the loop where zoomInT0 is set immediately). Kept as a no-op so any
+  // older callers don't crash.
+}
+
+// ── Deterministic impact cycles ──────────────────────────────────────────────
+// Random impacts cluster visually so we cycle through hand-placed targets.
+// OURS: enemy ripostes plus opening raven. Damage on OURS is purely particle
+// (no persistent overlay), but the cycle keeps successive impacts spatially
+// varied so the screen-shake/explosion don't all originate from one spot.
+// ENEMY: player shots, ordered to land where Seb's tier PNGs reveal new damage
+// (left tower → right tower roof → centre keep) so the swap reads as causal.
+/** @typedef {{nx:number, y:number}} ImpactSpot */
+/** @type {ImpactSpot[]} */
+const OURS_IMPACT_CYCLE = [
+  { nx: 0.30, y: 380 }, // upper-left tower
+  { nx: 0.72, y: 360 }, // upper-right tower
+  { nx: 0.50, y: 470 }, // mid keep
+  { nx: 0.22, y: 530 }, // lower-left wall
+  { nx: 0.78, y: 510 }, // lower-right wall
+  { nx: 0.46, y: 575 }, // base centre
+];
+/** @type {ImpactSpot[]} */
+// PNG c75 destroys the LEFT tower → first 2 hits aim there.
+// PNG c50 destroys the RIGHT tower roof → next 2 hits aim there.
+// PNG c25 covers the whole keep → final hits aim centre/base.
+const ENEMY_IMPACT_CYCLE = [
+  { nx: 0.28, y: 395 }, // upper-left tower (c75 reveal)
+  { nx: 0.22, y: 470 }, // mid-left wall    (c75 reveal)
+  { nx: 0.72, y: 380 }, // upper-right tower roof (c50 reveal)
+  { nx: 0.78, y: 460 }, // mid-right wall   (c50 reveal)
+  { nx: 0.50, y: 520 }, // centre keep      (c25 coup de grâce)
+  { nx: 0.50, y: 590 }, // base centre
+];
+let _oursCycleIdx = 0;
+let _enemyCycleIdx = 0;
+
+function _nextOursImpact() {
+  const s = OURS_IMPACT_CYCLE[_oursCycleIdx % OURS_IMPACT_CYCLE.length];
+  _oursCycleIdx++;
+  return { x: CASTLE_X + CASTLE_W * s.nx, y: s.y };
+}
+function _nextEnemyImpact() {
+  const s = ENEMY_IMPACT_CYCLE[_enemyCycleIdx % ENEMY_IMPACT_CYCLE.length];
+  _enemyCycleIdx++;
+  return { x: CASTLE_X + CASTLE_W * s.nx, y: s.y };
 }
 
 // ── Opening cinematic ────────────────────────────────────────────────────────
+// Spec-locked flow (cinematic-spec.md):
+//   T=0    → 1500ms : dwell on ENEMY_RED (hook: enemy preparing to fire)
+//   T=1500 → 3000ms : pan ENEMY→OURS, raven flock crosses screen R→L
+//   T=3000           : impact on OURS_BLUE (-33% HP) → exit to interior
 function _startIncoming() {
-  // Source-faithful enemy attack: 2 ravens ARE the projectiles. They dive at
-  // the castle from off-screen right with phase-opposed sinusoidal bobs (one
-  // peaks while the other dips). Raven A crashes into the castle and triggers
-  // impact; raven B grazes just above and exits frame as a second wave.
-  const target = { x: CASTLE_X + CASTLE_W * 0.72, y: CASTLE_TOP_Y + 60 };
-  const dmgVal = 33;
-  pendingPlayerImpact = target;
-  const t = performance.now();
+  view = 'ENEMY';
+  step = 'intro_dwell';
+  stepT0 = performance.now();
+  // Reset cycles on each fresh playthrough so the sequence is reproducible.
+  _oursCycleIdx = 0;
+  _enemyCycleIdx = 0;
+  _oursAttacksTaken = 0;
+  pendingPlayerImpact = _nextOursImpact();
+}
+
+function _startIntroPanAndFlock() {
+  // Triggered at T+1500ms (end of intro_dwell). Pans ENEMY→OURS while the raven
+  // flock crosses the screen right→left, landing on OURS castle as the pan ends.
+  const now = performance.now();
+  const target = pendingPlayerImpact || {
+    x: CASTLE_X + CASTLE_W * 0.55,
+    y: CASTLE_TOP_Y + 120,
+  };
+  const dmgVal = 50;  // intro bomb — bigger so blue is at ~50 HP after 1 move
+  // Camera pan ENEMY→OURS (dir=-1, world slides right). Same duration shape as
+  // the player-shot pan so the cinematic reads consistently.
+  viewTransition = { fromView: 'ENEMY', toView: 'OURS', t0: now, dur: 1300, dir: -1 };
+  // Raven flock: starts off-screen right, lands on OURS target ~1500ms later.
+  // The pan ends ~200ms before impact so the flock visibly converges in OURS view.
   /** @type {Projectile} */
   const flock = {
     kind: 'flock',
-    from: { x: W + 100, y: 320 },
+    from: { x: W + 120, y: 220 + Math.random() * 200 },
     to: target,
-    t0: t + 200,
-    dur: 2200,
+    t0: now,
+    dur: 1500,
     peakLift: 0,
-    sinAmp: 50, sinFreq: 0, sinPhase: 0,
-    onLand: () => _impactOurs(target, dmgVal),
+    sinAmp: 30 + Math.random() * 50, sinFreq: 0, sinPhase: 0,
+    onLand: () => {
+      playSfx('SFX_RAVEN_POP', { volume: 0.8 });
+      _impactOurs(target, dmgVal);
+    },
   };
   projectiles.push(flock);
+  playSfx('SFX_RAVEN_CAW', { volume: 0.7 });
 
   step = 'incoming';
-  stepT0 = performance.now();
+  stepT0 = now;
 }
 
 function _impactOurs(at, d) {
-  dmg.OURS.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
+  _oursAttacksTaken++;
   state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: true });
@@ -241,11 +456,12 @@ function _impactOurs(at, d) {
   tiltAngle = -0.08;
   tiltUntil = performance.now() + 700;
   if (step === 'incoming') {
-    // After the impact beat, run the zoom-in punch transition (900ms) before
-    // handing off to interior — without this wrapper the cut is sec.
+    // After the impact beat, hand off to the await-tap overview beat. The
+    // exterior renders a wide 2-castle shot until the player taps; on tap
+    // a 700ms zoom anim eases into close on OURS and we then enter interior.
     setTimeout(() => {
       step = 'idle';
-      _startExitTransition(() => ready_for_player_input());
+      _startDezoomToAwait(() => ready_for_player_input());
     }, 400);
   }
 }
@@ -258,32 +474,64 @@ function startPlayerShot(payload) {
   step = 'fire';
   stepT0 = performance.now();
 
-  // Stash enemy-side impact data
+  // Firing SFX matched to the active mob.
+  const fireSfx = FIRING_SFX_BY_UNIT[payload?.unit_id] || 'SFX';
+  playSfx(fireSfx, { volume: 0.55 });
+
+  // Stash enemy-side impact data — wide range so successive player shots
+  // visibly hit different parts of the enemy castle (not the same spot).
   const dmgVal = 14 + Math.floor(Math.random() * 6);
   pendingEnemyDmg = dmgVal;
-  pendingEnemyImpact = {
-    x: CASTLE_X + CASTLE_W * (0.30 + Math.random() * 0.4),
-    y: CASTLE_TOP_Y + 70 + Math.random() * 160,
-  };
+  pendingEnemyImpact = _nextEnemyImpact();
 
   const t = performance.now();
   const m = muzzlePos();
-  // Single world-space rocket: muzzle (OURS world) → enemy target (ENEMY world,
-  // offset by +W). The render loop compensates `screen_x = world_x - viewOffset`
-  // where viewOffset is the current pan in pixels (0 in OURS, W in ENEMY,
-  // interpolated during the pan). High peakLift so the arc clears both castles.
-  /** @type {Projectile} */
-  const rocket = {
-    kind: 'rocket',
-    worldSpace: true,
-    from: m,
-    to: { x: pendingEnemyImpact.x + W, y: pendingEnemyImpact.y },
-    t0: t + 250,
-    dur: 1500,
-    peakLift: 380,
-    onLand: () => _impactEnemy(pendingEnemyImpact, pendingEnemyDmg),
-  };
-  projectiles.push(rocket);
+  // Per-unit shot plan : skeleton fires a 4-shot rafale of Projectile_1 (small
+  // missiles), cyclop fires a single Projectile_2 (chunky bomb with flashy
+  // trail), orc fires the current procedural red ball. See projectile_sprites.js.
+  const plan = planForUnit(payload?.unit_id);
+  const baseTarget = { x: pendingEnemyImpact.x + W, y: pendingEnemyImpact.y };
+  for (let i = 0; i < plan.count; i++) {
+    // Spread burst impacts a bit so they read as a strafing rafale, not a
+    // single point.
+    const jitter = plan.count > 1
+      ? { x: (Math.random() - 0.5) * 80, y: (Math.random() - 0.5) * 60 }
+      : { x: 0, y: 0 };
+    const target = { x: baseTarget.x + jitter.x, y: baseTarget.y + jitter.y };
+    const isLast = i === plan.count - 1;
+    /** @type {Projectile} */
+    const proj = {
+      kind: plan.kind,
+      worldSpace: true,
+      from: m,
+      to: target,
+      t0: t + 250 + i * plan.staggerMs,
+      dur: plan.durMs,
+      peakLift: plan.peakLift + (plan.count > 1 ? Math.random() * 80 - 40 : 0),
+      // Only the final projectile triggers the HP/damage impact ; earlier
+      // burst projectiles trigger a light visual splash via _spawnExplosion
+      // so the rafale reads on screen but doesn't multiply damage.
+      onLand: isLast
+        ? () => {
+            const sfx = IMPACT_SFX_BY_KIND[plan.kind] || 'SFX_IMPACT_ROCKET';
+            // HTMLAudioElement caps volume at 1.0; to push the impact
+            // loud enough above the chiptune we stack overlapping
+            // playbacks. Rafale gets the heaviest stack since the source
+            // sample is intrinsically quieter than the cannon.
+            playSfx(sfx, { volume: 1.0 });
+            setTimeout(() => playSfx(sfx, { volume: 1.0 }), 30);
+            if (sfx === 'SFX_IMPACT_RAFALE') {
+              setTimeout(() => playSfx(sfx, { volume: 1.0 }), 80);
+              setTimeout(() => playSfx(sfx, { volume: 0.9 }), 140);
+            }
+            _impactEnemy(pendingEnemyImpact, pendingEnemyDmg);
+          }
+        : (() => { _spawnExplosion(target.x - W, target.y, { heavy: false }); }),
+      // optional: store sprite size for renderer
+      _spriteSize: plan.size,
+    };
+    projectiles.push(proj);
+  }
 
   // Camera pan runs concurrently with the first ~73% of the rocket flight; the
   // last 400ms of the rocket arc descend onto the enemy castle in ENEMY view.
@@ -303,6 +551,11 @@ function _tick(now) {
     else if (remain < total * 0.6) tiltAngle *= 0.86;
   }
 
+  // Intro hook: after dwelling on ENEMY castle for 1500ms, pan to OURS while a
+  // raven flock crosses the screen toward our castle (per cinematic-spec).
+  if (step === 'intro_dwell' && now - stepT0 > 1500) {
+    _startIntroPanAndFlock();
+  }
   // After enemy impact, dwell ~1500ms to savor the destruction, then trigger
   // the enemy riposte (pan back → raven flock → impact OURS → dwell → cut).
   // This makes the gameplay loop feel like a real turn-based exchange.
@@ -318,10 +571,13 @@ function _tick(now) {
   // already in OURS view post pan-back).
   if (step === 'ours_dwell' && now - stepT0 > 1500) {
     step = 'idle';
-    emit('cut_to_interior', {
-      hp_self_after:  state.hp_self_pct,
-      hp_enemy_after: state.hp_enemy_pct,
-      units_destroyed_ids: pendingKills,
+    // Same await-tap beat as intro: wide overview → tap → zoom → interior.
+    _startDezoomToAwait(() => {
+      emit('cut_to_interior', {
+        hp_self_after:  state.hp_self_pct,
+        hp_enemy_after: state.hp_enemy_pct,
+        units_destroyed_ids: pendingKills,
+      });
     });
   }
 }
@@ -337,28 +593,38 @@ function _startEnemyRiposte() {
 }
 
 function _spawnEnemyRiposteFlock() {
-  const target = { x: CASTLE_X + CASTLE_W * 0.65, y: CASTLE_TOP_Y + 80 };
-  const dmgVal = 14 + Math.floor(Math.random() * 6);
+  // Trajectory shape (start point, duration, sine amplitude) is held nearly
+  // constant so the flock keeps a recognisable, repeated motion — only the
+  // landing point shifts. Targets come from OURS_IMPACT_CYCLE, shared with
+  // the intro raven, so consecutive enemy shots never cluster.
+  const target = _nextOursImpact();
+  // Enemy retaliation deals 42-50 dmg — combined with the 50-dmg intro bomb
+  // this brings blue to the fail-trigger threshold (≤10 HP) after just one
+  // retaliation, i.e. blue dies in ≤2 enemy moves total.
+  const dmgVal = 42 + Math.floor(Math.random() * 9);
   const t = performance.now();
   /** @type {Projectile} */
   const flock = {
     kind: 'flock',
-    from: { x: W + 100, y: 320 },
+    from: { x: W + 100, y: 280 },
     to: target,
     t0: t + 150,
-    dur: 1900,
+    dur: 1800,
     peakLift: 0,
     sinAmp: 50, sinFreq: 0, sinPhase: 0,
-    onLand: () => _routeOursImpact(target, dmgVal),
+    onLand: () => {
+      playSfx('SFX_RAVEN_POP', { volume: 0.8 });
+      _routeOursImpact(target, dmgVal);
+    },
   };
   projectiles.push(flock);
+  playSfx('SFX_RAVEN_CAW', { volume: 0.7 });
   // Set BEFORE _routeOursImpact runs — it dispatches via this step.
   step = 'cut_to_ours';
   stepT0 = performance.now();
 }
 
 function _impactEnemy(at, d) {
-  dmg.ENEMY.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
   state.hp_enemy_pct = Math.max(0, state.hp_enemy_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: true });
@@ -374,6 +640,7 @@ function _startExitTransition(endAction) {
   transitioning = true;
   transitionT0 = performance.now();
   transitionEndAction = endAction;
+  transitionEndFired = false;
 }
 
 function _emitCutToInterior() {
@@ -397,8 +664,9 @@ function _emitCutToInterior() {
 // (the original _impactOurs handles incoming-opening differently).
 const _origImpactOurs = _impactOurs;
 function _impactOursDuringResolve(at, d) {
-  dmg.OURS.push(_makeDamageZone(at.x, at.y, 50 + Math.random() * 14));
-  state.hp_self_pct = Math.max(30, state.hp_self_pct - d);  // never KO during ad
+  _oursAttacksTaken++;
+  // No floor — blue can reach 0 and trigger the fail screen naturally.
+  state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: false });
   triggerShake(11, 380);
@@ -417,7 +685,7 @@ function _routeOursImpact(at, d) {
     _impactOursDuringResolve(at, d);
   } else {
     // opening incoming
-    dmg.OURS.push(_makeDamageZone(at.x, at.y, 55));
+    _oursAttacksTaken++;
     state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
     floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
     _spawnExplosion(at.x, at.y, { heavy: true });
@@ -451,16 +719,27 @@ function loop() {
     sy = (Math.random() * 2 - 1) * shakeIntensity * decay;
   }
 
-  // Zoom transition (T1): scale around castle center with ease-in-out cubic.
-  // Punch-in to 2.4x; slight darkening at the very end (entering the castle's
-  // shadow). NO white flash — that was breaking the continuity to interior.
+  // Zoom transition (T1): "diving into the castle". An accelerating zoom punches
+  // forward into the keep while a circular iris closes around the muzzle/door.
+  // The iris reaches full black just before the scene swap, so the cut is
+  // hidden behind the vignette — what the viewer perceives is a continuous
+  // plunge through the castle wall, not a hard cut.
   let zoomScale = 1;
-  let dimAlpha = 0;
+  let irisProgress = 0;       // 0 = open, 1 = fully closed (black)
+  let radialSpeedAlpha = 0;   // alpha of radial streaks during mid-dive
   if (transitioning) {
     const tn = Math.min(1, (now - transitionT0) / TRANSITION_DUR);
-    const eased = tn < 0.5 ? 4 * tn * tn * tn : 1 - Math.pow(-2 * tn + 2, 3) / 2;
-    zoomScale = 1 + eased * 1.4;              // 1 → 2.4
-    dimAlpha = Math.max(0, tn - 0.65) / 0.35 * 0.5; // last 35%: dim 0 → 0.5
+    // ease-in pow 2.6 — accelerates aggressively near the end (dive feel).
+    const easedZoom = Math.pow(tn, 2.6);
+    zoomScale = 1 + easedZoom * 4.0;          // 1 → 5.0x: real punch-through
+    // Iris stays open ~40%, then closes hard over the last 60% (ease-in cubic).
+    const irisRaw = Math.max(0, (tn - 0.40) / 0.60);
+    irisProgress = irisRaw * irisRaw * irisRaw;
+    // Radial speed-lines peak in the middle of the dive (40-85%).
+    if (tn > 0.40 && tn < 0.92) {
+      const k = (tn - 0.40) / 0.52;
+      radialSpeedAlpha = Math.sin(k * Math.PI) * 0.35;
+    }
   }
 
   // Whip pan (T2): horizontal slide between two castle "slots".
@@ -502,7 +781,60 @@ function loop() {
   ctx.save(); ctx.translate(bgPanMid,  0); _drawForestNear(ctx); ctx.restore();
   ctx.save(); ctx.translate(bgPanNear, 0); _drawGround(ctx);     ctx.restore();
 
-  if (viewTransition) {
+  // Overview-tap beat (4 phases). overviewT ∈ [0, 1] where 0 = full wide
+  // (scale 0.55, both castles spread) and 1 = full close (scale 1.0, OURS
+  // only — identical to the default render path so a frame at 1 is pixel-
+  // equivalent to no overview at all).
+  //   dezoom   : 1 → 0 over DEZOOM_DUR — smooth entry into wide
+  //   await    : stays at 0 — hand prompt visible, listening for tap
+  //   zoom-in  : 0 → 1 over ZOOM_IN_DUR — chains into the dive iris
+  // On zoom-in completion we fire _startExitTransition so the iris+punch
+  // zoom (1.0→5.0×) takes over from where zoom-in landed (1.0). The two
+  // are visually continuous — one accelerating dive 0.55 → 1.0 → 5.0.
+  let overviewT = -1;
+  if (dezoomT0 > 0) {
+    const k = Math.min(1, (now - dezoomT0) / DEZOOM_DUR);
+    const eased = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    overviewT = 1 - eased;
+    if (k >= 1) {
+      dezoomT0 = 0;
+      if (_freezeOverview) {
+        // End of game: stay in wide overview so the fail/win screen lands
+        // with both castles visible. Script subscribes to this event.
+        _freezeOverview = false;
+        emit('reached_frozen_overview', null);
+      } else {
+        // Normal turn boundary: skip the awaitingTap pause and zoom back in.
+        zoomInT0 = now;
+      }
+    }
+  } else if (awaitingTap) {
+    overviewT = 0;
+  } else if (zoomInT0 > 0) {
+    const k = Math.min(1, (now - zoomInT0) / ZOOM_IN_DUR);
+    overviewT = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    if (k >= 1) {
+      zoomInT0 = 0;
+      const action = pendingTapAction;
+      pendingTapAction = null;
+      if (action) _startExitTransition(action);
+    }
+  }
+
+  if (overviewT >= 0) {
+    const scale = OVERVIEW_SCALE + (1 - OVERVIEW_SCALE) * overviewT;
+    const dxOurs  = OVERVIEW_OURS_DX  * (1 - overviewT);
+    const dxEnemy = OVERVIEW_ENEMY_DX + (W * 1.6 - OVERVIEW_ENEMY_DX) * overviewT;
+    const cx = W / 2, cy = BASE_Y - 40;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+    // Draw enemy first so OURS reads on top when they overlap during zoom.
+    _drawCastleSlot(ctx, 'ENEMY', dxEnemy);
+    _drawCastleSlot(ctx, 'OURS',  dxOurs);
+    ctx.restore();
+  } else if (viewTransition) {
     // Render BOTH castles side-by-side. fromView at offset -panOffset, toView at +W-panOffset.
     const dxFrom = -panOffset;
     const dxTo   = (viewTransition.dir > 0 ? W : -W) - panOffset;
@@ -534,20 +866,93 @@ function loop() {
 
   ctx.restore();
 
-  if (dimAlpha > 0) {
-    ctx.fillStyle = `rgba(0,0,0,${dimAlpha})`;
-    ctx.fillRect(0, 0, W, H);
+  // Radial speed-lines from castle center outward — sells the dive velocity.
+  if (radialSpeedAlpha > 0) {
+    const cx = W / 2, cy = BASE_Y - 40;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = `rgba(255,250,235,${radialSpeedAlpha})`;
+    ctx.lineWidth = 2.5;
+    const N = 26;
+    const innerR = 80;
+    const outerR = Math.hypot(W, H);
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + (now / 600);
+      const c = Math.cos(a), s = Math.sin(a);
+      ctx.beginPath();
+      ctx.moveTo(c * innerR, s * innerR);
+      ctx.lineTo(c * outerR, s * outerR);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Iris-out: circular black mask shrinking toward zero radius around the
+  // castle keep. When irisProgress reaches 1 the screen is fully black, which
+  // is when we hand off to interior — masking the swap entirely.
+  if (irisProgress > 0) {
+    const cx = W / 2, cy = BASE_Y - 40;
+    const maxR = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+    // Start radius covers the screen; closes to 0 as progress→1.
+    const r = maxR * (1 - irisProgress);
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    // Black ring filled by even-odd: outer rect minus inner circle.
+    ctx.rect(0, 0, W, H);
+    ctx.moveTo(cx + r, cy);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.restore();
   }
 
   drawTopHud(ctx);
   drawScriptOverlay(ctx, now / 1000);
+  // Hide the "tap blue castle" hand whenever the fail screen owns the screen —
+  // only one hand cursor must be visible at a time, and the fail screen's
+  // PLAY-NOW hand wins.
+  if (awaitingTap && !isFailScreenShown()) _drawTapPrompt(ctx, now / 1000);
 
+  // Fire the end action once the iris is fully closed (~92% of duration) so
+  // the actual scene swap is hidden behind black. Then keep drawing exterior
+  // until TRANSITION_DUR elapses (visible==false flips and the loop stops on
+  // its own once interior takes over).
+  if (transitioning && !transitionEndFired) {
+    const tn = (now - transitionT0) / TRANSITION_DUR;
+    if (tn >= 0.92) {
+      transitionEndFired = true;
+      const endAction = transitionEndAction;
+      transitionEndAction = null;
+      if (endAction) endAction();
+    }
+  }
   if (transitioning && (now - transitionT0) >= TRANSITION_DUR) {
     transitioning = false;
-    const endAction = transitionEndAction;
-    transitionEndAction = null;
-    if (endAction) endAction();
   }
+}
+
+// Tap-to-zoom prompt: pulsing ring + Kenney hand pointer over OURS in wide.
+// In overview the OURS castle centre lands at screen X = W/2 + (OURS_DX * SCALE).
+function _drawTapPrompt(ctx, t_sec) {
+  const cx = W / 2 + OVERVIEW_OURS_DX * OVERVIEW_SCALE;
+  const cy = BASE_Y - 40 - 60;  // above the castle silhouette
+  const pulse = 0.5 + 0.5 * Math.sin(t_sec * 2 * Math.PI * 1.4);
+  const ringR = 38 + pulse * 18;
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,255,255,${0.35 + 0.45 * (1 - pulse)})`;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+  if (isImageReady('HAND_POINTER')) {
+    const img = getImage('HAND_POINTER');
+    const HAND_SIZE = 92;
+    ctx.translate(cx, cy);
+    ctx.rotate(-0.18);
+    ctx.translate(10, 34);   // tip-anchor offset
+    ctx.drawImage(img, -HAND_SIZE / 2, -HAND_SIZE / 2, HAND_SIZE, HAND_SIZE);
+  }
+  ctx.restore();
 }
 
 function _computeEnemyRecoil(now) {
@@ -578,7 +983,6 @@ function _drawCastleSlot(ctx, viewMode, dx) {
   }
   ctx.translate(dx + dxExtra, 0);
   _drawCastleWithBase(ctx, viewMode);
-  _drawDamageMasks(ctx, viewMode === 'OURS' ? dmg.OURS : dmg.ENEMY);
   ctx.restore();
   _treadScrollOffset = 0;
 }
@@ -587,6 +991,11 @@ function _drawCastleSlot(ctx, viewMode, dx) {
 // Background extends [-W .. +2W] so horizontal pan never reveals an edge.
 const BG_X0 = -W;
 const BG_W  = 3 * W;
+
+export function drawSky(ctx) { return _drawSky(ctx); }
+export function drawHillsFar(ctx) { return _drawHillsFar(ctx); }
+export function drawForestNear(ctx) { return _drawForestNear(ctx); }
+export function drawGround(ctx) { return _drawGround(ctx); }
 
 function _drawSky(ctx) {
   // Misty teal-to-pale-green à la source (sec_01, sec_08).
@@ -640,31 +1049,137 @@ function _drawForestNear(ctx) {
 }
 
 function _drawGround(ctx) {
-  // Curved grass top edge (organic).
-  ctx.fillStyle = '#7CA055';
+  // Source-frame inspection (clip1 blue side vs clip2 red side):
+  //   • OURS  view (blue castle): plain muted green ground, two soft bands
+  //     (#668F56 over #466B3F), no scalloped red dirt anywhere.
+  //   • ENEMY view (red castle):  three-layer stack with the dramatic
+  //     scarlet deep-dirt slab and scalloped soil/dirt boundaries.
+  // The red slab only belongs to the enemy frame — drawing it under the
+  // blue castle reads as "wrong terrain" and was the user's complaint.
+  // Default to the plain green source-style ground everywhere — the red
+  // scalloped dirt only appears in the source during a tight close-up on
+  // the red castle, which our pan/wide cinematography never reaches, so
+  // surfacing it elsewhere just reads as wrong terrain.
+  return _drawGroundOurs(ctx);
+}
+
+function _drawGroundOurs(ctx) {
+  // Soft grass turf — a single muted-green base with a vertical gradient from
+  // lighter front-grass (#668F56) into deeper shadow (#3F5D38), no hard
+  // separator stroke. The deterministic grass tufts dotted along the upper
+  // band keep it from reading as a flat rectangle once the castles cover it.
+  // Anchor at HORIZON_Y + 78 so the green band overlaps the bottom of the
+  // hill polygons (which end at HORIZON_Y + 80). The canvas is never cleared
+  // between frames, so any leftover gap accumulates trail/debris specks into
+  // a permanent stripe at that Y — covering it is what kills the artifact.
+  const GRASS_TOP = HORIZON_Y + 78;
+  const grad = ctx.createLinearGradient(0, GRASS_TOP, 0, H);
+  grad.addColorStop(0,    '#6F9658');
+  grad.addColorStop(0.35, '#5C8449');
+  grad.addColorStop(1,    '#3F5D38');
+  ctx.fillStyle = grad;
+  ctx.fillRect(BG_X0, GRASS_TOP, BG_W, H - GRASS_TOP);
+
+  // Tiny grass tufts for texture — deterministic positions tied to x so they
+  // don't shimmer during the horizontal pan.
+  ctx.fillStyle = 'rgba(46, 70, 38, 0.55)';
+  for (let i = 0; i < 110; i++) {
+    const x = BG_X0 + ((i * 173) % BG_W);
+    const y = GRASS_TOP + 6 + ((i * 53) % 22);
+    const w = 3 + ((i * 7) % 3);
+    const h = 2 + ((i * 11) % 2);
+    ctx.fillRect(x, y, w, h);
+  }
+  // A second, brighter tuft pass closer to the foreground for parallax depth.
+  ctx.fillStyle = 'rgba(140, 174, 116, 0.45)';
+  for (let i = 0; i < 80; i++) {
+    const x = BG_X0 + ((i * 233) % BG_W);
+    const y = GRASS_TOP + 26 + ((i * 47) % 80);
+    ctx.fillRect(x, y, 4, 2);
+  }
+}
+
+function _drawGroundEnemy(ctx) {
+  // Three layers (turf → topsoil → deep dirt) with wide scalloped lower edges
+  // and a uniform dark-brown outline on every horizontal boundary —
+  // matching the source's vector-cartoon stack on the red/enemy side.
+  // Palette + proportions sampled from clip2_t0 vertical scan:
+  //   grass #5F8C4D, topsoil #763E2E, deep dirt #7C241D, outline #3E2817
+  const GRASS_TOP = HORIZON_Y + 92;
+  const SOIL_TOP  = HORIZON_Y + 108;
+  const DEEP_TOP  = HORIZON_Y + 132;
+  const BUMP_R    = 14;
+  const STROKE_W  = 1.5;
+  const STROKE    = '#3E2817';
+
+  // Generate one polyline of arc points for a scalloped boundary running
+  // left→right, starting and ending on baseY. Points are sampled along each
+  // semicircle so a single ctx.beginPath() + lineTo loop traces a clean,
+  // non-intersecting curve. Returns the array of {x, y} points.
+  const scallopPoints = (baseY, r, x0, x1) => {
+    const pts = [];
+    const stepsPerArc = 12;
+    for (let cx = x0 + r; cx < x1 + r; cx += 2 * r) {
+      // Down-bump: y = baseY + r * sin(theta), x = cx - r*cos(theta)
+      // theta from 0 → PI sweeps the bottom of a circle from left tangent to right tangent
+      for (let i = 0; i <= stepsPerArc; i++) {
+        const t = (i / stepsPerArc) * Math.PI;
+        pts.push({ x: cx - r * Math.cos(t), y: baseY + r * Math.sin(t) });
+      }
+    }
+    return pts;
+  };
+
+  const x0 = BG_X0, x1 = BG_X0 + BG_W;
+  const grassEdge = scallopPoints(SOIL_TOP, BUMP_R, x0, x1);
+  const soilEdge  = scallopPoints(DEEP_TOP, BUMP_R, x0, x1);
+
+  // ── Layer 3 (deep brick-red dirt) — bottom slab, completely flat.
+  ctx.fillStyle = '#7C241D';
+  ctx.fillRect(x0, DEEP_TOP, BG_W, H - DEEP_TOP);
+
+  // ── Layer 2 (topsoil) — fill bounded by SOIL_TOP and the soilEdge scallops.
   ctx.beginPath();
-  ctx.moveTo(BG_X0, H);
-  ctx.lineTo(BG_X0, HORIZON_Y + 90);
-  for (let x = BG_X0; x <= BG_X0 + BG_W; x += 8) {
-    const y = HORIZON_Y + 90 - 6 * Math.sin(x * 0.025);
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(BG_X0 + BG_W, H);
+  ctx.moveTo(x0, SOIL_TOP);
+  ctx.lineTo(x1, SOIL_TOP);
+  ctx.lineTo(x1, DEEP_TOP);
+  for (let i = soilEdge.length - 1; i >= 0; i--) ctx.lineTo(soilEdge[i].x, soilEdge[i].y);
+  ctx.lineTo(x0, DEEP_TOP);
   ctx.closePath();
+  ctx.fillStyle = '#763E2E';
   ctx.fill();
-  // grass-to-dirt transition strip
-  ctx.fillStyle = '#5C7A3C';
-  ctx.fillRect(BG_X0, HORIZON_Y + 100, BG_W, 6);
-  // wet red-brown dirt (deep)
-  const dy = HORIZON_Y + 106;
-  ctx.fillStyle = '#3B1A1A';
-  ctx.fillRect(BG_X0, dy, BG_W, H - dy);
-  // dirt streaks
-  ctx.fillStyle = 'rgba(155,40,40,0.32)';
-  for (let i = 0; i < 54; i++) {
-    const x = BG_X0 + ((i * 41) % BG_W);
-    ctx.fillRect(x, dy, 2, 90);
-  }
+
+  // ── Layer 1 (grass turf) — fill bounded by GRASS_TOP and the grassEdge scallops.
+  ctx.beginPath();
+  ctx.moveTo(x0, GRASS_TOP);
+  ctx.lineTo(x1, GRASS_TOP);
+  ctx.lineTo(x1, SOIL_TOP);
+  for (let i = grassEdge.length - 1; i >= 0; i--) ctx.lineTo(grassEdge[i].x, grassEdge[i].y);
+  ctx.lineTo(x0, SOIL_TOP);
+  ctx.closePath();
+  ctx.fillStyle = '#5F8C4D';
+  ctx.fill();
+
+  // ── Outlines: uniform 2.5 px dark brown on grass top, grass-soil edge,
+  // and soil-deep edge. lineJoin=round keeps the cusps clean.
+  ctx.lineWidth = STROKE_W;
+  ctx.strokeStyle = STROKE;
+  ctx.lineJoin = 'round';
+  ctx.lineCap  = 'round';
+  // Grass top edge
+  ctx.beginPath();
+  ctx.moveTo(x0, GRASS_TOP); ctx.lineTo(x1, GRASS_TOP);
+  ctx.stroke();
+  // Grass→soil scalloped edge
+  ctx.beginPath();
+  ctx.moveTo(grassEdge[0].x, grassEdge[0].y);
+  for (let i = 1; i < grassEdge.length; i++) ctx.lineTo(grassEdge[i].x, grassEdge[i].y);
+  ctx.stroke();
+  // Soil→deep scalloped edge
+  ctx.beginPath();
+  ctx.moveTo(soilEdge[0].x, soilEdge[0].y);
+  for (let i = 1; i < soilEdge.length; i++) ctx.lineTo(soilEdge[i].x, soilEdge[i].y);
+  ctx.stroke();
 }
 
 // ── Drawing — castle + base ──────────────────────────────────────────────────
@@ -680,9 +1195,18 @@ function _drawCastleWithBase(ctx, viewMode) {
     ctx.rotate(tiltAngle);
     ctx.translate(-cx, -cy);
   }
-  _drawCastle(ctx, viewMode);
-  _drawBase(ctx);
-  _drawTreads(ctx);
+  const v = viewMode || view;
+  // PNG-tier mode bakes treads + base directly into the sprite; skip our
+  // procedural base/treads to avoid doubling. Both sides use the same logic
+  // — only the asset key prefix differs (CASTLE_BLUE_* vs CASTLE_*).
+  const tierPng = _damagePng(v);
+  if (tierPng) {
+    _drawDamagePng(ctx, tierPng);
+  } else {
+    _drawCastle(ctx, viewMode);
+    _drawBase(ctx);
+    _drawTreads(ctx, viewMode);
+  }
   ctx.restore();
 }
 
@@ -696,6 +1220,26 @@ function _drawCastle(ctx, viewMode) {
     ctx.fillStyle = v === 'OURS' ? '#3D6FA8' : '#9B2E29';
     ctx.fillRect(CASTLE_X, CASTLE_TOP_Y, CASTLE_W, CASTLE_H);
   }
+}
+
+// Damage-tier PNG renderer (both OURS and ENEMY). Sprite content is normalized
+// to a known height (CASTLE_H + base + treads bakery) and anchored on the same
+// ground line as the procedural base would be.
+function _drawDamagePng(ctx, img) {
+  const { minY, contentH } = _getContentBounds(img);
+  // Total castle+base+treads area in our screen layout: CASTLE_TOP_Y to
+  // BASE_Y + BASE_H + TREAD_H ≈ from CASTLE_H + base/tread band. Map the
+  // sprite's content height to that whole footprint so the sprite's chenilles
+  // sit on the ground line.
+  const targetH = CASTLE_H + BASE_H + TREAD_H - 6;
+  const scale = targetH / contentH;
+  const targetW = img.naturalWidth * scale;
+  const dx = (W - targetW) / 2;
+  const dy = (BASE_Y + BASE_H + TREAD_H - 6) - targetH - minY * scale;
+  ctx.drawImage(img,
+    0, 0, img.naturalWidth, img.naturalHeight,
+    dx, dy, targetW, img.naturalHeight * scale,
+  );
 }
 
 function _drawBase(ctx) {
@@ -725,85 +1269,32 @@ function _drawBase(ctx) {
   ctx.strokeRect(x, BASE_Y, w, BASE_H);
 }
 
-function _drawTreads(ctx) {
-  const xs = [W / 2 - 110, W / 2 + 110];
-  for (const cx of xs) {
-    const tw = 150;
-    const x = cx - tw / 2;
-    ctx.fillStyle = '#1F1F1F';
-    ctx.fillRect(x, TREAD_Y, tw, TREAD_H);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x, TREAD_Y, tw, TREAD_H);
-    ctx.clip();
-    ctx.fillStyle = '#3A3A3A';
-    // Treads scroll with castle motion (rolling-without-slipping fakery).
-    // Scroll +dx in cart frame so visible top teeth shift right as castle rolls right.
-    const off = _treadScrollOffset * 1.6;
-    const startI = Math.floor(off / 14) * 14 - 14;
-    for (let i = startI; i < tw + 14; i += 14) {
-      ctx.fillRect(x + i + 2 - off, TREAD_Y + 5, 10, TREAD_H - 10);
-    }
-    ctx.restore();
-    ctx.fillStyle = '#7C7368';
-    for (const wx of [x + 18, x + tw - 18, x + tw / 2]) {
-      ctx.beginPath();
-      ctx.arc(wx, TREAD_Y + TREAD_H / 2, 9, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, TREAD_Y, tw, TREAD_H);
-  }
+function _drawTreads(ctx, viewMode) {
+  // The source castle rides on TWO separate treads (one under each tower)
+  // with arches + greenery visible between them, not a single full-width
+  // monster tread. Each unit is sized at ~36% of the castle width.
+  const v = viewMode || view;
+  // Both sides use the TREAD_ENEMY sprite — it matches the treads baked
+  // into the red damage-tier PNGs (CASTLE_75/50/25), so the intact and
+  // damaged states stay visually consistent across both castles.
+  void v;
+  const img = getImage('TREAD_ENEMY');
+  if (!img || !img.width) return;
+
+  const tw = Math.round(CASTLE_W * 0.42);
+  const th = tw * (img.height / img.width);
+  // Top edge of the spikes sits ~12 px above the wood base so the wood
+  // overlaps the spike row a tiny bit (matches the source).
+  const y  = TREAD_Y - 12;
+  // Centres of the two treads — placed under each main tower.
+  const cxL = CASTLE_X + Math.round(CASTLE_W * 0.22);
+  const cxR = CASTLE_X + Math.round(CASTLE_W * 0.78);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, cxL - tw / 2, y, tw, th);
+  ctx.drawImage(img, cxR - tw / 2, y, tw, th);
 }
 
-// ── Drawing — damage / projectiles / floats ──────────────────────────────────
-function _drawDamageMasks(ctx, zones) {
-  if (!zones.length) return;
-  ctx.save();
-  for (const z of zones) {
-    // Hard-edged jagged hole revealing dark interior.
-    ctx.fillStyle = '#0E0E10';
-    ctx.beginPath();
-    ctx.moveTo(z.poly[0][0], z.poly[0][1]);
-    for (let i = 1; i < z.poly.length; i++) {
-      ctx.lineTo(z.poly[i][0], z.poly[i][1]);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Inner ragged edge (slightly darker rim)
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#000';
-    ctx.stroke();
-
-    // Crack rays extending outward from the centre
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    for (const [cx, cy] of z.cracks) {
-      ctx.beginPath();
-      ctx.moveTo(z.x, z.y);
-      // Slight zig-zag along the crack
-      const mx = (z.x + cx) / 2 + (cy - z.y) * 0.08;
-      const my = (z.y + cy) / 2 - (cx - z.x) * 0.08;
-      ctx.lineTo(mx, my);
-      ctx.lineTo(cx, cy);
-      ctx.stroke();
-    }
-
-    // Small stone chunks scattered just outside the hole
-    ctx.fillStyle = '#7C7368';
-    for (let k = 0; k < 6; k++) {
-      const a = Math.PI * 2 * (k / 6) + (z.x % 1);
-      const rr = z.r * 1.05 + (k * 5) % 14;
-      const px = z.x + Math.cos(a) * rr;
-      const py = z.y + Math.sin(a) * rr;
-      ctx.fillRect(px, py, 5 + (k % 3) * 2, 4 + ((k * 3) % 3));
-    }
-  }
-  ctx.restore();
-}
+// ── Drawing — projectiles / floats ───────────────────────────────────────────
 
 function _drawProjectiles(ctx, now, viewOffset = 0) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -829,6 +1320,27 @@ function _drawProjectiles(ctx, now, viewOffset = 0) {
     }
     const pos = _arc(p.from, p.to, t, p.peakLift);
     const ang = _arcAngle(p.from, p.to, t, p.peakLift);
+
+    if (p._lastTrailMs == null) p._lastTrailMs = -Infinity;
+    if (now - p._lastTrailMs >= TRAIL_EVERY_MS) {
+      p._lastTrailMs = now;
+      if (p.kind === 'flock') {
+        const u = Math.max(0, Math.min(1, (now - p.t0) / p.dur));
+        const dxF = p.to.x - p.from.x, dyF = p.to.y - p.from.y;
+        const dir = dxF < 0 ? -1 : 1;
+        const half = (p.spreadPx ?? 70) / 2;
+        const sinHalf = p.sinHalfCycles ?? 3;
+        const sinAmpF = p.sinAmp ?? 50;
+        const baseX = p.from.x + dxF * u, baseY = p.from.y + dyF * u;
+        const offset = Math.sin(u * Math.PI * sinHalf) * sinAmpF;
+        const flightAng = Math.atan2(dyF, dxF);
+        _emitTrailParticle('raven', baseX + dir * half + dx_screen, baseY + offset, flightAng, now);
+        _emitTrailParticle('raven', baseX - dir * half + dx_screen, baseY - offset, flightAng, now);
+      } else {
+        _emitTrailParticle(p.kind, pos.x + dx_screen, pos.y, ang, now);
+      }
+    }
+
     if (p.kind === 'flock') {
       drawRavenFlock(ctx, now - p.t0, {
         from: p.from, to: p.to, durMs: p.dur,
@@ -840,6 +1352,8 @@ function _drawProjectiles(ctx, now, viewOffset = 0) {
       });
     }
     else if (p.kind === 'rocket') _drawRocketSprite(ctx, pos.x + dx_screen, pos.y, ang, 36);
+    else if (p.kind === 'rocket_p1') drawProjectileP1(ctx, pos.x + dx_screen, pos.y, ang, p._spriteSize ?? 30);
+    else if (p.kind === 'bomb_p2')   drawProjectileP2(ctx, pos.x + dx_screen, pos.y, ang, p._spriteSize ?? 44);
     else if (p.kind === 'bomb') _drawBombSprite(ctx, pos.x + dx_screen, pos.y, ang);
   }
 }
@@ -868,6 +1382,7 @@ function _drawRocketSprite(ctx, x, y, ang, size) {
     ctx.drawImage(getImage('ROCKET'), -size / 2, -size / 2, size, size);
     ctx.restore();
   } else {
+    getImage('ROCKET'); // kick the lazy load
     ctx.fillStyle = '#C44';
     ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
   }
@@ -890,6 +1405,7 @@ function _drawBombSprite(ctx, x, y, ang) {
     ctx.drawImage(getImage('BOMB'), -size / 2, -size / 2, size, size);
     ctx.restore();
   } else {
+    getImage('BOMB'); // kick the lazy load
     ctx.fillStyle = '#222';
     ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
   }
@@ -959,6 +1475,37 @@ function _drawParticles(ctx, now) {
       grad.addColorStop(1, 'rgba(40,36,32,0)');
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'trail_core') {
+      const r = p.size * (0.7 + age * 0.6);
+      ctx.globalAlpha = Math.min(1, fade * 0.70);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = fade * 0.22;
+      ctx.fillStyle = '#FFD08A';
+      ctx.beginPath(); ctx.arc(px, py, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'trail_puff') {
+      const r = p.size * (1 + p.sizeGrow * age);
+      ctx.globalAlpha = fade * 0.38;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+      const ddx = (((px * 13.37) | 0) % 7) - 3;
+      const ddy = (((py * 7.91) | 0) % 7) - 3;
+      ctx.globalAlpha = fade * 0.22;
+      ctx.beginPath(); ctx.arc(px + ddx, py + ddy, r * 0.7, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'trail_wave') {
+      const phase = (p.rot || 0) + (p.rotSpeed || 0) * dt;
+      const ax = Math.sin(phase) * (p.driftAmp || 0) * fade;
+      const wx = px + (p.driftAxisX || 0) * ax;
+      const wy = py + (p.driftAxisY || 0) * ax;
+      const r = p.size * (1 + p.sizeGrow * age);
+      const a = (age < 0.15 ? age / 0.15 : 1) * fade * 0.28;
+      ctx.globalAlpha = a;
+      const grad = ctx.createRadialGradient(wx, wy, 0, wx, wy, r);
+      grad.addColorStop(0,   'rgba(60,60,60,1)');
+      grad.addColorStop(0.7, 'rgba(40,40,40,0.6)');
+      grad.addColorStop(1,   'rgba(30,30,30,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(wx, wy, r, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.restore();

@@ -15,6 +15,7 @@ import { drawRipStones } from './rip.js';
 import { getActiveFloor, getActiveUnitId } from './turn.js';
 import { drawTopHud } from '../shared/hud_top.js';
 import { drawScriptOverlay } from '../playable/script.js';
+import { drawSky } from '../scene_exterior/index.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -31,6 +32,42 @@ let entranceT0 = 0;
 const ENTRANCE_DUR = 700;
 
 const TILT_EASE = 0.06;
+
+// Compact horizon band painted between the top HUD (y≈76) and the castle top
+// (y≈170). Three layers of organic hills + a forest-lump strip, palette
+// matching scene_exterior's _drawHillsFar / _drawForestNear so the interior
+// reads as "looking out from the same valley" instead of a flat sky.
+/** @param {CanvasRenderingContext2D} ctx @param {number} W */
+function _drawInteriorHorizonBand(ctx, W) {
+  const HORIZON = 158;
+  const layers = [
+    { color: '#7FA38E', amp: 8,  period: 220, dy: -38 },
+    { color: '#5C8775', amp: 12, period: 160, dy: -22 },
+    { color: '#3F6555', amp: 9,  period: 110, dy: -8  },
+  ];
+  for (const L of layers) {
+    ctx.fillStyle = L.color;
+    ctx.beginPath();
+    ctx.moveTo(0, HORIZON);
+    for (let x = 0; x <= W; x += 4) {
+      const y = HORIZON + L.dy - L.amp * Math.sin((x / L.period) * Math.PI * 2);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, HORIZON);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Forest lump strip just above the castle line.
+  ctx.fillStyle = '#2C5443';
+  const N = 18;
+  for (let i = 0; i < N; i++) {
+    const cx = (i / N) * W + ((i * 31) % 24);
+    const cy = HORIZON - 4 + ((i * 17) % 6);
+    const r = 9 + ((i * 7) % 5);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + r * 0.7, cy + 2, r * 0.7, 0, Math.PI * 2); ctx.fill();
+  }
+}
 
 /** @param {number} hp_pct */
 function targetTiltFor(hp_pct) {
@@ -58,7 +95,13 @@ export function mount(c) {
   subscribe((s) => {
     const wasVisible = visible;
     visible = (s === 'INTERIOR_AIM');
-    if (visible && !wasVisible) entranceT0 = performance.now();
+    if (visible && !wasVisible) {
+      entranceT0 = performance.now();
+      // Snap upright on entry: the cut-in cinematic should land on a
+      // straight castle, not mid-tangue. Tilt resumes easing toward its
+      // hp-based target after the entrance window.
+      currentTilt = 0;
+    }
     if (visible && !rafId) loop();
   });
 }
@@ -70,22 +113,33 @@ function loop() {
 
   const t = performance.now() / 1000;
 
-  const targetTilt = targetTiltFor(state.hp_self_pct);
-  currentTilt += (targetTilt - currentTilt) * TILT_EASE;
+  // Interior cross-section stays upright at all times — the lean is a
+  // gameplay cue reserved for the exterior view. Damage still reads via
+  // damage_level (cracked bricks, missing top ledge, etc.).
+  currentTilt = 0;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
-  ctx.fillStyle = '#88CCAA';
+  // Atmospheric bg coherent with exterior. The castle covers y≈170..820,
+  // so the parallax skyline only has ~90px of vertical real estate visible
+  // (between HUD bottom y≈70 and castle top y≈170). drawSky fills the full
+  // gradient; on top of that we paint a compact horizon band — distant
+  // hills (sine), midground hills (taller sine), forest lumps — using the
+  // same palette as the exterior so the eye reads "same valley".
+  drawSky(ctx);
+  _drawInteriorHorizonBand(ctx, canvas.width);
+  ctx.fillStyle = 'rgba(15,20,30,0.16)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Entrance zoom-in: scale 1.45 → 1.0 around castle center over ENTRANCE_DUR.
-  // Cubic ease-out so the de-zoom snaps in early then settles.
+  // Entrance zoom-in: scale 1.20 → 1.0 around castle center over ENTRANCE_DUR.
+  // Lighter punch-in (was 1.45) so the bg layers stay visible around the
+  // castle and the transition reads as "same valley, closer view".
   const eAge = (performance.now() - entranceT0) / ENTRANCE_DUR;
   const eOn = entranceT0 > 0 && eAge < 1;
   let eDimAlpha = 0;
   if (eOn) {
     const k = 1 - Math.min(1, Math.max(0, eAge));
     const easeOut = 1 - Math.pow(k, 3);
-    const scale = 1 + (1 - easeOut) * 0.45;     // 1.45 → 1.0
+    const scale = 1 + (1 - easeOut) * 0.20;     // 1.20 → 1.0
     const cx = canvas.width / 2, cy = canvas.height * 0.62;
     ctx.save();
     ctx.translate(cx, cy);
@@ -107,6 +161,23 @@ function loop() {
     if (eDimAlpha > 0) {
       ctx.fillStyle = `rgba(0,0,0,${eDimAlpha})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    // Iris-in (matches exterior iris-out): start fully closed, open over the
+    // first ~45% of the entrance window so the cut from exterior is masked.
+    const irisK = Math.min(1, eAge / 0.45);
+    if (irisK < 1) {
+      const cx = canvas.width / 2, cy = canvas.height * 0.62;
+      const maxR = Math.hypot(Math.max(cx, canvas.width - cx),
+                              Math.max(cy, canvas.height - cy));
+      const r = maxR * irisK;
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.moveTo(cx + r, cy);
+      ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+      ctx.restore();
     }
   }
 

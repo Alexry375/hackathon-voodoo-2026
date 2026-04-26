@@ -15,15 +15,36 @@ const ASSETS = {
   // castles
   BLUE_CASTLE: ['assets_unpack/Blue Castle.png',  'image/png'],
   RED_CASTLE:  ['assets_unpack/Red Castle.png',   'image/png'],
+  // castle damage tiers (Seb's branch — replaces overlay system)
+  CASTLE_75:        ['castles/castle-75.png',         'image/png'],
+  CASTLE_50:        ['castles/castle-50.png',         'image/png'],
+  CASTLE_25:        ['castles/castle-25.png',         'image/png'],
+  CASTLE_BLUE_75:   ['castles/castle-blue-75.png',    'image/png'],
+  CASTLE_BLUE_50:   ['castles/castle-blue-50.png',    'image/png'],
+  CASTLE_BLUE_25:   ['castles/castle-blue-25.png',    'image/png'],
   // projectiles
   ROCKET:     ['assets_unpack/Projectile_1.png',  'image/png'],
   BOMB:       ['assets_unpack/Projectile_2.png',  'image/png'],
-  // weapons
-  BAZOOKA:    ['assets_unpack/Weapon_1.png',      'image/png'],
-  CANNON:     ['assets_unpack/Weapon_2.png',      'image/png'],
-  // audio
+  // mob-held weapons — source-video assets for skeleton (Weapon_1) + cyclop
+  // (Weapon_2). Orc keeps the Snoops multibarrel since no source asset exists.
+  WEAPON_SKELETON: ['assets_unpack/Weapon_1.png',                                  'image/png'],
+  WEAPON_CYCLOP:   ['assets_unpack/Weapon_2.png',                                  'image/png'],
+  WEAPON_ORC:      ['weapon_assets/candidates/skeleton/snoops_3_multibarrel.png',  'image/png'],
+  // tank treads (extracted from B01.mp4 + rembg)
+  TREAD_OURS:      ['treads/tread_ours.png',  'image/png'],
+  TREAD_ENEMY:     ['treads/tread_enemy.png', 'image/png'],
+  // audio — legacy
   MUSIC:      ['assets_unpack/Music.ogg',         'audio/ogg'],
-  SFX:        ['assets_unpack/Sfx.wav',           'audio/wav'],
+  SFX:        ['assets_unpack/Sfx.wav',           'audio/wav'], // rocket firing (cyclop + orc)
+  // audio — sourced via sub-agents (CC0 mix of OGA / Kenney / Freesound)
+  MUSIC_LOOP:        ['audio_assets/music/castle_stage_loop.ogg',         'audio/ogg'],
+  SFX_FIRE_RAFALE:   ['audio_assets/weapons/skeleton_rafale.ogg',         'audio/ogg'],
+  SFX_IMPACT_ROCKET: ['audio_assets/impacts/rocket_explosion.ogg',        'audio/ogg'],
+  SFX_IMPACT_RAFALE: ['audio_assets/impacts/missile_salvo_fireworks.ogg', 'audio/ogg'],
+  SFX_RAVEN_CAW:     ['audio_assets/raven/raven_caw.ogg',                 'audio/ogg'],
+  SFX_RAVEN_POP:     ['audio_assets/raven/balloon_pop.ogg',               'audio/ogg'],
+  // tutorial hand — 3D pointing hand, chroma-keyed from JPEG (128×256)
+  HAND_POINTER:      ['hand_assets/HAND_3D.png',                           'image/png'],
   // end-card background
   ENDCARD_BG: ['ref_frames/frame_55s.jpg',        'image/jpeg'],
 };

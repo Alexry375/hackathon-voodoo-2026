@@ -4,17 +4,17 @@
 
 ---
 
-## tools/analyze_video.py — appel Gemini via OpenRouter
+## tools/analyze_video.py — appel Gemini via Files API directe
 
-**Source** : copié depuis le repo parent (`/home/alexis/Global/Claude_Projects/hackathon_voodoo/tools/analyze_video.py`).
+**Source** : copié depuis le repo parent (`tools/analyze_video.py`).
 
-**Dépendance** : Python 3.9+ standard library uniquement (urllib + base64). Aucun SDK à installer.
+**Dépendance** : `pip install --user google-genai` (SDK officiel Google).
 
-**Variable d'env** : `OPENROUTER_API_KEY`. Déjà set dans `.env` à la racine du repo (gitignored). Charge avec : `set -a; source .env; set +a` avant de lancer le script.
+**Variable d'env** : `GEMINI_API_KEY` (ou `GOOGLE_API_KEY` en fallback). Déjà set dans `.env` à la racine du repo (gitignored). Charge avec : `set -a; source .env; set +a` avant de lancer le script.
 
-**Coût indicatif** : ~0.07 $ par appel (vidéo ~1 min, sortie ~5 K tokens). Pas de cap budgétaire strict — utilise Gemini librement quand tu as un doute structurant, c'est plus fiable que ton œil sur un GIF.
+**Coût indicatif** : ~0.05–0.10 $ par appel (vidéo ~1 min, sortie ~5 K tokens). Pas de cap budgétaire strict, et **plus de rate limit gênant** (clé hackathon Gemini direct, vs OpenRouter qui en avait).
 
-**Modèle par défaut** : `google/gemini-3.1-pro-preview` (SOTA Google avril 2026, routé via OpenRouter → Google AI Studio).
+**Modèle par défaut** : `gemini-3.1-pro-preview` (SOTA Google avril 2026, accès direct Google AI Studio).
 
 **Usage** :
 
@@ -33,18 +33,41 @@ python tools/analyze_video.py SANDBOX/extracts/seg.mp4 \
 python tools/analyze_video.py source.mp4 --model google/gemini-3-flash-preview
 ```
 
-### Bonnes pratiques OpenRouter pour les vidéos
+### Bonnes pratiques Gemini Files API pour les vidéos
 
-OpenRouter ne propose **pas** de Files API à la Gemini : la vidéo part inline en base64 dans le payload HTTP. Conséquences pratiques :
+La Files API directe (vs OpenRouter) débloque 3 leviers officiels qu'on n'avait pas :
 
-1. **Taille du payload** : la base64 gonfle de ~33 %. Au-delà de ~10 Mo de source, le script recompresse automatiquement en 540p / 4 fps / sans audio (`ffmpeg -vf scale=540:-2 -r 4 -an -crf 30`). Une vidéo de 60 s passe de ~70 Mo → ~1.7 Mo. Désactivable avec `--no-light` si tu veux la full-res.
-2. **Pas de réutilisation d'upload** : chaque appel repaye les `video_tokens`. Pour itérer sur plusieurs prompts focaux sur la même vidéo, prépare des extraits courts via `ffmpeg -ss MM:SS -t N -c copy SANDBOX/extracts/seg.mp4` puis réutilise-les.
-3. **Reasoning obligatoire** sur `gemini-3.1-pro-preview` : OpenRouter renvoie HTTP 400 si tu passes `"reasoning": {"enabled": false}`. Le script garde reasoning activé et dimensionne `max_tokens` à 16000 (ajustable via `--max-tokens`). Si le `finish_reason` revient à `"length"`, monte ce param.
-4. **MIME acceptés** : `video/mp4`, `video/mpeg`, `video/mov`, `video/webm`. YouTube URLs aussi acceptées via le provider Google AI Studio (pas Vertex).
-5. **Format payload** :
-   ```json
-   {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,..."}}
-   ```
+1. **Override du sampling fps via `videoMetadata.fps`** (officiel Google). Par défaut Gemini sample à **1 fps**. Citation doc : *"By default 1 frame per second (FPS) is sampled from the video. You might want to set low FPS for long videos. Use a higher FPS for videos requiring granular temporal analysis, such as fast-action understanding or high-speed motion tracking."* — passe `--fps 4` à `compare_clips.py` pour critique de transitions sub-seconde, plus besoin du hack `setpts=4*PTS` qu'on faisait sur OpenRouter.
+
+2. **Override de la résolution via `media_resolution`** (officiel Google) : LOW / MEDIUM / HIGH. **Ce n'est PAS une résolution pixel** — c'est un budget tokens par frame :
+   - `LOW` + `MEDIUM` : 70 tokens/frame (fast, cheap)
+   - `HIGH` : 280 tokens/frame (détail visuel fin)
+   - Reco officielle : *"MEDIA_RESOLUTION_HIGH provides the optimal performance for most use cases"* — mais MEDIUM suffit largement pour notre usage portrait playable.
+
+3. **Files API** (jusqu'à ~2 GB/fichier, TTL 48 h, reuse possible) vs inline base64 OpenRouter (~10 MB cap). Permet d'uploader des vidéos plus longues sans recompression destructive et de ré-utiliser un upload pour plusieurs prompts focaux.
+
+### Pré-process pixel (notre choix pragmatique, PAS une reco Google)
+
+Indépendamment des leviers officiels ci-dessus, on pré-process en **540p + 1 fps + no-audio** avant upload. Pourquoi :
+- 540p = viewport natif AppLovin portrait (540×960). Pas d'upscale gaspillé.
+- 1 fps en input = même base qu'en interne Gemini, sauf override `--fps`. Économie bandwidth + uniformise.
+- No-audio = on n'analyse pas le son, autant l'enlever.
+
+**Ce n'est pas Google qui demande 540p** — c'est notre pragma. Si tu veux full-res, passe `--no-preprocess`.
+
+```bash
+# Référence ffmpeg (ce que les scripts font automatiquement)
+ffmpeg -i clip.mp4 -r 1 -vf "scale=-2:540" -an -c:v libx264 -crf 28 clip_pre.mp4
+```
+
+### Cap interne ~52 frames par appel — savoir quand segmenter
+
+Le modèle a un cap pratique sur le nombre de frames analysées par appel. À 1 fps tu peux donc couvrir ~52 secondes ; à 4 fps tu couvres ~13 secondes. Pour des clips plus longs : segmente avec `--start-offset` / `--end-offset` ou découpe en plusieurs appels.
+
+### Sources officielles
+
+- [Video understanding — Gemini API doc](https://ai.google.dev/gemini-api/docs/video-understanding)
+- [Media resolution — Gemini API doc](https://ai.google.dev/gemini-api/docs/media-resolution)
 
 ### Comment écrire un prompt focal
 
@@ -59,6 +82,72 @@ ou hybride ? Justifie avec des timestamps précis"]
 Réponds en moins de 200 mots, avec timestamps [mm:ss] pour chaque observation.
 Si tu n'es pas sûr d'un point, dis-le.
 ```
+
+## tools/compare_images.py — critique image-vs-image (boucle rapide)
+
+**Usage** : audit macro et itération rapide en step 04 / step 5.3. Envoie N images (réf source + screenshots playable) à Gemini via SDK directe (`google-genai`). Sortie : critique structurée écarts acceptables / bloquants.
+
+**Cost indicatif** : ~0.01–0.02 $ par appel (image-only, MEDIUM resolution).
+
+```bash
+python tools/compare_images.py \
+    --prompt SANDBOX/prompts/critic-pair.md \
+    --image source:SANDBOX/frames-ref/ref_00_00.png \
+    --image ours:SANDBOX/frames-prod/phase_intro.png \
+    --media-resolution MEDIUM \
+    --out SANDBOX/outputs/critique-intro-pass1.md
+```
+
+**Limite connue** : insensible au pacing, transitions, camera state machine. **Ne sert qu'à itérer**, jamais comme gate de livraison. Pour la gate finale, utiliser `compare_clips.py`.
+
+## tools/compare_clips.py — critique clip-vs-clip (gate finale step 5.5)
+
+**Usage** : la **gate** de step 5.5. Envoie 2 clips MP4 (notre playable + extrait source) à Gemini Files API avec un prompt qui demande un scoring segmenté (intro / aim / fire_cinematic / impact / endcard) sur 4 axes (timing, pacing, fidélité visuelle, camera state).
+
+**Cost indicatif** : ~0.05–0.10 $ par appel selon longueur clip et `--media-resolution`.
+
+```bash
+python tools/compare_clips.py \
+    --prompt SANDBOX/prompts/critic-clips-pacing.md \
+    --clip ours:SANDBOX/clips/ours.mp4 \
+    --clip source:input/<jeu>/input/source.mp4 \
+    --fps 1 \
+    --media-resolution MEDIUM \
+    --out SANDBOX/outputs/critique-clipclip-pass1.md
+
+# Pour critique de transitions sub-seconde sur clip court (via fps officiel) :
+python tools/compare_clips.py \
+    --prompt SANDBOX/prompts/critic-transitions.md \
+    --clip ours:SANDBOX/clips/transition.mp4 \
+    --clip source:SANDBOX/clips/source-transition.mp4 \
+    --fps 4 \
+    --start-offset 0 --end-offset 3 \
+    --out SANDBOX/outputs/critique-transitions.md
+```
+
+**Sortie attendue** : un score /10 par segment + détail des écarts par axe. Le rapport sert directement de gate : tous segments ≥ 9/10 = passe à 06 ; sinon itère.
+
+**Reco** : laisse `--no-preprocess` désactivé (le script re-encode auto en 540p/1fps pour économiser bandwidth). Pour critique haute fidélité visuelle, passe `--media-resolution HIGH`.
+
+**Note** : le hack `setpts=4*PTS` (slow-motion ffmpeg) qu'on utilisait sur OpenRouter n'est plus nécessaire avec la Files API directe — passe simplement `--fps 4` pour que Gemini sample à 4 fps côté serveur (officiel, propre).
+
+## tools/record_clip.mjs — capture vidéo du playable
+
+**Usage** : enregistre un clip MP4 du playable mode prod, pour le passer ensuite à `compare_clips.py`.
+
+```bash
+# Lance le serveur dev en arrière-plan d'abord
+python3 -m http.server 8765 &
+
+# Enregistre 12s de prod
+node tools/record_clip.mjs \
+    --url http://localhost:8765/dist/playable.html \
+    --duration 12 \
+    --viewport 540x960 \
+    --out SANDBOX/clips/ours.mp4
+```
+
+Implémentation type : Playwright avec `recordVideo` activé sur le context, navigation vers l'URL, attente de la durée, fermeture → conversion WebM → MP4 via ffmpeg si nécessaire. **Ce script n'est pas encore committé sur la parent** — la première run-3 doit le créer (template ci-dessus).
 
 ## tools/prompt_playable_v2.md — prompt Gemini par défaut
 

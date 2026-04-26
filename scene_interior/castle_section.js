@@ -84,15 +84,15 @@ const C = {
   dark: '#1A1C20', mid: '#28292E', light: '#35383F',
   outline: '#000', platBrown: '#7A4520', platLight: '#A06230',
   platDark: '#502E12', baseWood: '#8B5E3C', baseLight: '#A07040',
-  spire: '#1A1C20', sky: '#88CCAA',
+  spire: '#1A1C20', sky: '#BCD4B7',
   tread: '#2A2A2A', gear: '#7C7368',
 };
 
 // ─── Main body ───────────────────────────────────────────────────────────────
 function _drawBody(ctx, dmg) {
-  // Sky band visible through the U-shape top (always).
-  ctx.fillStyle = C.sky;
-  ctx.fillRect(C_LEFT - 30, 30, C_WIDTH + 60, C_TOP - 30 + 30);
+  // No top sky band: scene_interior already paints the parallax bg
+  // (sky/hills/forest/ground) underneath, so this castle just lets the
+  // valley show through above the walls.
 
   // Right wall (full height) — drawn first.
   _slab(ctx, INT_RIGHT, C_TOP, WALL_W, C_HEIGHT);
@@ -101,13 +101,16 @@ function _drawBody(ctx, dmg) {
   const leftWallTopCut = C_TOP + Math.round(C_HEIGHT * (0.10 + dmg * 0.18));
   _slab(ctx, C_LEFT, leftWallTopCut, WALL_W, C_BOTTOM - leftWallTopCut);
 
-  // Interior back wall — only fills below the U-cutout depth on the right side
-  // (the U dips into the interior). We draw a full back, then carve sky on top.
+  // Interior back wall — only fills BELOW the U-cutout shoulder line, so the
+  // open top of the castle reveals the parallax bg (sky + hills + forest)
+  // drawn by scene_interior, instead of a flat sky plate that fused with it.
+  const backWallTop = C_TOP + Math.round(C_HEIGHT * 0.10) + dmg * 30;
   ctx.fillStyle = C.dark;
-  ctx.fillRect(INT_LEFT, C_TOP, INT_WIDTH, C_HEIGHT);
-  _bricks(ctx, INT_LEFT, C_TOP, INT_WIDTH, C_HEIGHT);
+  ctx.fillRect(INT_LEFT, backWallTop, INT_WIDTH, C_BOTTOM - backWallTop);
+  _bricks(ctx, INT_LEFT, backWallTop, INT_WIDTH, C_BOTTOM - backWallTop);
 
-  // U-shape sky cutout in the back wall (mint green) with jagged brick teeth.
+  // U-shape silhouette: stroke-only now, no fill — the bg shows through
+  // the opening so the eye reads "broken roof, valley behind".
   _topCutout(ctx, dmg);
 
   // Ledges (3 SHORT alternating). Top ledge gone at dmg≥2.
@@ -150,8 +153,9 @@ function _topCutout(ctx, dmg) {
     if (close) { ctx.lineTo(xR, yTop); ctx.closePath(); }
   };
   ctx.save();
-  ctx.fillStyle = C.sky;   path(true);  ctx.fill();
-  ctx.strokeStyle = C.outline; ctx.lineWidth = 2.5;
+  // No fill: bg parallax (sky + hills) is visible through the opening.
+  // Strong outline so the broken-roof silhouette reads against the bg.
+  ctx.strokeStyle = C.outline; ctx.lineWidth = 3.5;
   path(false); ctx.stroke();
   ctx.restore();
 }

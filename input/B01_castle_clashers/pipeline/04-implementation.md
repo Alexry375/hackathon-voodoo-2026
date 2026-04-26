@@ -71,9 +71,13 @@ Travaille dans **cet ordre**, et commit après chaque sous-étape :
    - Test : `npm install && npm run build` produit un `dist/playable.html` minimal
    - Commit : `pipeline(04a): scaffold empty + build pipeline works`
 
-2. **`shared/`** complet (events, state, scene_manager, assets, hud_top)
-   - Test : import les modules, vérifie que `state` se mute via les helpers
-   - Commit : `pipeline(04b): shared layer locked`
+2. **`shared/`** complet (events, state, scene_manager, assets, hud_top, **camera**)
+   - Le `scene_manager.js` doit respecter `SANDBOX/outputs/cinematic-spec.md` (lockée step 01b) :
+     - **Architecture mono vs dual frame** : si la spec dit "mono-frame", chaque scène prend un paramètre `view = OURS|ENEMY` et dessine UNE entité centrée. Pas les 2 simultanées.
+     - **Camera state machine** : implémente un module `shared/camera.js` avec `cam = { x, y, zoom, target, ease }` + `tickCamera(dt)` qui interpole. Les transitions sont déclenchées par les events (`player_fire`, `enemy_fire`, etc.) avec des durées issues de `cinematic-spec.md`.
+     - **Opening anchor** : `scene_manager.start()` doit démarrer dans l'état décrit en frame 0 de la source (cf. cinematic-spec §"Opening anchor"). **Pas** dans un `state=ready` neutre. Cas vécu run-1 : démarrer en `ready` → impossible de matcher l'opening source → score Gemini plombé.
+   - Test : import les modules, vérifie que `state` se mute via les helpers, que `tickCamera` interpole bien
+   - Commit : `pipeline(04b): shared layer locked + camera state machine`
 
 3. **Scène A** (la plus simple ou la plus statique d'abord) avec ses assets `SANDBOX/fanout/*.js` copiés au bon endroit
    - Test : `index.html` en dev → la scène A render à l'écran, sans interaction

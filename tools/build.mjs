@@ -14,7 +14,7 @@ const SIZE_LIMIT_BYTES = 4.8 * 1024 * 1024; // 5 MB AppLovin cap, 200 KB safety 
 
 // 1. Regen assets-inline.js if any source asset is newer.
 const ASSETS_OUT = resolve(ROOT, 'assets-inline.js');
-const SOURCE_DIRS = ['RESSOURCES/characters_png', 'RESSOURCES/assets_unpack', 'RESSOURCES/ref_frames'];
+const SOURCE_DIRS = ['RESSOURCES/characters_png', 'RESSOURCES/assets_unpack', 'RESSOURCES/ref_frames', 'RESSOURCES/castles'];
 const needRegen = !existsSync(ASSETS_OUT)
   || SOURCE_DIRS.some((d) => {
     try {

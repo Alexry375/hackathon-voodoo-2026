@@ -27,6 +27,16 @@ let _dragStart = null;   // canvas-space {x,y}
 let _dragCurrent = null; // canvas-space {x,y}
 
 /**
+ * Live aim state — used by units.js to rotate the active mob's weapon
+ * in sync with the drag. Returns null when the player isn't dragging.
+ * @returns {{angle_deg: number, power: number} | null}
+ */
+export function getCurrentAim() {
+  if (!_aiming || !_dragStart || !_dragCurrent) return null;
+  return _resolveShot();
+}
+
+/**
  * Map a pointer event's clientX/Y to intrinsic canvas coordinates.
  * Handles CSS-scaled canvases (viewport != width/height).
  */
@@ -109,21 +119,29 @@ export function installAim(canvas) {
 }
 
 /**
- * Render the dotted ballistic trajectory if the player is currently dragging.
+ * Draw a dotted ballistic trajectory from `origin`, given an explicit drag
+ * vector `dragVecPx` (start - current, same convention as `_resolveShot`).
+ * Factored out so the tutorial can render a preview even when no real drag
+ * is active.
  * @param {CanvasRenderingContext2D} ctx
+ * @param {{x:number,y:number}} origin
+ * @param {{x:number,y:number}} dragVecPx  vector from drag-current to drag-start
  */
-export function drawAimOverlay(ctx) {
-  if (!_aiming || !_dragStart || !_dragCurrent) return;
-  const o = _unitOrigin();
-  if (!o) return;
-  const { angle_deg, power } = _resolveShot();
+export function drawDottedTrajectory(ctx, origin, dragVecPx) {
+  const dx = dragVecPx.x;
+  const dy = dragVecPx.y;
+  let angle = Math.atan2(-dy, dx) * 180 / Math.PI;
+  if (angle < 0) angle = 0;
+  if (angle > 170) angle = 170;
+  const len = Math.hypot(dx, dy);
+  const power = Math.max(0, Math.min(1, len / FULL_POWER_PX));
   if (power <= 0.01) return;
-  const rad = angle_deg * Math.PI / 180;
+  const rad = angle * Math.PI / 180;
   const cw = ctx.canvas.width;
 
-  let px = o.x, py = o.y;
+  let px = origin.x, py = origin.y;
   let vx = power * SIM_V0 * Math.cos(rad);
-  let vy = -power * SIM_V0 * Math.sin(rad); // canvas y-down → up = negative
+  let vy = -power * SIM_V0 * Math.sin(rad);
 
   ctx.save();
   ctx.fillStyle = DOT_COLOR;
@@ -134,13 +152,27 @@ export function drawAimOverlay(ctx) {
     py += vy;
     vy += SIM_GRAVITY;
     if (py > 960 || px < 0 || px > cw) break;
-    if (i < 1) continue;            // skip the very first dot near the origin
+    if (i < 1) continue;
     if (i % DOT_EVERY !== 0) continue;
     ctx.beginPath();
     ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
+}
+
+/**
+ * Render the dotted ballistic trajectory if the player is currently dragging.
+ * @param {CanvasRenderingContext2D} ctx
+ */
+export function drawAimOverlay(ctx) {
+  if (!_aiming || !_dragStart || !_dragCurrent) return;
+  const o = _unitOrigin();
+  if (!o) return;
+  drawDottedTrajectory(ctx, o, {
+    x: _dragStart.x - _dragCurrent.x,
+    y: _dragStart.y - _dragCurrent.y,
+  });
 }
 
 /**
