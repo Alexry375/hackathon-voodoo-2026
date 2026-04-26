@@ -28,9 +28,18 @@ const ASSETS = {
   // tank treads (extracted from B01.mp4 + rembg)
   TREAD_OURS:      ['treads/tread_ours.png',  'image/png'],
   TREAD_ENEMY:     ['treads/tread_enemy.png', 'image/png'],
-  // audio
+  // audio — legacy
   MUSIC:      ['assets_unpack/Music.ogg',         'audio/ogg'],
-  SFX:        ['assets_unpack/Sfx.wav',           'audio/wav'],
+  SFX:        ['assets_unpack/Sfx.wav',           'audio/wav'], // rocket firing (cyclop + orc)
+  // audio — sourced via sub-agents (CC0 mix of OGA / Kenney / Freesound)
+  MUSIC_LOOP:        ['audio_assets/music/castle_stage_loop.ogg',         'audio/ogg'],
+  SFX_FIRE_RAFALE:   ['audio_assets/weapons/skeleton_rafale.ogg',         'audio/ogg'],
+  SFX_IMPACT_ROCKET: ['audio_assets/impacts/rocket_explosion.ogg',        'audio/ogg'],
+  SFX_IMPACT_RAFALE: ['audio_assets/impacts/missile_salvo_fireworks.ogg', 'audio/ogg'],
+  SFX_RAVEN_CAW:     ['audio_assets/raven/raven_caw.ogg',                 'audio/ogg'],
+  SFX_RAVEN_POP:     ['audio_assets/raven/balloon_pop.ogg',               'audio/ogg'],
+  // tutorial hand (Kenney CC0)
+  HAND_POINTER:      ['hand_assets/WINNER.png',                            'image/png'],
   // end-card background
   ENDCARD_BG: ['ref_frames/frame_55s.jpg',        'image/jpeg'],
 };

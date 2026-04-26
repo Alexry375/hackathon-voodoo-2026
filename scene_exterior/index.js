@@ -29,6 +29,18 @@ import { drawScriptOverlay } from '../playable/script.js';
 import { drawRaven } from './raven.js';
 import { drawRavenFlock } from './raven_flock.js';
 import { planForUnit, drawProjectileP1, drawProjectileP2 } from './projectile_sprites.js';
+import { playSfx } from '../shared/audio.js';
+
+const FIRING_SFX_BY_UNIT = {
+  skeleton: 'SFX_FIRE_RAFALE',
+  cyclop:   'SFX',  // legacy rocket sample
+  orc:      'SFX',  // reuses rocket per user spec
+};
+const IMPACT_SFX_BY_KIND = {
+  rocket_p1: 'SFX_IMPACT_RAFALE',  // skeleton's mini-missile salvo
+  bomb_p2:   'SFX_IMPACT_ROCKET',  // cyclop's chunky bomb
+  rocket:    'SFX_IMPACT_ROCKET',  // orc — reuses rocket explosion
+};
 
 // ── Layout constants (canvas 540×960) ────────────────────────────────────────
 const W = 540, H = 960;
@@ -315,9 +327,13 @@ function _startIntroPanAndFlock() {
     dur: 1500,
     peakLift: 0,
     sinAmp: 30 + Math.random() * 50, sinFreq: 0, sinPhase: 0,
-    onLand: () => _impactOurs(target, dmgVal),
+    onLand: () => {
+      playSfx('SFX_RAVEN_POP', { volume: 0.8 });
+      _impactOurs(target, dmgVal);
+    },
   };
   projectiles.push(flock);
+  playSfx('SFX_RAVEN_CAW', { volume: 0.7 });
 
   step = 'incoming';
   stepT0 = now;
@@ -348,6 +364,10 @@ function startPlayerShot(payload) {
   tiltUntil = performance.now() + 600;
   step = 'fire';
   stepT0 = performance.now();
+
+  // Firing SFX matched to the active mob.
+  const fireSfx = FIRING_SFX_BY_UNIT[payload?.unit_id] || 'SFX';
+  playSfx(fireSfx, { volume: 0.55 });
 
   // Stash enemy-side impact data — wide range so successive player shots
   // visibly hit different parts of the enemy castle (not the same spot).
@@ -383,7 +403,10 @@ function startPlayerShot(payload) {
       // burst projectiles trigger a light visual splash via _spawnExplosion
       // so the rafale reads on screen but doesn't multiply damage.
       onLand: isLast
-        ? () => _impactEnemy(pendingEnemyImpact, pendingEnemyDmg)
+        ? () => {
+            playSfx(IMPACT_SFX_BY_KIND[plan.kind] || 'SFX_IMPACT_ROCKET', { volume: 0.7 });
+            _impactEnemy(pendingEnemyImpact, pendingEnemyDmg);
+          }
         : (() => { _spawnExplosion(target.x - W, target.y, { heavy: false }); }),
       // optional: store sprite size for renderer
       _spriteSize: plan.size,
@@ -464,9 +487,13 @@ function _spawnEnemyRiposteFlock() {
     dur: 1800,
     peakLift: 0,
     sinAmp: 50, sinFreq: 0, sinPhase: 0,
-    onLand: () => _routeOursImpact(target, dmgVal),
+    onLand: () => {
+      playSfx('SFX_RAVEN_POP', { volume: 0.8 });
+      _routeOursImpact(target, dmgVal);
+    },
   };
   projectiles.push(flock);
+  playSfx('SFX_RAVEN_CAW', { volume: 0.7 });
   // Set BEFORE _routeOursImpact runs — it dispatches via this step.
   step = 'cut_to_ours';
   stepT0 = performance.now();

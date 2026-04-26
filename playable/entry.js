@@ -9,10 +9,24 @@ import { state, killUnit } from '../shared/state.js';
 import { emit } from '../shared/events.js';
 import { getActiveUnitId } from '../scene_interior/turn.js';
 import { runScript } from './script.js';
+import { unlockAudio, playMusic } from '../shared/audio.js';
 
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('g'));
 mountInterior(canvas);
 mountExterior(canvas);
+
+// Browsers block autoplay until a user gesture. First pointerdown anywhere on
+// the page unlocks the audio context, primes SFX caches, and starts the
+// looping background music. One-shot — subsequent gestures no-op.
+let _audioStarted = false;
+function _bootAudio() {
+  if (_audioStarted) return;
+  _audioStarted = true;
+  unlockAudio();
+  playMusic('MUSIC_LOOP', { volume: 0.32 });
+}
+window.addEventListener('pointerdown', _bootAudio, { once: false, passive: true });
+window.addEventListener('keydown', _bootAudio, { once: false });
 
 const params = new URLSearchParams(location.search);
 const mode = params.get('mode') || (location.pathname.includes('/dist/') ? 'prod' : 'dev');
