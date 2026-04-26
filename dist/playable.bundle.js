@@ -160,13 +160,11 @@
     baseWood: "#8B5E3C",
     baseLight: "#A07040",
     spire: "#1A1C20",
-    sky: "#88CCAA",
+    sky: "#BCD4B7",
     tread: "#2A2A2A",
     gear: "#7C7368"
   };
   function _drawBody(ctx3, dmg2) {
-    ctx3.fillStyle = C.sky;
-    ctx3.fillRect(C_LEFT - 30, 30, C_WIDTH + 60, C_TOP - 30 + 30);
     _slab(ctx3, INT_RIGHT, C_TOP, WALL_W, C_HEIGHT);
     const leftWallTopCut = C_TOP + Math.round(C_HEIGHT * (0.1 + dmg2 * 0.18));
     _slab(ctx3, C_LEFT, leftWallTopCut, WALL_W, C_BOTTOM - leftWallTopCut);
@@ -1993,15 +1991,6 @@
   function drawSky(ctx3) {
     return _drawSky(ctx3);
   }
-  function drawHillsFar(ctx3) {
-    return _drawHillsFar(ctx3);
-  }
-  function drawForestNear(ctx3) {
-    return _drawForestNear(ctx3);
-  }
-  function drawGround(ctx3) {
-    return _drawGround(ctx3);
-  }
   function _drawSky(ctx3) {
     const g = ctx3.createLinearGradient(0, 0, 0, HORIZON_Y);
     g.addColorStop(0, "#A8C9B5");
@@ -2432,6 +2421,39 @@
   var entranceT0 = 0;
   var ENTRANCE_DUR = 700;
   var TILT_EASE = 0.06;
+  function _drawInteriorHorizonBand(ctx3, W3) {
+    const HORIZON = 158;
+    const layers = [
+      { color: "#7FA38E", amp: 8, period: 220, dy: -38 },
+      { color: "#5C8775", amp: 12, period: 160, dy: -22 },
+      { color: "#3F6555", amp: 9, period: 110, dy: -8 }
+    ];
+    for (const L of layers) {
+      ctx3.fillStyle = L.color;
+      ctx3.beginPath();
+      ctx3.moveTo(0, HORIZON);
+      for (let x = 0; x <= W3; x += 4) {
+        const y = HORIZON + L.dy - L.amp * Math.sin(x / L.period * Math.PI * 2);
+        ctx3.lineTo(x, y);
+      }
+      ctx3.lineTo(W3, HORIZON);
+      ctx3.closePath();
+      ctx3.fill();
+    }
+    ctx3.fillStyle = "#2C5443";
+    const N = 18;
+    for (let i = 0; i < N; i++) {
+      const cx = i / N * W3 + i * 31 % 24;
+      const cy = HORIZON - 4 + i * 17 % 6;
+      const r = 9 + i * 7 % 5;
+      ctx3.beginPath();
+      ctx3.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx3.fill();
+      ctx3.beginPath();
+      ctx3.arc(cx + r * 0.7, cy + 2, r * 0.7, 0, Math.PI * 2);
+      ctx3.fill();
+    }
+  }
   function targetTiltFor(hp_pct) {
     if (hp_pct >= 95) return 0;
     if (hp_pct >= 65) return 4;
@@ -2468,10 +2490,8 @@
     currentTilt += (targetTilt - currentTilt) * TILT_EASE;
     const damageLevel = damageLevelFor(state.hp_self_pct);
     drawSky(ctx2);
-    drawHillsFar(ctx2);
-    drawForestNear(ctx2);
-    drawGround(ctx2);
-    ctx2.fillStyle = "rgba(15,20,30,0.22)";
+    _drawInteriorHorizonBand(ctx2, canvas2.width);
+    ctx2.fillStyle = "rgba(15,20,30,0.16)";
     ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
     const eAge = (performance.now() - entranceT0) / ENTRANCE_DUR;
     const eOn = entranceT0 > 0 && eAge < 1;

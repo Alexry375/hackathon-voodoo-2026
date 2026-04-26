@@ -15,7 +15,7 @@ import { drawRipStones } from './rip.js';
 import { getActiveFloor, getActiveUnitId } from './turn.js';
 import { drawTopHud } from '../shared/hud_top.js';
 import { drawScriptOverlay } from '../playable/script.js';
-import { drawSky, drawHillsFar, drawForestNear, drawGround } from '../scene_exterior/index.js';
+import { drawSky } from '../scene_exterior/index.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -32,6 +32,42 @@ let entranceT0 = 0;
 const ENTRANCE_DUR = 700;
 
 const TILT_EASE = 0.06;
+
+// Compact horizon band painted between the top HUD (y≈76) and the castle top
+// (y≈170). Three layers of organic hills + a forest-lump strip, palette
+// matching scene_exterior's _drawHillsFar / _drawForestNear so the interior
+// reads as "looking out from the same valley" instead of a flat sky.
+/** @param {CanvasRenderingContext2D} ctx @param {number} W */
+function _drawInteriorHorizonBand(ctx, W) {
+  const HORIZON = 158;
+  const layers = [
+    { color: '#7FA38E', amp: 8,  period: 220, dy: -38 },
+    { color: '#5C8775', amp: 12, period: 160, dy: -22 },
+    { color: '#3F6555', amp: 9,  period: 110, dy: -8  },
+  ];
+  for (const L of layers) {
+    ctx.fillStyle = L.color;
+    ctx.beginPath();
+    ctx.moveTo(0, HORIZON);
+    for (let x = 0; x <= W; x += 4) {
+      const y = HORIZON + L.dy - L.amp * Math.sin((x / L.period) * Math.PI * 2);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, HORIZON);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Forest lump strip just above the castle line.
+  ctx.fillStyle = '#2C5443';
+  const N = 18;
+  for (let i = 0; i < N; i++) {
+    const cx = (i / N) * W + ((i * 31) % 24);
+    const cy = HORIZON - 4 + ((i * 17) % 6);
+    const r = 9 + ((i * 7) % 5);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + r * 0.7, cy + 2, r * 0.7, 0, Math.PI * 2); ctx.fill();
+  }
+}
 
 /** @param {number} hp_pct */
 function targetTiltFor(hp_pct) {
@@ -75,14 +111,15 @@ function loop() {
   currentTilt += (targetTilt - currentTilt) * TILT_EASE;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
-  // Atmospheric bg coherent with exterior — same sky/hills/forest/ground layers
-  // (no parallax: interior is a static cross-section). Slight darken overlay
-  // suggests "we're inside, looking out at the same valley".
+  // Atmospheric bg coherent with exterior. The castle covers y≈170..820,
+  // so the parallax skyline only has ~90px of vertical real estate visible
+  // (between HUD bottom y≈70 and castle top y≈170). drawSky fills the full
+  // gradient; on top of that we paint a compact horizon band — distant
+  // hills (sine), midground hills (taller sine), forest lumps — using the
+  // same palette as the exterior so the eye reads "same valley".
   drawSky(ctx);
-  drawHillsFar(ctx);
-  drawForestNear(ctx);
-  drawGround(ctx);
-  ctx.fillStyle = 'rgba(15,20,30,0.22)';
+  _drawInteriorHorizonBand(ctx, canvas.width);
+  ctx.fillStyle = 'rgba(15,20,30,0.16)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Entrance zoom-in: scale 1.20 → 1.0 around castle center over ENTRANCE_DUR.

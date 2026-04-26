@@ -84,15 +84,15 @@ const C = {
   dark: '#1A1C20', mid: '#28292E', light: '#35383F',
   outline: '#000', platBrown: '#7A4520', platLight: '#A06230',
   platDark: '#502E12', baseWood: '#8B5E3C', baseLight: '#A07040',
-  spire: '#1A1C20', sky: '#88CCAA',
+  spire: '#1A1C20', sky: '#BCD4B7',
   tread: '#2A2A2A', gear: '#7C7368',
 };
 
 // ─── Main body ───────────────────────────────────────────────────────────────
 function _drawBody(ctx, dmg) {
-  // Sky band visible through the U-shape top (always).
-  ctx.fillStyle = C.sky;
-  ctx.fillRect(C_LEFT - 30, 30, C_WIDTH + 60, C_TOP - 30 + 30);
+  // No top sky band: scene_interior already paints the parallax bg
+  // (sky/hills/forest/ground) underneath, so this castle just lets the
+  // valley show through above the walls.
 
   // Right wall (full height) — drawn first.
   _slab(ctx, INT_RIGHT, C_TOP, WALL_W, C_HEIGHT);
