@@ -3,7 +3,7 @@
   "title": "Baseline — Sami feature-trail",
   "axis": "—",
   "hypothesis": "Référence pour comparer les variations",
-  "source": "origin/feature-trail@14edd1a",
+  "source": "origin/feature-trail@4eae529",
   "source_author": "sami-ennedoui",
   "build": "node tools/build.mjs (single-file, 2.81 MB)",
   "diff_from_baseline": [],

@@ -1,68 +1,17 @@
 {
-  "generated_at": "2026-04-26T10:28:16.180Z",
+  "generated_at": "2026-04-26T10:47:52.039Z",
   "variations": [
     {
       "id": "baseline",
       "title": "Baseline — Sami feature-trail",
       "axis": "—",
       "hypothesis": "Référence pour comparer les variations",
-      "source": "origin/feature-trail@14edd1a",
+      "source": "origin/feature-trail@4eae529",
       "source_author": "sami-ennedoui",
       "build": "node tools/build.mjs (single-file, 2.81 MB)",
       "diff_from_baseline": [],
       "review": "pass",
       "dir": "baseline"
-    },
-    {
-      "id": "V1",
-      "title": "Cold-open — bomb mid-arc, HP 15%",
-      "axis": "hook",
-      "hypothesis": "Pattern-interrupt in first 1.5s: bomb already falling, massive damage, red danger vignette → maximizes retention@5s",
-      "diff_from_baseline": [
-        "playable/script.js: PHASE_INTRO_END 4500→2700 + red radial vignette during intro (0..1500ms)",
-        "scene_exterior/index.js: opening flock t0+200/dur=2200 → t0+0/dur=1100, dmgVal 33→85"
-      ],
-      "winner": true,
-      "review": "pass",
-      "review_notes": "Axis respected (only intro hook touched). Combat loop unchanged downstream — freeplay/forcewin/endcard intact. Build 2.09 MB.",
-      "dir": "V1-cold-open"
-    },
-    {
-      "id": "V2",
-      "title": "Aim-preview — persistent trajectory dotted line",
-      "axis": "mechanic",
-      "hypothesis": "Showing the parabolic arc before the user touches the screen lifts mechanic clarity and reduces fail-shots in the first 5s",
-      "diff_from_baseline": [
-        "scene_interior/aim.js: drawAimOverlay now renders an idle preview arc (62°, power 0.7, pulsing alpha) when the player isn't dragging"
-      ],
-      "review": "pass",
-      "review_notes": "Axis respected (only aim render touched, not input). Active-drag preview unchanged. Visible in thumb at INTERIOR_AIM.",
-      "dir": "V2-aim-preview"
-    },
-    {
-      "id": "V3",
-      "title": "Night-storm — navy sky + lightning flashes",
-      "axis": "palette",
-      "hypothesis": "Storm/night palette + periodic lightning is a strong visual pattern-interrupt vs bright baseline; lifts thumb-stop probability in feed",
-      "diff_from_baseline": [
-        "scene_exterior/index.js: sky gradient teal→deep-navy/bruise-purple, hills crushed to dark slate, forest near-black",
-        "scene_exterior/index.js: periodic 70ms lightning flash every 3.2s with soft afterglow"
-      ],
-      "review": "pass",
-      "review_notes": "Axis respected (palette only — sky/hills/forest tints + lightning overlay). Combat loop untouched. Note: thumb captures past-intro interior view; storm visible during exterior cuts (each turn).",
-      "dir": "V3-night-storm"
-    },
-    {
-      "id": "V4",
-      "title": "Fail-tease endcard — TOO CLOSE / TRY AGAIN",
-      "axis": "endcard",
-      "hypothesis": "Inverting the victory CTA into a fail-tease (\"barely held the wall, do better?\") frames install as a redemption attempt — lifts CTA pull on curious users",
-      "diff_from_baseline": [
-        "playable/endcard.js: 'VICTORY!' → 'TOO CLOSE!' (red), supporting copy reframed as challenge, CTA 'PLAY NOW' → 'TRY AGAIN'"
-      ],
-      "review": "pass",
-      "review_notes": "Axis respected (endcard copy/colors only). CTA tap handler unchanged. Thumb captured at forced endcard phase.",
-      "dir": "V4-fail-tease"
     }
   ]
 }
