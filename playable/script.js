@@ -25,6 +25,7 @@ import {
 import { spawnPraise, drawPraiseFloats } from './praise_floats.js';
 import { startDecoTimer, drawDecoTimer, setDecoTimerVisible, getTimerRemaining } from './deco_timer.js';
 import { setInstruction, drawInstruction } from './instruction_text.js';
+import { setFreezeOverview } from '../scene_exterior/index.js';
 
 // Event-driven phase machine — no time-based gates except for two short
 // animation windows (intro pan and forcewin flash). Everything else advances
@@ -48,6 +49,8 @@ const game = {
   endcardT0: 0,             // wall-clock at endcard entry (gates fade-in)
   shotsFired: 0,
   enemyAttacks: 0,          // increments each cut_to_interior (= one full enemy turn)
+  endRequested: false,      // set when an end condition is met; cleared on resolve
+  endVerdict: /** @type {'fail'|'win'|null} */ (null),
 };
 /** @type {any} */ (window).__game = game;
 
@@ -68,6 +71,21 @@ export function runScript(canvas) {
   on('cut_to_interior', () => {
     // Each cut back to interior = one completed enemy attack cycle.
     game.enemyAttacks += 1;
+  });
+
+  // Camera reached the frozen wide-overview moment we asked for after an end
+  // condition triggered. Both castles are now visible — fire the appropriate
+  // end screen.
+  on('reached_frozen_overview', () => {
+    if (game.endVerdict === 'win') {
+      game.phase = 'forcewin';
+      game.forcewinT0 = performance.now();
+      try { hideHand(); } catch {}
+    } else {
+      game.phase = 'fail';
+      showFailScreen();
+      try { hideHand(); } catch {}
+    }
   });
 
   // Praise float on every player_fire — synchronous, fires at the moment of
@@ -138,25 +156,37 @@ function _updatePhase(elapsed) {
       }
       break;
     case 'freeplay': {
-      // Let the game play out. End conditions, in priority order:
-      //   1. red HP = 0     → forcewin
-      //   2. blue HP = 0    → fail screen
-      //   3. timer hits 0   → fail screen (also resolves between turns only)
-      // We only end on a clean state-machine boundary so a fatal hit lands
-      // visually before the overlay takes over.
-      const sceneOk = getSceneState() === 'INTERIOR_AIM';
-      if (state.hp_enemy_pct <= 0 && getSceneState() !== 'EXTERIOR_RESOLVE') {
-        state.hp_enemy_pct = 0;
-        game.phase = 'forcewin';
-        game.forcewinT0 = performance.now();
-        try { hideHand(); } catch {}
-      } else if (sceneOk && state.hp_self_pct <= 0) {
-        game.phase = 'fail';
-        showFailScreen();
-        try { hideHand(); } catch {}
-      } else if (sceneOk && getTimerRemaining() <= 0) {
-        game.phase = 'fail';
-        showFailScreen();
+      // End conditions:
+      //   red HP  = 0  → win  (forcewin)
+      //   blue HP = 0  → fail
+      //   timer   = 0  → fail
+      // Detection happens immediately, but the screen waits for the camera
+      // to reach the wide overview between turns (both castles visible).
+      // setFreezeOverview tells scene_exterior to stay in overview at the
+      // next dezoom completion; it then emits 'reached_frozen_overview'
+      // which fires the actual screen swap (handler above).
+      if (!game.endRequested) {
+        if (state.hp_enemy_pct <= 0) {
+          game.endRequested = true; game.endVerdict = 'win';
+        } else if (state.hp_self_pct <= 0 || getTimerRemaining() <= 0) {
+          game.endRequested = true; game.endVerdict = 'fail';
+        }
+        if (game.endRequested) {
+          setFreezeOverview(true);
+          game.endRequestedAt = performance.now();
+        }
+      } else if (game.phase === 'freeplay' &&
+                 getSceneState() === 'INTERIOR_AIM' &&
+                 performance.now() - (game.endRequestedAt || 0) > 1500) {
+        // Idle fallback: timer expired while the player was sitting in the
+        // aim view. No turn boundary is coming — fire the screen directly.
+        if (game.endVerdict === 'win') {
+          game.phase = 'forcewin';
+          game.forcewinT0 = performance.now();
+        } else {
+          game.phase = 'fail';
+          showFailScreen();
+        }
         try { hideHand(); } catch {}
       }
       break;

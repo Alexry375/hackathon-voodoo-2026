@@ -296,6 +296,12 @@ let awaitingTap = false;
 let pendingTapAction = /** @type {(()=>void)|null} */ (null);
 let dezoomT0 = 0;
 let zoomInT0 = 0;
+// One-shot flag: when set, the next dezoom completion stays in overview
+// (no auto zoom-in) and emits 'reached_frozen_overview' so the script can
+// show the end-of-turn fail / forcewin screen with both castles in view.
+let _freezeOverview = false;
+/** @param {boolean} v */
+export function setFreezeOverview(v) { _freezeOverview = !!v; }
 const DEZOOM_DUR  = 600;
 const ZOOM_IN_DUR = 600;
 const OVERVIEW_SCALE = 0.55;
@@ -792,10 +798,15 @@ function loop() {
     overviewT = 1 - eased;
     if (k >= 1) {
       dezoomT0 = 0;
-      // Auto-pan: skip the awaitingTap pause and zoom straight back in. The
-      // camera reads as one continuous pan-out → pan-in (matches the
-      // projectile-follow camera in the rest of the scene).
-      zoomInT0 = now;
+      if (_freezeOverview) {
+        // End of game: stay in wide overview so the fail/win screen lands
+        // with both castles visible. Script subscribes to this event.
+        _freezeOverview = false;
+        emit('reached_frozen_overview', null);
+      } else {
+        // Normal turn boundary: skip the awaitingTap pause and zoom back in.
+        zoomInT0 = now;
+      }
     }
   } else if (awaitingTap) {
     overviewT = 0;
