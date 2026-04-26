@@ -659,9 +659,8 @@ function _emitCutToInterior() {
 const _origImpactOurs = _impactOurs;
 function _impactOursDuringResolve(at, d) {
   _oursAttacksTaken++;
-  // Floor at 5: blue HP must be able to drop below the fail-trigger threshold
-  // (≤10) so the scripted fail beat fires from real damage, not a forced poke.
-  state.hp_self_pct = Math.max(5, state.hp_self_pct - d);
+  // No floor — blue can reach 0 and trigger the fail screen naturally.
+  state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: false });
   triggerShake(11, 380);

@@ -6,7 +6,7 @@ const W = 540;
 // y=92 mirrors persistent_cta — sits below the 80px HUD strip with blue HP.
 const PILL = { x: 14, y: 92, w: 124, h: 46, r: 16 };
 const START_SECONDS = 60;       // shows "01:00" initially
-const DECAY_PER_SEC  = 0.6;     // ticks ~slower than realtime so it lingers
+const DECAY_PER_SEC  = 1.0;     // realtime — clock 0:00 = end-of-game
 
 let _t0 = 0;
 let _visible = false;
@@ -18,6 +18,13 @@ export function startDecoTimer() {
 
 /** @param {boolean} v */
 export function setDecoTimerVisible(v) { _visible = !!v; }
+
+/** Seconds remaining (clamped at 0). 0 means the clock has run out. */
+export function getTimerRemaining() {
+  if (!_t0) return START_SECONDS;
+  const elapsed = (performance.now() - _t0) / 1000;
+  return Math.max(0, START_SECONDS - elapsed * DECAY_PER_SEC);
+}
 
 /**
  * @param {CanvasRenderingContext2D} ctx

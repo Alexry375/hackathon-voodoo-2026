@@ -23,7 +23,7 @@ import {
   installFailScreenTap, drawFailScreen,
 } from './fail_screen.js';
 import { spawnPraise, drawPraiseFloats } from './praise_floats.js';
-import { startDecoTimer, drawDecoTimer, setDecoTimerVisible } from './deco_timer.js';
+import { startDecoTimer, drawDecoTimer, setDecoTimerVisible, getTimerRemaining } from './deco_timer.js';
 import { setInstruction, drawInstruction } from './instruction_text.js';
 
 // Event-driven phase machine — no time-based gates except for two short
@@ -36,9 +36,10 @@ import { setInstruction, drawInstruction } from './instruction_text.js';
 const PHASE_INTRO_END    = 4500;
 const FORCEWIN_FLASH_MS  = 2500;
 const ENDCARD_FADE_MS    = 400;
-// Fail beat triggers when blue drops at or below this HP. Whichever castle
-// hits zero first ends freeplay (blue → fail screen, red → forcewin).
-const BLUE_HP_FAIL_THRESHOLD = 10;
+// Game ends when:
+//   - red HP hits 0           → forcewin (player won)
+//   - blue HP hits 0          → fail screen
+//   - decorative timer hits 0 → fail screen (out of time)
 
 const game = {
   phase: /** @type {'intro'|'tutorial'|'freeplay'|'fail'|'forcewin'|'endcard'} */ ('intro'),
@@ -136,23 +137,30 @@ function _updatePhase(elapsed) {
         hideHand();
       }
       break;
-    case 'freeplay':
-      // Let the game play out. Whichever castle hits 0 first decides the
-      // outcome:
-      //   blue dies → fail screen (PLAY NOW / Continue CTA)
-      //   red dies  → straight to forcewin → endcard
+    case 'freeplay': {
+      // Let the game play out. End conditions, in priority order:
+      //   1. red HP = 0     → forcewin
+      //   2. blue HP = 0    → fail screen
+      //   3. timer hits 0   → fail screen (also resolves between turns only)
+      // We only end on a clean state-machine boundary so a fatal hit lands
+      // visually before the overlay takes over.
+      const sceneOk = getSceneState() === 'INTERIOR_AIM';
       if (state.hp_enemy_pct <= 0 && getSceneState() !== 'EXTERIOR_RESOLVE') {
         state.hp_enemy_pct = 0;
         game.phase = 'forcewin';
         game.forcewinT0 = performance.now();
         try { hideHand(); } catch {}
-      } else if (state.hp_self_pct <= BLUE_HP_FAIL_THRESHOLD &&
-                 getSceneState() === 'INTERIOR_AIM') {
+      } else if (sceneOk && state.hp_self_pct <= 0) {
+        game.phase = 'fail';
+        showFailScreen();
+        try { hideHand(); } catch {}
+      } else if (sceneOk && getTimerRemaining() <= 0) {
         game.phase = 'fail';
         showFailScreen();
         try { hideHand(); } catch {}
       }
       break;
+    }
     case 'fail':
       // No auto-continue — the user MUST tap one of the two CTAs.
       // (PLAY NOW → install redirect; Continue → refill + forcewin.)
