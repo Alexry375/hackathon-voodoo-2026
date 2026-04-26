@@ -226,11 +226,12 @@ function _drawCrow(ctx, p) {
   ctx.translate(p.x, p.y);
   ctx.rotate(angle);
 
-  // Scale: crow+bomb should be clearly readable at the world zoom (full flight = ~0.6 zoom).
-  // At zoom 0.6, 1 world unit ≈ 0.6 viewport px. Scale 3.5 → wingspan ~(16*2)*3.5 = 112 wu.
-  ctx.scale(3.5, 3.5);
+  // Scale: source crow wingspan ≈ 12-15% of castle height (~300wu). ws=20 → total span ~40wu.
+  // Camera zoom ~0.6 means world units shrink on screen. At scale 2.0 → 80wu wingspan,
+  // rendered at 0.6 zoom = 48 screen px. Castle viewport height ~360px → 48/360 ≈ 13%. Correct.
+  ctx.scale(2.0, 2.0);
 
-  ctx.fillStyle = '#111111';
+  ctx.fillStyle = '#1A1A1A';
 
   // Tail fan — drawn first (behind everything).
   ctx.beginPath();
@@ -244,34 +245,35 @@ function _drawCrow(ctx, p) {
   // Wings — asymmetric flap; each is a filled bezier lobe.
   const ws = 20;
   // Left wing
-  ctx.fillStyle = '#111111';
+  ctx.fillStyle = '#1A1A1A';
   ctx.beginPath(); ctx.moveTo(-2, -1);
   ctx.bezierCurveTo(-6, wingL * 0.55, -ws * 0.75, wingL, -ws, wingL);
   ctx.bezierCurveTo(-ws * 0.5, wingL * 0.2, -4, 5, -2, -1);
   ctx.closePath(); ctx.fill();
   // Wing highlight strip along leading edge (top face catches light).
-  ctx.strokeStyle = 'rgba(100,100,100,0.55)'; ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(80,80,80,0.40)'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(-2, -1);
   ctx.bezierCurveTo(-6, wingL * 0.55, -ws * 0.75, wingL, -ws, wingL);
   ctx.stroke();
   // Right wing
-  ctx.fillStyle = '#111111';
+  ctx.fillStyle = '#1A1A1A';
   ctx.beginPath(); ctx.moveTo(-2, 1);
   ctx.bezierCurveTo(-6, wingR * 0.55, -ws * 0.75, wingR, -ws, wingR);
   ctx.bezierCurveTo(-ws * 0.5, wingR * 0.2, -4, -5, -2, 1);
   ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(100,100,100,0.55)'; ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(80,80,80,0.40)'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(-2, 1);
   ctx.bezierCurveTo(-6, wingR * 0.55, -ws * 0.75, wingR, -ws, wingR);
   ctx.stroke();
 
   // Head
+  ctx.fillStyle = '#1A1A1A';
   ctx.beginPath(); ctx.arc(12, -2, 5, 0, Math.PI * 2); ctx.fill();
   // Eye — small white dot.
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath(); ctx.arc(14, -3, 1.2, 0, Math.PI * 2); ctx.fill();
   // Beak
-  ctx.fillStyle = '#111111';
+  ctx.fillStyle = '#1A1A1A';
   ctx.beginPath(); ctx.moveTo(16, -3); ctx.lineTo(22, -1); ctx.lineTo(16, 1); ctx.closePath(); ctx.fill();
 
   // Bomb hangs below the crow in WORLD space (world-down), not local-down.
@@ -279,27 +281,19 @@ function _drawCrow(ctx, p) {
   ctx.restore();
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.scale(3.5, 3.5);
-  // Cord from body center downward in world space.
-  ctx.strokeStyle = '#333333'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, 17); ctx.stroke();
-  // Bomb body.
-  ctx.fillStyle = '#0D0D0D';
-  ctx.beginPath(); ctx.arc(0, 24, 8, 0, Math.PI * 2); ctx.fill();
-  // Bomb highlight.
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.beginPath(); ctx.arc(-2.5, 21, 2.8, 0, Math.PI * 2); ctx.fill();
-  // Skull emblem.
+  ctx.scale(2.0, 2.0);
+  // Short cord — source shows bomb close to talons.
+  ctx.strokeStyle = '#2A2A2A'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(0, 7); ctx.lineTo(0, 14); ctx.stroke();
+  // Bomb body — flat matte black sphere. Radius ~7 ≈ 60% of body half-length (11), matches source.
+  ctx.fillStyle = '#111111';
+  ctx.beginPath(); ctx.arc(0, 21, 7, 0, Math.PI * 2); ctx.fill();
+  // Skull emblem — white, flat, centered.
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 7px sans-serif';
+  ctx.font = 'bold 6px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('☠', 0, 24);
-  // Fuse.
-  ctx.strokeStyle = '#CC8800'; ctx.lineWidth = 1.8;
-  ctx.beginPath(); ctx.moveTo(0, 16); ctx.quadraticCurveTo(5, 12, 4, 8); ctx.stroke();
-  ctx.fillStyle = '#FFDD00';
-  ctx.beginPath(); ctx.arc(4, 8, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText('☠', 0, 21);
 
   ctx.restore();
 }

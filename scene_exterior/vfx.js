@@ -167,7 +167,7 @@ export function spawnCrowImpact(x, y) {
     p.vx = Math.cos(ang) * spd * 0.7; p.vy = Math.sin(ang) * spd - 80;
     p.life_ms = 1400 + Math.random() * 900; p.age_ms = 0;
     p.kind = KIND_FEATHER;
-    p.size = 9 + Math.random() * 10; // bigger = more readable
+    p.size = 5 + Math.random() * 6;
     p.hue = 0;
     p.rot = Math.random() * Math.PI * 2;
     p.rotV = (Math.random() - 0.5) * 5;
@@ -302,19 +302,19 @@ function _drawSingleParticle(ctx, p) {
     ctx.strokeStyle = '#0A0A0A';
     ctx.lineWidth = 0.8;
     // Feather barbs — two overlapping teardrop lobes, dark grey with lighter edge.
-    ctx.fillStyle = '#2A2A2A';
+    ctx.fillStyle = '#1A1A1A';
     ctx.beginPath();
     ctx.moveTo(0, -s);
     ctx.bezierCurveTo(s * 0.55, -s * 0.3, s * 0.65, s * 0.4, 0, s);
     ctx.bezierCurveTo(-s * 0.65, s * 0.4, -s * 0.55, -s * 0.3, 0, -s);
     ctx.closePath();
     ctx.fill();
-    // Lighter edge outline so it reads against dark background.
-    ctx.strokeStyle = 'rgba(140,140,140,0.6)';
+    // Subtle edge stroke so feathers read against dark castle walls.
+    ctx.strokeStyle = 'rgba(90,90,90,0.5)';
     ctx.lineWidth = 0.8;
     ctx.stroke();
-    // Central quill — slightly lighter.
-    ctx.strokeStyle = 'rgba(160,160,160,0.5)';
+    // Central quill.
+    ctx.strokeStyle = 'rgba(100,100,100,0.4)';
     ctx.lineWidth = 0.7;
     ctx.beginPath(); ctx.moveTo(0, -s * 0.8); ctx.lineTo(0, s * 0.8); ctx.stroke();
     ctx.restore();
