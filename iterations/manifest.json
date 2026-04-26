@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-26T10:47:52.039Z",
+  "generated_at": "2026-04-26T11:13:24.566Z",
   "variations": [
     {
       "id": "baseline",
@@ -12,6 +12,64 @@
       "diff_from_baseline": [],
       "review": "pass",
       "dir": "baseline"
+    },
+    {
+      "id": "V1",
+      "title": "Failure-first — enemy strikes in the first 800ms",
+      "axis": "hook",
+      "hypothesis": "Pattern-interrupt by drama: the enemy already hits the player castle for ~70% damage in the first 1.5s, screen-shakes, instruction reads 'OH NO! THEY HIT FIRST!' — user feels behind and wants to recover, lifting retention@5s.",
+      "diff_from_baseline": [
+        "playable/script.js: PHASE_INTRO_END 4500→2400ms + 1500ms 'OH NO! THEY HIT FIRST!' instruction during shortened intro",
+        "scene_exterior/index.js: _startIncoming rewritten — raven flock back-dated to be mid-air at frame 0, lands on OUR castle at ~800ms with dmg=70, amplified screen-shake/tilt for opening hit only",
+        "shared/hud_top.js: added HP-drop detector overlaying fading red flash on blue HP bar, amplitude scales with damage taken"
+      ],
+      "review": "pass",
+      "review_notes": "Axis hook respected: 'OH NO! THEY HIT FIRST!' string present in bundle, 4500→2400ms intro shortening confirmed (4500 absent, 2400 present); changes confined to intro phase + opening raven hit + HP-bar flash. Combat loop downstream untouched. No new assets — +638 bytes vs baseline, code-only.",
+      "dir": "V1-failure-first"
+    },
+    {
+      "id": "V2",
+      "title": "Bullseye-target — crit zone on enemy castle weak point",
+      "axis": "mechanic",
+      "hypothesis": "A pulsing bullseye marker (3 concentric rings + center) sits on the enemy castle weak point (mid-keep). Hits within 36px of center deal 1.5x damage and spawn a gold 'CRIT!' float + radial flash. Lifts mechanic clarity (where to aim) + adds juicy combo loop.",
+      "diff_from_baseline": [
+        "scene_exterior/index.js: bullseye marker drawn over enemy castle (nx=0.50, y=520), pulsing rings + dot, crit flash + radial burst on hits within 36px, 1.5x damage scaling, beefier shake/recoil on crit",
+        "playable/praise_floats.js: extended spawnPraise with kind:'crit' variant (108px gold gradient, dark-orange stroke, larger rotation jitter); added spawnCritPraise export"
+      ],
+      "review": "pass",
+      "review_notes": "Axis mechanic respected: bullseye/crit instrumentation visible (4 'crit' tokens added, +1 'CRIT' over baseline). Drag-aim-fire-impact loop preserved — only impact resolution branched with proximity check + 1.5x damage scaling and a praise variant. No new assets, +1705 bytes (canvas-drawn rings + extended praise float).",
+      "dir": "V2-bullseye-target"
+    },
+    {
+      "id": "V3",
+      "title": "Comic-pop — halftone overlay + KAPOW lettering on impacts",
+      "axis": "palette",
+      "hypothesis": "Reskin in comic-book pop aesthetic: 8px halftone dots overlay (multiply, alpha 0.14) + warm saturation pop + KAPOW/BOOM/POW lettering spawned on every projectile impact. Genre-bending mobile-game→comics for thumb-stop on TikTok feed.",
+      "diff_from_baseline": [
+        "playable/comic_overlay.js (NEW): applyComicPostFX (halftone + saturation overlay), spawnKapow + drawKapows particle system; canvas-only, no external assets",
+        "playable/script.js: import overlay; applyComicPostFX at top of _paintOverlay (skipped on endcard); drawKapows after drawPraiseFloats",
+        "scene_exterior/index.js: spawnKapow on every projectile impact (_impactOurs, _impactEnemy, _impactOursDuringResolve)"
+      ],
+      "review": "pass",
+      "review_notes": "Axis palette respected: KAPOW/BOOM/POW lettering array embedded, multiply composite-op introduced (absent in baseline) for halftone overlay. No gameplay timing changed — overlay attaches at _paintOverlay, kapow spawns piggyback on existing impact handlers. Canvas-only, +1867 bytes, zero assets.",
+      "winner": true,
+      "winner_rationale": "Maximum thumb-stop differentiation in a TikTok/IG feed (where CPM is brutal and the first 200ms of impression decide scroll-vs-stop). Genre-bending (mobile-game → comics) demonstrates the pipeline's creative range — the hackathon deliverable is the tool, this output proves it can produce non-trivial reskinning. Zero regression on combat loop. Run-2 winner over V1/V2/V4.",
+      "dir": "V3-comic-pop"
+    },
+    {
+      "id": "V4",
+      "title": "Loot-chest — chest opens, gems fly to CTA, single arrow CTA",
+      "axis": "endcard",
+      "hypothesis": "On both win endcard and fail screen, a wood chest drops, opens at 600ms, then 12 gems arc toward the CTA button — each gem ticks a counter (💎 X/12) and pulses the button (scale 1→1.08→1, 250ms). Loss screen collapses dual-CTA to a single 'PLAY →' (2-4 words + arrow per +26% data). Reward juice + Zeigarnik amplify CTA pull.",
+      "diff_from_baseline": [
+        "playable/loot_chest.js (NEW, ~230 LOC): shared reward layer — triggerLootSequence/updateLoot/drawLoot, chest sprite, 12 gems quadratic-Bezier flight (90ms stagger, 700ms travel) toward CTA, onLootTick callback",
+        "playable/endcard.js: triggers loot once opacity>0.5; renders chest/gems above CTA; CTA combines ambient pulse + transient tick pulse; '💎 X/12' counter under button",
+        "playable/fail_screen.js: dual-CTA collapsed → single 'PLAY →'; resetLoot on entry; loot triggers at opacity>0.6; counter under CTA; existing input ownership preserved",
+        "playable/persistent_cta.js: adds pulseCTA() API; auto-subscribes to onLootTick; flips on gem-counter overlay below button label after first landing"
+      ],
+      "review": "pass",
+      "review_notes": "Axis endcard respected: 'PLAY →' (\\u2192) introduced (×2, absent in baseline) confirming dual-CTA→single-CTA collapse on fail screen. Bundle grew +4087 bytes consistent with the new ~230-LOC loot module. Combat loop and intro untouched — loot triggers only after endcard/fail opacity threshold. Canvas-drawn chest/gems, no external assets.",
+      "dir": "V4-loot-chest"
     }
   ]
 }

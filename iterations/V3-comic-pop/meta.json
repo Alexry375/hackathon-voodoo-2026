@@ -8,5 +8,8 @@
     "playable/script.js: import overlay; applyComicPostFX at top of _paintOverlay (skipped on endcard); drawKapows after drawPraiseFloats",
     "scene_exterior/index.js: spawnKapow on every projectile impact (_impactOurs, _impactEnemy, _impactOursDuringResolve)"
   ],
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis palette respected: KAPOW/BOOM/POW lettering array embedded, multiply composite-op introduced (absent in baseline) for halftone overlay. No gameplay timing changed — overlay attaches at _paintOverlay, kapow spawns piggyback on existing impact handlers. Canvas-only, +1867 bytes, zero assets.",
+  "winner": true,
+  "winner_rationale": "Maximum thumb-stop differentiation in a TikTok/IG feed (where CPM is brutal and the first 200ms of impression decide scroll-vs-stop). Genre-bending (mobile-game → comics) demonstrates the pipeline's creative range — the hackathon deliverable is the tool, this output proves it can produce non-trivial reskinning. Zero regression on combat loop. Run-2 winner over V1/V2/V4."
 }

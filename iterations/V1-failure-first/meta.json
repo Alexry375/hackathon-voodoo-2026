@@ -8,5 +8,6 @@
     "scene_exterior/index.js: _startIncoming rewritten — raven flock back-dated to be mid-air at frame 0, lands on OUR castle at ~800ms with dmg=70, amplified screen-shake/tilt for opening hit only",
     "shared/hud_top.js: added HP-drop detector overlaying fading red flash on blue HP bar, amplitude scales with damage taken"
   ],
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis hook respected: 'OH NO! THEY HIT FIRST!' string present in bundle, 4500→2400ms intro shortening confirmed (4500 absent, 2400 present); changes confined to intro phase + opening raven hit + HP-bar flash. Combat loop downstream untouched. No new assets — +638 bytes vs baseline, code-only."
 }
