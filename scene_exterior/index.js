@@ -1142,11 +1142,11 @@ function _drawTreads(ctx, viewMode) {
   // with arches + greenery visible between them, not a single full-width
   // monster tread. Each unit is sized at ~36% of the castle width.
   const v = viewMode || view;
-  // Both sides ride on the same tread design — TREAD_ENEMY had a different
-  // silhouette/spike count that read as a different vehicle. Force both to
-  // TREAD_OURS so the red castle matches the blue one.
+  // Both sides use the TREAD_ENEMY sprite — it matches the treads baked
+  // into the red damage-tier PNGs (CASTLE_75/50/25), so the intact and
+  // damaged states stay visually consistent across both castles.
   void v;
-  const img = getImage('TREAD_OURS');
+  const img = getImage('TREAD_ENEMY');
   if (!img || !img.width) return;
 
   const tw = Math.round(CASTLE_W * 0.42);
