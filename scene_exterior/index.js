@@ -248,9 +248,10 @@ function _startIncoming() {
   step = 'intro_dwell';
   stepT0 = performance.now();
   // Stash target so the flock spawn at T+1500 is deterministic for the impact.
+  // Wide range across the castle so the intro impact is not always centered.
   const target = {
-    x: CASTLE_X + CASTLE_W * (0.45 + Math.random() * 0.40),
-    y: CASTLE_TOP_Y + 40 + Math.random() * 200,
+    x: CASTLE_X + CASTLE_W * (0.18 + Math.random() * 0.64),
+    y: CASTLE_TOP_Y + 30 + Math.random() * 240,
   };
   pendingPlayerImpact = target;
 }
@@ -312,12 +313,13 @@ function startPlayerShot(payload) {
   step = 'fire';
   stepT0 = performance.now();
 
-  // Stash enemy-side impact data
+  // Stash enemy-side impact data — wide range so successive player shots
+  // visibly hit different parts of the enemy castle (not the same spot).
   const dmgVal = 14 + Math.floor(Math.random() * 6);
   pendingEnemyDmg = dmgVal;
   pendingEnemyImpact = {
-    x: CASTLE_X + CASTLE_W * (0.30 + Math.random() * 0.4),
-    y: CASTLE_TOP_Y + 70 + Math.random() * 160,
+    x: CASTLE_X + CASTLE_W * (0.18 + Math.random() * 0.64),
+    y: CASTLE_TOP_Y + 50 + Math.random() * 220,
   };
 
   const t = performance.now();
@@ -413,22 +415,25 @@ function _startEnemyRiposte() {
 }
 
 function _spawnEnemyRiposteFlock() {
-  // Randomised so every enemy riposte hits a fresh spot/timing.
+  // Impact varies widely across the castle every time. Trajectory shape
+  // (start point, duration, sine amplitude) is held nearly constant so
+  // the flock keeps a recognisable, repeated motion — only the landing
+  // point shifts. Per user feedback: "même animation, impacts différents".
   const target = {
-    x: CASTLE_X + CASTLE_W * (0.45 + Math.random() * 0.40),
-    y: CASTLE_TOP_Y + 40 + Math.random() * 200,
+    x: CASTLE_X + CASTLE_W * (0.18 + Math.random() * 0.64),
+    y: CASTLE_TOP_Y + 40 + Math.random() * 220,
   };
   const dmgVal = 14 + Math.floor(Math.random() * 6);
   const t = performance.now();
   /** @type {Projectile} */
   const flock = {
     kind: 'flock',
-    from: { x: W + 80 + Math.random() * 120, y: 220 + Math.random() * 200 },
+    from: { x: W + 100, y: 280 },
     to: target,
     t0: t + 150,
-    dur: 1700 + Math.random() * 600,
+    dur: 1800,
     peakLift: 0,
-    sinAmp: 30 + Math.random() * 50, sinFreq: 0, sinPhase: 0,
+    sinAmp: 50, sinFreq: 0, sinPhase: 0,
     onLand: () => _routeOursImpact(target, dmgVal),
   };
   projectiles.push(flock);
