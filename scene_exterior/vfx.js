@@ -3,16 +3,17 @@
 // Procedural Canvas2D — no image assets, no deps.
 // All state lives in module-local pools to avoid per-frame allocations.
 
-const MAX_PARTICLES = 280;
+const MAX_PARTICLES = 340;
 
-/** @typedef {{x:number,y:number,vx:number,vy:number,life_ms:number,age_ms:number,kind:number,size:number,hue:number,alive:boolean,smokeColor?:string}} Particle */
+/** @typedef {{x:number,y:number,vx:number,vy:number,life_ms:number,age_ms:number,kind:number,size:number,hue:number,alive:boolean,smokeColor?:string,rot?:number,rotV?:number}} Particle */
 
-// kind enum: 0=spark, 1=smoke, 2=dust, 3=ring, 4=flash (bright central burst)
+// kind enum: 0=spark, 1=smoke, 2=dust, 3=ring, 4=flash, 5=feather
 const KIND_SPARK = 0;
 const KIND_SMOKE = 1;
 const KIND_DUST = 2;
 const KIND_RING = 3;
 const KIND_FLASH = 4;
+const KIND_FEATHER = 5;
 
 /** @type {Particle[]} */
 const particles = [];
@@ -134,6 +135,47 @@ export function triggerExplosion(x, y, { size, palette = 'player' }) {
 }
 
 /**
+ * Crow-specific impact: dark explosion flash + floating feathers.
+ * Feathers drift down slowly with rocking rotation, matching source footage.
+ * @param {number} x @param {number} y
+ */
+export function spawnCrowImpact(x, y) {
+  // Small dark flash — crows carry a bomb but it's not super bright.
+  const flash = spawn();
+  flash.x = x; flash.y = y; flash.vx = 0; flash.vy = 0;
+  flash.life_ms = 220; flash.age_ms = 0; flash.kind = KIND_FLASH;
+  flash.size = 65; flash.hue = 28; flash.alive = true; // sombre orange
+
+  // Dark charcoal dust puff (bomb smoke).
+  for (let i = 0; i < 7; i++) {
+    const p = spawn();
+    const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
+    const spd = 40 * (0.5 + Math.random() * 0.6);
+    p.x = x + (Math.random() - 0.5) * 20; p.y = y + (Math.random() - 0.5) * 14;
+    p.vx = Math.cos(ang) * spd; p.vy = Math.sin(ang) * spd;
+    p.life_ms = 700 + Math.random() * 500; p.age_ms = 0;
+    p.kind = KIND_DUST; p.size = 20 + Math.random() * 16; p.hue = 0; p.alive = true;
+  }
+
+  // Feathers — burst outward then drift down with rocking rotation.
+  const featherCount = 10 + Math.round(Math.random() * 5);
+  for (let i = 0; i < featherCount; i++) {
+    const p = spawn();
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 80 + Math.random() * 120;
+    p.x = x + (Math.random() - 0.5) * 40; p.y = y + (Math.random() - 0.5) * 30;
+    p.vx = Math.cos(ang) * spd * 0.7; p.vy = Math.sin(ang) * spd - 80;
+    p.life_ms = 1400 + Math.random() * 900; p.age_ms = 0;
+    p.kind = KIND_FEATHER;
+    p.size = 9 + Math.random() * 10; // bigger = more readable
+    p.hue = 0;
+    p.rot = Math.random() * Math.PI * 2;
+    p.rotV = (Math.random() - 0.5) * 5;
+    p.alive = true;
+  }
+}
+
+/**
  * @param {number} x
  * @param {number} y
  * @param {number} vx
@@ -147,7 +189,7 @@ const SMOKE_BY_WEAPON = {
   rocket: { color: '#D95B5B', size: 18, life_ms: 200 },
   volley: { color: '#8D8D8D', size:  6, life_ms: 1200 },
   beam:   { color: '#F28C1F', size: 10, life_ms: 500 },
-  crow:   { color: '#4A4A4A', size: 17, life_ms: 1200 }, // Q1: dark charcoal, moderate trail
+  crow:   { color: '#383838', size: 22, life_ms: 1400 }, // Q1: dark charcoal, puffier trail
 };
 
 export function triggerSmokeTrail(x, y, vx, vy, weapon_type = 'rocket') {
@@ -191,6 +233,15 @@ function drawRain(ctx, w, h, dt_s) {
 function _tickParticle(p, dt_s) {
   if (p.kind === KIND_SPARK) p.vy += 480 * dt_s;
   else if (p.kind === KIND_DUST) p.vy += 30 * dt_s;
+  else if (p.kind === KIND_FEATHER) {
+    // Low gravity, high drag — floats and rocks.
+    p.vy += 65 * dt_s;           // weak gravity
+    p.vx *= (1 - dt_s * 1.2);   // horizontal drag
+    p.vy *= (1 - dt_s * 0.8);   // vertical drag
+    p.rot = (p.rot || 0) + (p.rotV || 0) * dt_s;
+    // Gentle side-to-side drift using rotation as a sine phase.
+    p.vx += Math.sin(p.rot * 2) * 8 * dt_s;
+  }
   p.x += p.vx * dt_s;
   p.y += p.vy * dt_s;
 }
@@ -240,6 +291,33 @@ function _drawSingleParticle(ctx, p) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
+  } else if (p.kind === KIND_FEATHER) {
+    // Curved feather: a short tapered arc drawn as two bezier curves.
+    const s = p.size;
+    ctx.globalAlpha = Math.min(0.92, fade * 1.1);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot || 0);
+    ctx.fillStyle = '#1C1C1C';
+    ctx.strokeStyle = '#0A0A0A';
+    ctx.lineWidth = 0.8;
+    // Feather barbs — two overlapping teardrop lobes, dark grey with lighter edge.
+    ctx.fillStyle = '#2A2A2A';
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.bezierCurveTo(s * 0.55, -s * 0.3, s * 0.65, s * 0.4, 0, s);
+    ctx.bezierCurveTo(-s * 0.65, s * 0.4, -s * 0.55, -s * 0.3, 0, -s);
+    ctx.closePath();
+    ctx.fill();
+    // Lighter edge outline so it reads against dark background.
+    ctx.strokeStyle = 'rgba(140,140,140,0.6)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Central quill — slightly lighter.
+    ctx.strokeStyle = 'rgba(160,160,160,0.5)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(0, -s * 0.8); ctx.lineTo(0, s * 0.8); ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -256,8 +334,8 @@ function drawParticles(ctx, dt_ms) {
     _tickParticle(p, dt_s);
   }
 
-  // Draw in layers so sparks always appear on top of smoke/dust.
-  // Pass 1: flash, dust, smoke, ring (background layers)
+  // Draw in layers: flash/dust/smoke/ring/feather (background), then sparks on top.
+  // Pass 1: everything except sparks
   for (let i = 0; i < MAX_PARTICLES; i++) {
     const p = particles[i];
     if (!p.alive || p.kind === KIND_SPARK) continue;

@@ -137,7 +137,7 @@ function resolveImpact(p) {
 
   applyDamageToSelf(-dmg);
   const size = dmg >= 5 ? 'big' : 'small';
-  try { vfx.triggerExplosion(p.x, p.y, { size, palette: 'enemy' }); } catch (_) {}
+  try { vfx.spawnCrowImpact(p.x, p.y); } catch (_) {}
   playSfx({ volume: 0.9, rate: 0.65 });
   addBite(p.x, p.y, { size });
 }
@@ -155,7 +155,7 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
     _introCrow.y += _introCrow.vy * dt;
     _introCrow.ttlMs -= dt;
     _introCrow.smokeAccumMs += dt;
-    if (_introCrow.smokeAccumMs > 80) {
+    if (_introCrow.smokeAccumMs > 55) {
       _introCrow.smokeAccumMs = 0;
       try { vfx.triggerSmokeTrail(_introCrow.x, _introCrow.y, -_introCrow.vx * 0.3, -_introCrow.vy * 0.3, 'crow'); } catch (_) {}
     }
@@ -187,7 +187,7 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
     p.y += p.vy * dt;
     p.ttlMs -= dt;
     p.smokeAccumMs += dt;
-    if (p.smokeAccumMs > 60) {
+    if (p.smokeAccumMs > 50) {
       p.smokeAccumMs = 0;
       try { vfx.triggerSmokeTrail(p.x, p.y, -p.vx * 0.3, -p.vy * 0.3, 'crow'); } catch (_) {}
     }
@@ -216,28 +216,90 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
 
 function _drawCrow(ctx, p) {
   const flightElapsed = (p.totalMs - p.ttlMs) / 1000;
-  const wingFlap = Math.sin(flightElapsed * 8) * 12;
+  // Alternating wing phase: left flaps up when right flaps down (natural bird motion).
+  const flapPhase = flightElapsed * 9;
+  const wingL = Math.sin(flapPhase) * 18;       // left wing Y offset (up = negative)
+  const wingR = Math.sin(flapPhase + Math.PI) * 18; // right wing opposite phase
   const angle = Math.atan2(p.vy, p.vx);
+
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(angle);
-  ctx.fillStyle = '#1A1A1A';
-  // Body
-  ctx.beginPath(); ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
-  // Head
-  ctx.beginPath(); ctx.arc(10, -2, 4, 0, Math.PI * 2); ctx.fill();
-  // Beak
-  ctx.beginPath(); ctx.moveTo(13, -3); ctx.lineTo(17, -1); ctx.lineTo(13, 1); ctx.closePath(); ctx.fill();
+
+  // Scale: crow+bomb should be clearly readable at the world zoom (full flight = ~0.6 zoom).
+  // At zoom 0.6, 1 world unit ≈ 0.6 viewport px. Scale 3.5 → wingspan ~(16*2)*3.5 = 112 wu.
+  ctx.scale(3.5, 3.5);
+
+  ctx.fillStyle = '#111111';
+
+  // Tail fan — drawn first (behind everything).
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(-17, -5); ctx.lineTo(-15, 0); ctx.lineTo(-17, 5);
+  ctx.closePath(); ctx.fill();
+
+  // Body — elongated ellipse, slight upward angle.
+  ctx.beginPath(); ctx.ellipse(0, 0, 11, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Wings — asymmetric flap; each is a filled bezier lobe.
+  const ws = 20;
   // Left wing
-  const ws = 12;
-  ctx.beginPath(); ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(-4, -wingFlap * 0.5, -ws * 0.7, -wingFlap, -ws, -wingFlap);
-  ctx.bezierCurveTo(-ws * 0.6, -wingFlap * 0.3, -3, 4, 0, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.beginPath(); ctx.moveTo(-2, -1);
+  ctx.bezierCurveTo(-6, wingL * 0.55, -ws * 0.75, wingL, -ws, wingL);
+  ctx.bezierCurveTo(-ws * 0.5, wingL * 0.2, -4, 5, -2, -1);
+  ctx.closePath(); ctx.fill();
+  // Wing highlight strip along leading edge (top face catches light).
+  ctx.strokeStyle = 'rgba(100,100,100,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-2, -1);
+  ctx.bezierCurveTo(-6, wingL * 0.55, -ws * 0.75, wingL, -ws, wingL);
+  ctx.stroke();
   // Right wing
-  ctx.beginPath(); ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(-4, wingFlap * 0.5, -ws * 0.7, wingFlap, -ws, wingFlap);
-  ctx.bezierCurveTo(-ws * 0.6, wingFlap * 0.3, -3, -4, 0, 0); ctx.closePath(); ctx.fill();
-  // Tail
-  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-14, -4); ctx.lineTo(-12, 0); ctx.lineTo(-14, 4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#111111';
+  ctx.beginPath(); ctx.moveTo(-2, 1);
+  ctx.bezierCurveTo(-6, wingR * 0.55, -ws * 0.75, wingR, -ws, wingR);
+  ctx.bezierCurveTo(-ws * 0.5, wingR * 0.2, -4, -5, -2, 1);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(100,100,100,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-2, 1);
+  ctx.bezierCurveTo(-6, wingR * 0.55, -ws * 0.75, wingR, -ws, wingR);
+  ctx.stroke();
+
+  // Head
+  ctx.beginPath(); ctx.arc(12, -2, 5, 0, Math.PI * 2); ctx.fill();
+  // Eye — small white dot.
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.arc(14, -3, 1.2, 0, Math.PI * 2); ctx.fill();
+  // Beak
+  ctx.fillStyle = '#111111';
+  ctx.beginPath(); ctx.moveTo(16, -3); ctx.lineTo(22, -1); ctx.lineTo(16, 1); ctx.closePath(); ctx.fill();
+
+  // Bomb hangs below the crow in WORLD space (world-down), not local-down.
+  // Undo the flight rotation, draw in unrotated world frame so bomb always hangs down.
+  ctx.restore();
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.scale(3.5, 3.5);
+  // Cord from body center downward in world space.
+  ctx.strokeStyle = '#333333'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, 17); ctx.stroke();
+  // Bomb body.
+  ctx.fillStyle = '#0D0D0D';
+  ctx.beginPath(); ctx.arc(0, 24, 8, 0, Math.PI * 2); ctx.fill();
+  // Bomb highlight.
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath(); ctx.arc(-2.5, 21, 2.8, 0, Math.PI * 2); ctx.fill();
+  // Skull emblem.
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('☠', 0, 24);
+  // Fuse.
+  ctx.strokeStyle = '#CC8800'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(0, 16); ctx.quadraticCurveTo(5, 12, 4, 8); ctx.stroke();
+  ctx.fillStyle = '#FFDD00';
+  ctx.beginPath(); ctx.arc(4, 8, 2.5, 0, Math.PI * 2); ctx.fill();
+
   ctx.restore();
 }
