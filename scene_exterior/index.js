@@ -238,6 +238,45 @@ export function mount(c) {
   on('player_fire', startPlayerShot);
 }
 
+// ── Deterministic impact cycles ──────────────────────────────────────────────
+// Random impacts cluster visually 2-3 shots in a row even with a wide range,
+// so we cycle through hand-placed targets covering the full castle face. The
+// OURS cycle is shared by the intro raven and every enemy-riposte flock so a
+// fresh shot never lands on the previous crater. Same idea on ENEMY for the
+// player's own shots. nx is normalized inside CASTLE_W (0..1), y is absolute.
+/** @typedef {{nx:number, y:number}} ImpactSpot */
+/** @type {ImpactSpot[]} */
+const OURS_IMPACT_CYCLE = [
+  { nx: 0.30, y: 380 }, // upper-left tower
+  { nx: 0.72, y: 360 }, // upper-right tower
+  { nx: 0.50, y: 470 }, // mid keep
+  { nx: 0.22, y: 530 }, // lower-left wall
+  { nx: 0.78, y: 510 }, // lower-right wall
+  { nx: 0.46, y: 575 }, // base centre
+];
+/** @type {ImpactSpot[]} */
+const ENEMY_IMPACT_CYCLE = [
+  { nx: 0.68, y: 370 }, // upper-right tower
+  { nx: 0.28, y: 395 }, // upper-left tower
+  { nx: 0.52, y: 500 }, // mid keep
+  { nx: 0.76, y: 545 }, // lower-right wall
+  { nx: 0.24, y: 520 }, // lower-left wall
+  { nx: 0.50, y: 590 }, // base centre
+];
+let _oursCycleIdx = 0;
+let _enemyCycleIdx = 0;
+
+function _nextOursImpact() {
+  const s = OURS_IMPACT_CYCLE[_oursCycleIdx % OURS_IMPACT_CYCLE.length];
+  _oursCycleIdx++;
+  return { x: CASTLE_X + CASTLE_W * s.nx, y: s.y };
+}
+function _nextEnemyImpact() {
+  const s = ENEMY_IMPACT_CYCLE[_enemyCycleIdx % ENEMY_IMPACT_CYCLE.length];
+  _enemyCycleIdx++;
+  return { x: CASTLE_X + CASTLE_W * s.nx, y: s.y };
+}
+
 // ── Opening cinematic ────────────────────────────────────────────────────────
 // Spec-locked flow (cinematic-spec.md):
 //   T=0    → 1500ms : dwell on ENEMY_RED (hook: enemy preparing to fire)
@@ -247,13 +286,10 @@ function _startIncoming() {
   view = 'ENEMY';
   step = 'intro_dwell';
   stepT0 = performance.now();
-  // Stash target so the flock spawn at T+1500 is deterministic for the impact.
-  // Wide range across the castle so the intro impact is not always centered.
-  const target = {
-    x: CASTLE_X + CASTLE_W * (0.18 + Math.random() * 0.64),
-    y: CASTLE_TOP_Y + 30 + Math.random() * 240,
-  };
-  pendingPlayerImpact = target;
+  // Reset cycles on each fresh playthrough so the sequence is reproducible.
+  _oursCycleIdx = 0;
+  _enemyCycleIdx = 0;
+  pendingPlayerImpact = _nextOursImpact();
 }
 
 function _startIntroPanAndFlock() {
@@ -317,10 +353,7 @@ function startPlayerShot(payload) {
   // visibly hit different parts of the enemy castle (not the same spot).
   const dmgVal = 14 + Math.floor(Math.random() * 6);
   pendingEnemyDmg = dmgVal;
-  pendingEnemyImpact = {
-    x: CASTLE_X + CASTLE_W * (0.18 + Math.random() * 0.64),
-    y: CASTLE_TOP_Y + 50 + Math.random() * 220,
-  };
+  pendingEnemyImpact = _nextEnemyImpact();
 
   const t = performance.now();
   const m = muzzlePos();
@@ -415,14 +448,11 @@ function _startEnemyRiposte() {
 }
 
 function _spawnEnemyRiposteFlock() {
-  // Impact varies widely across the castle every time. Trajectory shape
-  // (start point, duration, sine amplitude) is held nearly constant so
-  // the flock keeps a recognisable, repeated motion — only the landing
-  // point shifts. Per user feedback: "même animation, impacts différents".
-  const target = {
-    x: CASTLE_X + CASTLE_W * (0.18 + Math.random() * 0.64),
-    y: CASTLE_TOP_Y + 40 + Math.random() * 220,
-  };
+  // Trajectory shape (start point, duration, sine amplitude) is held nearly
+  // constant so the flock keeps a recognisable, repeated motion — only the
+  // landing point shifts. Targets come from OURS_IMPACT_CYCLE, shared with
+  // the intro raven, so consecutive enemy shots never cluster.
+  const target = _nextOursImpact();
   const dmgVal = 14 + Math.floor(Math.random() * 6);
   const t = performance.now();
   /** @type {Projectile} */
