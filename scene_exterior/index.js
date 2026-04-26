@@ -404,7 +404,11 @@ function startPlayerShot(payload) {
       // so the rafale reads on screen but doesn't multiply damage.
       onLand: isLast
         ? () => {
-            playSfx(IMPACT_SFX_BY_KIND[plan.kind] || 'SFX_IMPACT_ROCKET', { volume: 0.7 });
+            const sfx = IMPACT_SFX_BY_KIND[plan.kind] || 'SFX_IMPACT_ROCKET';
+            // Rafale fireworks are intentionally quieter in the source pack;
+            // bump them so they read on par with rocket impacts.
+            const vol = sfx === 'SFX_IMPACT_RAFALE' ? 1.0 : 0.7;
+            playSfx(sfx, { volume: vol });
             _impactEnemy(pendingEnemyImpact, pendingEnemyDmg);
           }
         : (() => { _spawnExplosion(target.x - W, target.y, { heavy: false }); }),
