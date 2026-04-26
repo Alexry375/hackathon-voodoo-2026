@@ -28,6 +28,7 @@ import { getImage, isImageReady } from '../shared/assets.js';
 import { drawScriptOverlay } from '../playable/script.js';
 import { drawRaven } from './raven.js';
 import { drawRavenFlock } from './raven_flock.js';
+import { planForUnit, drawProjectileP1, drawProjectileP2 } from './projectile_sprites.js';
 
 // ── Layout constants (canvas 540×960) ────────────────────────────────────────
 const W = 540, H = 960;
@@ -130,7 +131,7 @@ function triggerShake(intensity, durMs) {
 /** @type {{x:number,y:number,t0:number,text:string,color:string}[]} */
 const floats = [];
 
-/** @typedef {{kind:'rocket'|'bomb'|'raven', from:{x:number,y:number}, to:{x:number,y:number},
+/** @typedef {{kind:'rocket'|'rocket_p1'|'bomb'|'bomb_p2'|'raven'|'flock', from:{x:number,y:number}, to:{x:number,y:number},
  *             t0:number, dur:number, peakLift:number, sinAmp?:number, sinPhase?:number,
  *             sinFreq?:number, onLand:()=>void}} Projectile */
 /** @type {Projectile[]} */
@@ -229,7 +230,7 @@ export function mount(c) {
     visible = s === 'EXTERIOR_OBSERVE' || s === 'EXTERIOR_RESOLVE'
             || s === 'INTRO_INCOMING'  || s === 'END_VICTORY' || s === 'END_DEFEAT';
     if (s === 'EXTERIOR_OBSERVE') { view = 'OURS'; }
-    if (s === 'INTRO_INCOMING')   { view = 'OURS'; _startIncoming(); }
+    if (s === 'INTRO_INCOMING')   { view = 'ENEMY'; _startIncoming(); }
     if (s === 'END_VICTORY')      { view = 'ENEMY'; }
     if (s === 'END_DEFEAT')       { view = 'OURS'; }
     if (visible && !rafId) loop();
@@ -238,26 +239,43 @@ export function mount(c) {
 }
 
 // ── Opening cinematic ────────────────────────────────────────────────────────
+// Spec-locked flow (cinematic-spec.md):
+//   T=0    → 1500ms : dwell on ENEMY_RED (hook: enemy preparing to fire)
+//   T=1500 → 3000ms : pan ENEMY→OURS, raven flock crosses screen R→L
+//   T=3000           : impact on OURS_BLUE (-33% HP) → exit to interior
 function _startIncoming() {
-  // Source-faithful enemy attack: 2 ravens ARE the projectiles. They dive at
-  // the castle from off-screen right with phase-opposed sinusoidal bobs (one
-  // peaks while the other dips). Raven A crashes into the castle and triggers
-  // impact; raven B grazes just above and exits frame as a second wave.
-  // Randomised so each playthrough lands a visually different incoming run.
+  view = 'ENEMY';
+  step = 'intro_dwell';
+  stepT0 = performance.now();
+  // Stash target so the flock spawn at T+1500 is deterministic for the impact.
   const target = {
     x: CASTLE_X + CASTLE_W * (0.45 + Math.random() * 0.40),
     y: CASTLE_TOP_Y + 40 + Math.random() * 200,
   };
-  const dmgVal = 33;
   pendingPlayerImpact = target;
-  const t = performance.now();
+}
+
+function _startIntroPanAndFlock() {
+  // Triggered at T+1500ms (end of intro_dwell). Pans ENEMY→OURS while the raven
+  // flock crosses the screen right→left, landing on OURS castle as the pan ends.
+  const now = performance.now();
+  const target = pendingPlayerImpact || {
+    x: CASTLE_X + CASTLE_W * 0.55,
+    y: CASTLE_TOP_Y + 120,
+  };
+  const dmgVal = 33;
+  // Camera pan ENEMY→OURS (dir=-1, world slides right). Same duration shape as
+  // the player-shot pan so the cinematic reads consistently.
+  viewTransition = { fromView: 'ENEMY', toView: 'OURS', t0: now, dur: 1300, dir: -1 };
+  // Raven flock: starts off-screen right, lands on OURS target ~1500ms later.
+  // The pan ends ~200ms before impact so the flock visibly converges in OURS view.
   /** @type {Projectile} */
   const flock = {
     kind: 'flock',
-    from: { x: W + 80 + Math.random() * 120, y: 220 + Math.random() * 200 },
+    from: { x: W + 120, y: 220 + Math.random() * 200 },
     to: target,
-    t0: t + 200,
-    dur: 1700 + Math.random() * 600,
+    t0: now,
+    dur: 1500,
     peakLift: 0,
     sinAmp: 30 + Math.random() * 50, sinFreq: 0, sinPhase: 0,
     onLand: () => _impactOurs(target, dmgVal),
@@ -265,7 +283,7 @@ function _startIncoming() {
   projectiles.push(flock);
 
   step = 'incoming';
-  stepT0 = performance.now();
+  stepT0 = now;
 }
 
 function _impactOurs(at, d) {
@@ -304,22 +322,39 @@ function startPlayerShot(payload) {
 
   const t = performance.now();
   const m = muzzlePos();
-  // Single world-space rocket: muzzle (OURS world) → enemy target (ENEMY world,
-  // offset by +W). The render loop compensates `screen_x = world_x - viewOffset`
-  // where viewOffset is the current pan in pixels (0 in OURS, W in ENEMY,
-  // interpolated during the pan). High peakLift so the arc clears both castles.
-  /** @type {Projectile} */
-  const rocket = {
-    kind: 'rocket',
-    worldSpace: true,
-    from: m,
-    to: { x: pendingEnemyImpact.x + W, y: pendingEnemyImpact.y },
-    t0: t + 250,
-    dur: 1500,
-    peakLift: 380,
-    onLand: () => _impactEnemy(pendingEnemyImpact, pendingEnemyDmg),
-  };
-  projectiles.push(rocket);
+  // Per-unit shot plan : skeleton fires a 4-shot rafale of Projectile_1 (small
+  // missiles), cyclop fires a single Projectile_2 (chunky bomb with flashy
+  // trail), orc fires the current procedural red ball. See projectile_sprites.js.
+  const plan = planForUnit(payload?.unit_id);
+  const baseTarget = { x: pendingEnemyImpact.x + W, y: pendingEnemyImpact.y };
+  for (let i = 0; i < plan.count; i++) {
+    // Spread burst impacts a bit so they read as a strafing rafale, not a
+    // single point.
+    const jitter = plan.count > 1
+      ? { x: (Math.random() - 0.5) * 80, y: (Math.random() - 0.5) * 60 }
+      : { x: 0, y: 0 };
+    const target = { x: baseTarget.x + jitter.x, y: baseTarget.y + jitter.y };
+    const isLast = i === plan.count - 1;
+    /** @type {Projectile} */
+    const proj = {
+      kind: plan.kind,
+      worldSpace: true,
+      from: m,
+      to: target,
+      t0: t + 250 + i * plan.staggerMs,
+      dur: plan.durMs,
+      peakLift: plan.peakLift + (plan.count > 1 ? Math.random() * 80 - 40 : 0),
+      // Only the final projectile triggers the HP/damage impact ; earlier
+      // burst projectiles trigger a light visual splash via _spawnExplosion
+      // so the rafale reads on screen but doesn't multiply damage.
+      onLand: isLast
+        ? () => _impactEnemy(pendingEnemyImpact, pendingEnemyDmg)
+        : (() => { _spawnExplosion(target.x - W, target.y, { heavy: false }); }),
+      // optional: store sprite size for renderer
+      _spriteSize: plan.size,
+    };
+    projectiles.push(proj);
+  }
 
   // Camera pan runs concurrently with the first ~73% of the rocket flight; the
   // last 400ms of the rocket arc descend onto the enemy castle in ENEMY view.
@@ -339,6 +374,11 @@ function _tick(now) {
     else if (remain < total * 0.6) tiltAngle *= 0.86;
   }
 
+  // Intro hook: after dwelling on ENEMY castle for 1500ms, pan to OURS while a
+  // raven flock crosses the screen toward our castle (per cinematic-spec).
+  if (step === 'intro_dwell' && now - stepT0 > 1500) {
+    _startIntroPanAndFlock();
+  }
   // After enemy impact, dwell ~1500ms to savor the destruction, then trigger
   // the enemy riposte (pan back → raven flock → impact OURS → dwell → cut).
   // This makes the gameplay loop feel like a real turn-based exchange.
@@ -988,6 +1028,8 @@ function _drawProjectiles(ctx, now, viewOffset = 0) {
       });
     }
     else if (p.kind === 'rocket') _drawRocketSprite(ctx, pos.x + dx_screen, pos.y, ang, 36);
+    else if (p.kind === 'rocket_p1') drawProjectileP1(ctx, pos.x + dx_screen, pos.y, ang, p._spriteSize ?? 30);
+    else if (p.kind === 'bomb_p2')   drawProjectileP2(ctx, pos.x + dx_screen, pos.y, ang, p._spriteSize ?? 44);
     else if (p.kind === 'bomb') _drawBombSprite(ctx, pos.x + dx_screen, pos.y, ang);
   }
 }

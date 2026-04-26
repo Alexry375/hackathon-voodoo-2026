@@ -9,6 +9,7 @@
 | pass2 (baseline run-3 + run-2 cycle 5 + simulateFire) | 1 | 2 | 2 | 1 | 4 | 2.0 | baseline propre — playable déroule jusqu'à endcard |
 | **pass3 (final run-2 merge — pans allongés + enemy riposte)** | **1** | **2** | **1** | **3** | **3** | **2.0** | **agent 2 ABANDONNÉ — itération nette = 0, run-3 prend le relais** |
 | pass4 (3 sub-agents // : ravens random + iris transition + chunks polish) | 1 | 2 | 2 | 3 | 4 | 2.4 | +0.4 ; transition iris visible mais sous-évaluée fps=1 ; structural P0 (camera state) bloque intro |
+| pass5 (D intro-on-THEM_RED + E hand+dotted + projectiles P1/P2 par-unité) | 2 | 4 | 1 | 2 | 5 | 2.8 | +0.4 ; aim +2 (gros gain hand+dotted) ; intro +1 (THEM_RED start ✓) ; fire -1 (plan intermédiaire OURS_ext entre intro et cut ENEMY parasite) ; impact -1 |
 
 ## P0 globaux Gemini pass2
 

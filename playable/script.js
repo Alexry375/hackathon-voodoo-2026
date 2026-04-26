@@ -13,6 +13,7 @@ import { getState as getSceneState } from '../shared/scene_manager.js';
 import { getFloorAnchor } from '../scene_interior/castle_section.js';
 import { getActiveFloor } from '../scene_interior/turn.js';
 import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_cursor.js';
+import { drawDottedTrajectory } from '../scene_interior/aim.js';
 import { drawEndcard, setEndcardOpacity, installEndcardTap } from './endcard.js';
 import { emit } from '../shared/events.js';
 import { getActiveUnitId } from '../scene_interior/turn.js';
@@ -105,6 +106,9 @@ function _paintOverlay(ctx, t, elapsed) {
       } else if (c < 0.92) {
         const p = (c - 0.18) / 0.74;
         showHandDrag({ x: handX, y: handY }, { x: handX - 160, y: handY + 160 }, p);
+        // Dotted ballistic preview matching the hand's current drag offset.
+        // Drag vec (start - current) = (160*p, -160*p) → up-right ballistic.
+        drawDottedTrajectory(ctx, { x: a.x, y: a.y - 40 }, { x: 160 * p, y: -160 * p });
       } else {
         hideHand();
       }

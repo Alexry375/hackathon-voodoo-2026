@@ -54,13 +54,20 @@ async function dragFire(startX, startY, endX, endY) {
 
 const skipTaps = argv.includes('--no-taps');
 if (!skipTaps) {
-  // tutorial window starts ~T+4500ms. Use exposed __simulateFire to advance
-  // the scripted ad past the tutorial gate (shotsFired >= 2).
-  await page.waitForTimeout(6000);
+  // tutorial window starts ~T+4500ms. Hold off on __simulateFire long enough
+  // for the hand cursor + dotted-trajectory preview to be clearly visible
+  // (~5–6 s of tutorial), then advance through 3 turns (cyclop → skeleton →
+  // orc) so each unit's distinct projectile sprite/burst is captured.
+  // One full ping-pong cycle takes ~10 s, so we space simulateFire by 11 s
+  // to make sure the previous EXTERIOR_RESOLVE has completed and we're back
+  // in INTERIOR_AIM with the next active unit.
+  await page.waitForTimeout(10500);
   await page.evaluate(() => /** @type {any} */ (window).__simulateFire?.(55, 0.95));
-  await page.waitForTimeout(5500); // wait for cinematic ping-pong + cut_to_interior
+  await page.waitForTimeout(11000);
   await page.evaluate(() => /** @type {any} */ (window).__simulateFire?.(60, 0.98));
-  const remainingMs = Math.max(0, duration * 1000 - 11500);
+  await page.waitForTimeout(11000);
+  await page.evaluate(() => /** @type {any} */ (window).__simulateFire?.(50, 0.92));
+  const remainingMs = Math.max(0, duration * 1000 - (10500 + 11000 * 2));
   await page.waitForTimeout(remainingMs);
 } else {
   await page.waitForTimeout(duration * 1000);
