@@ -1,0 +1,26 @@
+{
+  "id": "V4",
+  "name": "level-preview",
+  "axis": "endcard",
+  "branch": "iter/r3-V4-level-preview",
+  "baseline": "iter/run3-gold-baseline",
+  "hypothesis": "A 'LEVEL 2 ->' wood panel slides in above the 3 stars 800ms after the endcard appears, framing a dark dragon silhouette with a glowing red eye. Zeigarnik bait ('who is this dragon?') pushes the user toward CTA / install.",
+  "diff_from_baseline": {
+    "added_files": ["playable/endcard_level_preview.js"],
+    "modified_files": {
+      "playable/endcard.js": "+2 lines: 1 import, 1 draw call appended after _drawTapHint inside drawEndcard"
+    },
+    "removed_lines": 0,
+    "additive_only": true
+  },
+  "preserved_baseline_juice": [
+    "3 stars staggered easeOutBack",
+    "confetti burst",
+    "social proof 4.8 / 12M+",
+    "shimmer band sweep on CTA",
+    "tap-anywhere handler",
+    "VICTORY title, subtitle, tap-hint"
+  ],
+  "target_metric": "CTA pull / install rate",
+  "review": "pending"
+}
