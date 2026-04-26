@@ -221,8 +221,8 @@ function _emitTrailParticle(kind, x, y, dirAng, now) {
     particles.push({
       kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 15, vy: -12,
       ax: 0, ay: -18, t0: now,
-      life: 330, size: 11, color: '#822018',
-      rot: 0, rotSpeed: 0, sizeGrow: 1.0,
+      life: 330, size: 6, color: '#822018',
+      rot: 0, rotSpeed: 0, sizeGrow: 0.6,
     });
   } else if (kind === 'bomb' || kind === 'bomb_p2') {
     particles.push({
