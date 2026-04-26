@@ -2,27 +2,36 @@
   "id": "V3",
   "axis": "palette",
   "name": "y2k-neon",
-  "title": "Y2K-neon JUICY — overlay-wash + scan-lines + chromatic sweep + edge bands",
-  "hypothesis": "Aggressive Y2K post-FX stack (saturated pink↔cyan overlay-blend wash + 4px alternating scan-lines + scrolling chromatic-aberration sweep + violet vignette + pink-top/cyan-bottom edge bands) creates a high-saturation TikTok/Reels thumb-stop palette signature without altering gameplay legibility or Sami's endcard juice.",
-  "diff_from_baseline": [
-    "NEW playable/y2k_overlay.js (~70 LOC) exporting applyY2KPostFX(ctx, t) — 5-pass post-FX",
-    "Pass 1 — Diagonal pink→violet→cyan gradient wash, overlay blend, breathing alpha 0.65±0.12 @ 0.8Hz (saturated rather than soft-light to keep colors punchy)",
-    "Pass 2 — Horizontal scan-lines every 4px (white 10% + black 18% interleaved) — overlay blend → CRT/Y2K signature",
-    "Pass 3 — Chromatic aberration sweep — pink/cyan band scrolling vertically @ 180px/s, screen blend (lighter)",
-    "Pass 4 — Violet radial vignette (rgba 60,20,120,0.55), multiply blend, focuses gaze on castles",
-    "Pass 5 — Pink top edge band + cyan bottom edge band (60px each, lighter blend) — TikTok creative-tier framing signature",
-    "playable/script.js — 1 import + applyY2KPostFX(ctx, t) at top of _paintOverlay, gated to skip endcard + forcewin so Sami's shimmer/confetti/flash stay clean"
-  ],
-  "review": "pass",
-  "juicy_checklist_validated": [
-    "color-shift continuous: pink→violet→cyan diagonal wash with breathing alpha pulse @ 0.8Hz",
-    "particles/lines 2+: alternating 4px scan-lines (white+black interleaved) covering full canvas",
-    "glow-bloom: pink top band + cyan bottom band in 'lighter' composite operation",
-    "trail persistence: chromatic-aberration sweep scrolling vertically continuously @ 180px/s",
-    "layered blending 5+: overlay (wash), overlay (scanlines), screen (sweep), multiply (vignette), lighter (edge bands) — all stacked"
+  "title": "Y2K-neon JUICY — 8-effect cyber stack (animated wash+chromatic+glitch+neon-trails+scan-wave+CRT-boot+vignette+neon-outline)",
+  "hypothesis": "An 8-effect compounded Y2K post-FX stack — animated diagonal wash (rotating 0.05Hz), permanent 1-pass chromatic aberration (R/B 2px split), block-displacement glitch bursts on every impact, neon trails (12-pos history) on projectiles, drifting scan-line wave (lighter blend), CRT-boot vignette+sweep+flicker on the first 600ms of intro, soft violet corner vignette, and a per-projectile cyan/pink neon outline+inner-glow — produces an aggressively distinctive thumb-stop palette signature on a TikTok/Reels 2026 feed while preserving combat-loop legibility and Sami's endcard juice.",
+  "diff_from_baseline": {
+    "added_files": ["playable/y2k_overlay.js"],
+    "modified_files": ["playable/script.js", "scene_exterior/index.js"],
+    "scope": "palette + projectile FX only — endcard / forcewin phases skip ALL post-FX so confetti, stars, white flash, shimmer remain pristine.",
+    "bullets": [
+      "+ animated diagonal wash (pink->cyan->purple) with 0.05Hz angle drift, multiply alpha 0.12",
+      "+ 1-pass chromatic aberration (R-left / B-right 2px split via offscreen ghost canvas, screen blend)",
+      "+ glitch burst on every _impactEnemy + _impactOurs (10-band horizontal displacement + inversion flash, ~90ms)",
+      "+ neon trails on projectiles (12-entry ring buffer, cyan/pink alternation, exponential fade, lighter blend, shadow-blur 8)",
+      "+ scan-line wave (3px every 6px, drifting vertically, lighter blend alpha 0.05)",
+      "+ CRT boot-up effect on intro 0-600ms (tube-open vignette + cyan vertical sweep + 200ms flicker)",
+      "+ violet corner vignette (radial transparent -> rgba(120,40,200,0.45))",
+      "+ per-projectile neon outline 3px + inner glow (cyan for ours, pink for enemy, shadow-blur 6)"
+    ]
+  },
+  "juicy_checklist": [
+    "1. wash_diagonal_animated — DONE (multiply alpha 0.12, 0.05Hz angle drift +-30deg)",
+    "2. chromatic_aberration_permanent — DONE (1-pass downgrade, 2px R/B split, screen blend, alpha 0.32)",
+    "3. glitch_micro_flickers_on_impact — DONE (90ms burst, 10-band displacement + inversion on freshest frame, triggered from _impactEnemy and _impactOurs)",
+    "4. neon_trails_persistent — DONE (12-entry ring buffer per projectile, cyan/pink alternated, exponential fade, lighter blend)",
+    "5. scan_line_wave_drift — DONE (3px lines every 6px, vertical drift, skipped during endcard/forcewin)",
+    "6. crt_boot_at_splash — DONE (anchored to first 600ms of intro phase since no dedicated splash phase exists; tube-open vignette + cyan sweep + 200ms flicker)",
+    "7. violet_corner_vignette — DONE (radial gradient transparent -> rgba(120,40,200,0.45))",
+    "8. neon_outline_projectiles — DONE (3px stroke + inner glow disk, ownership-tinted: ours=cyan, enemy=pink)"
   ],
   "juicy_omitted": [
-    "screen-shake: out of axis — palette overlay should not move the underlying image (gameplay legibility)",
-    "scale-punch lettering: out of axis — no new diegetic copy for palette variation"
-  ]
+    "barrel_distortion (item 7 optional): canvas filter via SVG distort URL too costly per-frame on AppLovin Preview hardware (>16ms budget); violet vignette alone covers the peripheral darkening.",
+    "chromatic_3-pass_full_RGB: downgraded to 1-pass (offscreen snapshot + 2 offset composites) to keep frame budget; documented inline in y2k_overlay.js."
+  ],
+  "review": "pending"
 }
