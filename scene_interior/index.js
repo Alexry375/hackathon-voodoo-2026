@@ -113,15 +113,10 @@ function loop() {
 
   const t = performance.now() / 1000;
 
-  const targetTilt = targetTiltFor(state.hp_self_pct);
-  // Hold tilt at 0 during the entrance window so the cut-in lands upright;
-  // after that the lean eases toward its hp-based target.
-  const entranceAge = (performance.now() - entranceT0) / ENTRANCE_DUR;
-  if (entranceT0 > 0 && entranceAge < 1) {
-    currentTilt = 0;
-  } else {
-    currentTilt += (targetTilt - currentTilt) * TILT_EASE;
-  }
+  // Interior cross-section stays upright at all times — the lean is a
+  // gameplay cue reserved for the exterior view. Damage still reads via
+  // damage_level (cracked bricks, missing top ledge, etc.).
+  currentTilt = 0;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
   // Atmospheric bg coherent with exterior. The castle covers y≈170..820,
