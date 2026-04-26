@@ -205,6 +205,44 @@ function _spawnExplosion(x, y, opts) {
   }
 }
 
+// In-flight trail emission (rocket/bomb/raven flock).
+const TRAIL_EVERY_MS = 55;
+
+function _emitTrailParticle(kind, x, y, dirAng, now) {
+  const px = -Math.sin(dirAng);
+  const py =  Math.cos(dirAng);
+
+  if (kind === 'rocket' || kind === 'rocket_p1') {
+    particles.push({
+      kind: 'trail_core', x, y, vx: 0, vy: 0, ax: 0, ay: -8, t0: now,
+      life: 180, size: 6, color: '#FF4A3A',
+      rot: 0, rotSpeed: 0, sizeGrow: 0.4,
+    });
+    particles.push({
+      kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 15, vy: -12,
+      ax: 0, ay: -18, t0: now,
+      life: 420, size: 11, color: '#822018',
+      rot: 0, rotSpeed: 0, sizeGrow: 1.0,
+    });
+  } else if (kind === 'bomb' || kind === 'bomb_p2') {
+    particles.push({
+      kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 12, vy: -10,
+      ax: 0, ay: -14, t0: now,
+      life: 450, size: 10, color: '#3A3A3A',
+      rot: 0, rotSpeed: 0, sizeGrow: 1.0,
+    });
+  } else if (kind === 'raven') {
+    particles.push({
+      kind: 'trail_wave', x, y, vx: 0, vy: -4, ax: 0, ay: -5, t0: now,
+      life: 380, size: 6, color: '#3A3A3A',
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: 3,
+      sizeGrow: 0.7,
+      driftAxisX: px, driftAxisY: py, driftAmp: 8,
+    });
+  }
+}
+
 // Cinematic step machine (resolve)
 let step = 'idle'; // idle | fire | cut_to_enemy | enemy_dwell | cut_to_ours | ours_dwell | incoming
 let stepT0 = 0;
@@ -1137,6 +1175,27 @@ function _drawProjectiles(ctx, now, viewOffset = 0) {
     }
     const pos = _arc(p.from, p.to, t, p.peakLift);
     const ang = _arcAngle(p.from, p.to, t, p.peakLift);
+
+    if (p._lastTrailMs == null) p._lastTrailMs = -Infinity;
+    if (now - p._lastTrailMs >= TRAIL_EVERY_MS) {
+      p._lastTrailMs = now;
+      if (p.kind === 'flock') {
+        const u = Math.max(0, Math.min(1, (now - p.t0) / p.dur));
+        const dxF = p.to.x - p.from.x, dyF = p.to.y - p.from.y;
+        const dir = dxF < 0 ? -1 : 1;
+        const half = (p.spreadPx ?? 70) / 2;
+        const sinHalf = p.sinHalfCycles ?? 3;
+        const sinAmpF = p.sinAmp ?? 50;
+        const baseX = p.from.x + dxF * u, baseY = p.from.y + dyF * u;
+        const offset = Math.sin(u * Math.PI * sinHalf) * sinAmpF;
+        const flightAng = Math.atan2(dyF, dxF);
+        _emitTrailParticle('raven', baseX + dir * half + dx_screen, baseY + offset, flightAng, now);
+        _emitTrailParticle('raven', baseX - dir * half + dx_screen, baseY - offset, flightAng, now);
+      } else {
+        _emitTrailParticle(p.kind, pos.x + dx_screen, pos.y, ang, now);
+      }
+    }
+
     if (p.kind === 'flock') {
       drawRavenFlock(ctx, now - p.t0, {
         from: p.from, to: p.to, durMs: p.dur,
@@ -1271,6 +1330,37 @@ function _drawParticles(ctx, now) {
       grad.addColorStop(1, 'rgba(40,36,32,0)');
       ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'trail_core') {
+      const r = p.size * (0.7 + age * 0.6);
+      ctx.globalAlpha = Math.min(1, fade * 0.70);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = fade * 0.22;
+      ctx.fillStyle = '#FFD08A';
+      ctx.beginPath(); ctx.arc(px, py, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'trail_puff') {
+      const r = p.size * (1 + p.sizeGrow * age);
+      ctx.globalAlpha = fade * 0.38;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+      const ddx = (((px * 13.37) | 0) % 7) - 3;
+      const ddy = (((py * 7.91) | 0) % 7) - 3;
+      ctx.globalAlpha = fade * 0.22;
+      ctx.beginPath(); ctx.arc(px + ddx, py + ddy, r * 0.7, 0, Math.PI * 2); ctx.fill();
+    } else if (p.kind === 'trail_wave') {
+      const phase = (p.rot || 0) + (p.rotSpeed || 0) * dt;
+      const ax = Math.sin(phase) * (p.driftAmp || 0) * fade;
+      const wx = px + (p.driftAxisX || 0) * ax;
+      const wy = py + (p.driftAxisY || 0) * ax;
+      const r = p.size * (1 + p.sizeGrow * age);
+      const a = (age < 0.15 ? age / 0.15 : 1) * fade * 0.28;
+      ctx.globalAlpha = a;
+      const grad = ctx.createRadialGradient(wx, wy, 0, wx, wy, r);
+      grad.addColorStop(0,   'rgba(60,60,60,1)');
+      grad.addColorStop(0.7, 'rgba(40,40,40,0.6)');
+      grad.addColorStop(1,   'rgba(30,30,30,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(wx, wy, r, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.restore();
