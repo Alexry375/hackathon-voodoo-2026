@@ -209,24 +209,33 @@ function _spawnExplosion(x, y, opts) {
 const TRAIL_EVERY_MS = 55;
 
 function _emitTrailParticle(kind, x, y, dirAng, now) {
-  const px = -Math.sin(dirAng);
-  const py =  Math.cos(dirAng);
+  // Forward = direction of travel; back = opposite (where the trail belongs).
+  const fx = Math.cos(dirAng), fy = Math.sin(dirAng);
+  // Perpendicular (for the raven sine drift axis).
+  const px = -fy;
+  const py =  fx;
 
   if (kind === 'rocket' || kind === 'rocket_p1') {
     particles.push({
-      kind: 'trail_core', x, y, vx: 0, vy: 0, ax: 0, ay: -8, t0: now,
+      kind: 'trail_core', x, y,
+      vx: -fx * 30, vy: -fy * 30 - 8,
+      ax: 0, ay: -8, t0: now,
       life: 140, size: 6, color: '#FF4A3A',
       rot: 0, rotSpeed: 0, sizeGrow: 0.4,
     });
     particles.push({
-      kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 15, vy: -12,
+      kind: 'trail_puff', x, y,
+      vx: -fx * 50 + px * (Math.random() - 0.5) * 8,
+      vy: -fy * 50 + py * (Math.random() - 0.5) * 8 - 12,
       ax: 0, ay: -18, t0: now,
       life: 330, size: 6, color: '#822018',
       rot: 0, rotSpeed: 0, sizeGrow: 0.6,
     });
   } else if (kind === 'bomb' || kind === 'bomb_p2') {
     particles.push({
-      kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 12, vy: -10,
+      kind: 'trail_puff', x, y,
+      vx: -fx * 45 + px * (Math.random() - 0.5) * 6,
+      vy: -fy * 45 + py * (Math.random() - 0.5) * 6 - 10,
       ax: 0, ay: -14, t0: now,
       life: 350, size: 10, color: '#3A3A3A',
       rot: 0, rotSpeed: 0, sizeGrow: 1.0,
