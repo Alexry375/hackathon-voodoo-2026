@@ -6,7 +6,8 @@
 | Pass | intro | aim | fire | impact | endcard | moyen | note |
 |------|-------|-----|------|--------|---------|-------|------|
 | pass1 (run-3 stuck en aim, sans simulateFire) | 1 | 3 | 1 | 1 | 2 | 1.6 | clip 45 s mais playable bloqué tutorial |
-| **pass2 (baseline run-3 + run-2 cycle 5 + simulateFire)** | **1** | **2** | **2** | **1** | **4** | **2.0** | **baseline propre — playable déroule jusqu'à endcard** |
+| pass2 (baseline run-3 + run-2 cycle 5 + simulateFire) | 1 | 2 | 2 | 1 | 4 | 2.0 | baseline propre — playable déroule jusqu'à endcard |
+| **pass3 (final run-2 merge — pans allongés + enemy riposte)** | **1** | **2** | **1** | **3** | **3** | **2.0** | **agent 2 ABANDONNÉ — itération nette = 0, run-3 prend le relais** |
 
 ## P0 globaux Gemini pass2
 
