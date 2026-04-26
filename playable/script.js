@@ -36,11 +36,8 @@ import { setInstruction, drawInstruction } from './instruction_text.js';
 const PHASE_INTRO_END    = 4500;
 const FORCEWIN_FLASH_MS  = 2500;
 const ENDCARD_FADE_MS    = 400;
-// Floor on enemy HP so the fail beat (HP-driven) always has time to fire
-// before the player accidentally finishes the enemy castle.
-const ENEMY_HP_FLOOR_FREEPLAY = 12;
-// Fail beat triggers when blue drops at or below this HP (≈ after 2 enemy
-// attacks given the new damage values).
+// Fail beat triggers when blue drops at or below this HP. Whichever castle
+// hits zero first ends freeplay (blue → fail screen, red → forcewin).
 const BLUE_HP_FAIL_THRESHOLD = 10;
 
 const game = {
@@ -140,15 +137,17 @@ function _updatePhase(elapsed) {
       }
       break;
     case 'freeplay':
-      if (state.hp_enemy_pct < ENEMY_HP_FLOOR_FREEPLAY) {
-        state.hp_enemy_pct = ENEMY_HP_FLOOR_FREEPLAY;
-      }
-      // Fail beat fires when blue HP is critical AND we're cleanly between
-      // turns (no projectile in flight). With the new damage values blue
-      // reaches the threshold after the 2nd enemy attack.
-      if (state.hp_self_pct <= BLUE_HP_FAIL_THRESHOLD &&
-          getSceneState() === 'INTERIOR_AIM') {
-        state.hp_self_pct = 8;
+      // Let the game play out. Whichever castle hits 0 first decides the
+      // outcome:
+      //   blue dies → fail screen (PLAY NOW / Continue CTA)
+      //   red dies  → straight to forcewin → endcard
+      if (state.hp_enemy_pct <= 0 && getSceneState() !== 'EXTERIOR_RESOLVE') {
+        state.hp_enemy_pct = 0;
+        game.phase = 'forcewin';
+        game.forcewinT0 = performance.now();
+        try { hideHand(); } catch {}
+      } else if (state.hp_self_pct <= BLUE_HP_FAIL_THRESHOLD &&
+                 getSceneState() === 'INTERIOR_AIM') {
         game.phase = 'fail';
         showFailScreen();
         try { hideHand(); } catch {}
