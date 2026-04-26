@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync, existsSync } from 'node:fs';
 
-const URL = 'http://127.0.0.1:8765/dist/playable.html';
+const URL = 'http://127.0.0.1:8775/dist/playable.html';
 const OUT = 'input/B01_castle_clashers/SANDBOX/frames-prod/transition';
 if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 

@@ -287,7 +287,10 @@ function startPlayerShot(payload) {
 
   // Camera pan runs concurrently with the first ~73% of the rocket flight; the
   // last 400ms of the rocket arc descend onto the enemy castle in ENEMY view.
-  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1100, dir: 1 };
+  // Pan mirrors rocket flight: starts at fire+250ms (same as rocket), runs
+  // 1300ms so the camera "tracks" the rocket through most of its arc, finishing
+  // ~150ms before impact so the last beat lands cleanly in ENEMY view.
+  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1300, dir: 1 };
 }
 
 // ── Cinematic tick (called each frame) ───────────────────────────────────────
@@ -300,13 +303,58 @@ function _tick(now) {
     else if (remain < total * 0.6) tiltAngle *= 0.86;
   }
 
-  // After enemy impact, dwell long enough to "savourer" the destruction
-  // (Gemini P2: dwell 1500ms post-impact). Then cut directly back to interior
-  // — no return whip pan, no immediate enemy riposte (Gemini: ping-pong inutile).
+  // After enemy impact, dwell ~1500ms to savor the destruction, then trigger
+  // the enemy riposte (pan back → raven flock → impact OURS → dwell → cut).
+  // This makes the gameplay loop feel like a real turn-based exchange.
   if (step === 'enemy_dwell' && now - stepT0 > 1500) {
-    step = 'idle';
-    _emitCutToInterior();
+    _startEnemyRiposte();
   }
+  // Pan-back finished → spawn the riposte raven flock.
+  if (step === 'pan_back_to_ours' && !viewTransition) {
+    _spawnEnemyRiposteFlock();
+  }
+  // After ours-impact dwell, hand off to interior. The interior's entrance
+  // zoom 1.45→1.0 handles the punch — no extra exit transition needed (we're
+  // already in OURS view post pan-back).
+  if (step === 'ours_dwell' && now - stepT0 > 1500) {
+    step = 'idle';
+    emit('cut_to_interior', {
+      hp_self_after:  state.hp_self_pct,
+      hp_enemy_after: state.hp_enemy_pct,
+      units_destroyed_ids: pendingKills,
+    });
+  }
+}
+
+function _startEnemyRiposte() {
+  const now = performance.now();
+  step = 'pan_back_to_ours';
+  stepT0 = now;
+  viewTransition = {
+    fromView: 'ENEMY', toView: 'OURS',
+    t0: now, dur: 950, dir: -1,
+  };
+}
+
+function _spawnEnemyRiposteFlock() {
+  const target = { x: CASTLE_X + CASTLE_W * 0.65, y: CASTLE_TOP_Y + 80 };
+  const dmgVal = 14 + Math.floor(Math.random() * 6);
+  const t = performance.now();
+  /** @type {Projectile} */
+  const flock = {
+    kind: 'flock',
+    from: { x: W + 100, y: 320 },
+    to: target,
+    t0: t + 150,
+    dur: 1900,
+    peakLift: 0,
+    sinAmp: 50, sinFreq: 0, sinPhase: 0,
+    onLand: () => _routeOursImpact(target, dmgVal),
+  };
+  projectiles.push(flock);
+  // Set BEFORE _routeOursImpact runs — it dispatches via this step.
+  step = 'cut_to_ours';
+  stepT0 = performance.now();
 }
 
 function _impactEnemy(at, d) {
@@ -334,7 +382,7 @@ function _emitCutToInterior() {
   const now = performance.now();
   viewTransition = {
     fromView: 'ENEMY', toView: 'OURS',
-    t0: now, dur: 500, dir: -1,
+    t0: now, dur: 950, dir: -1,
     onComplete: () => {
       emit('cut_to_interior', {
         hp_self_after:  state.hp_self_pct,

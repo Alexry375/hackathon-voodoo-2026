@@ -16,7 +16,7 @@ import { mkdirSync, existsSync, renameSync, rmSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 
-const URL = 'http://127.0.0.1:8765/dist/playable.html';
+const URL = 'http://127.0.0.1:8775/dist/playable.html';
 const OUT_MP4 = process.argv[2] || 'input/B01_castle_clashers/SANDBOX/extracts/playable_clip.mp4';
 const TMP_DIR = 'input/B01_castle_clashers/SANDBOX/extracts/_rec_tmp';
 
