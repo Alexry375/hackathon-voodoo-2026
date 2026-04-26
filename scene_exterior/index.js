@@ -1058,6 +1058,7 @@ function _drawRocketSprite(ctx, x, y, ang, size) {
     ctx.drawImage(getImage('ROCKET'), -size / 2, -size / 2, size, size);
     ctx.restore();
   } else {
+    getImage('ROCKET'); // kick the lazy load
     ctx.fillStyle = '#C44';
     ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
   }
@@ -1080,6 +1081,7 @@ function _drawBombSprite(ctx, x, y, ang) {
     ctx.drawImage(getImage('BOMB'), -size / 2, -size / 2, size, size);
     ctx.restore();
   } else {
+    getImage('BOMB'); // kick the lazy load
     ctx.fillStyle = '#222';
     ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
   }

@@ -11,6 +11,12 @@
 
 import { getImage, isImageReady } from '../shared/assets.js';
 
+// Kick the data-URI decode at module load so isImageReady('ROCKET'/'BOMB')
+// flips to true on the first frame after mount instead of staying stuck on
+// the procedural fallback forever (the lazy cache only populates when
+// getImage is called, so without a bare call we'd never load the PNG).
+try { getImage('ROCKET'); getImage('BOMB'); } catch (_) {}
+
 /**
  * Plan describing how startPlayerShot should spawn projectiles for a given
  * unit. The `count` field is how many projectiles to push, `staggerMs` the
@@ -53,6 +59,7 @@ export function planForUnit(unit_id) {
  */
 export function drawProjectileP1(ctx, x, y, ang, size = 30) {
   if (!isImageReady('ROCKET')) {
+    getImage('ROCKET'); // kick the lazy load
     // Fallback: small grey-red bullet shape so the playable still renders if
     // the asset failed to decode.
     ctx.save();
@@ -76,6 +83,7 @@ export function drawProjectileP1(ctx, x, y, ang, size = 30) {
  */
 export function drawProjectileP2(ctx, x, y, ang, size = 44) {
   if (!isImageReady('BOMB')) {
+    getImage('BOMB'); // kick the lazy load
     ctx.save();
     ctx.translate(x, y); ctx.rotate(ang);
     ctx.fillStyle = '#3a3a22';
