@@ -1,0 +1,36 @@
+{
+  "id": "V1",
+  "axis": "hook",
+  "name": "cinematic-pullback",
+  "branch": "iter/r4-V1-cinematic-pullback",
+  "title": "Cinematic-pullback JUICY — zoom+pullback+parallax+flare+shake+DEFEND+letterbox",
+  "hypothesis": "Pendant intro 0-4500ms, cinematic pull-back stacked (zoom-inside castle bleu scale 1.6 → reveal scale 1.0 sur 700ms easeOutCubic) + parallax tints 3-couches + lens-flare 6 branches + screen-shake gradué + DEFEND lettering scale-punch + letterbox cinematic = pattern-interrupt grandeur/cinéma qui crush retention@5s vs static establishing shot baseline.",
+  "diff_from_baseline": [
+    "NEW playable/cinematic_pullback.js (~230 LOC) — module unique exposant drawCinematicPullback(ctx, elapsedMs) + getCameraTransform + getTremorOffset",
+    "Effet 1 — camera zoom-pullback : snapshot framebuffer en offscreen, clear, redraw scalé 1.6→1.0 easeOutCubic sur 0-700ms, translate adapté pour garder castle bleu (FOCUS_X=200, FOCUS_Y=620) en focus visuel",
+    "Effet 2 — parallax 3-couches : tints additifs gradient sky-orange (lighter) + mountain-violet mid + ground-shadow multiply, intensité scaled sur (scale-1)/0.6 → fade naturel pendant pullback",
+    "Effet 3 — lens-flare radial à (420,200) : halo radial gradient + 6 branches étoilées rotation 0.15Hz, alpha pulse 0.8Hz amplitude 0.3→0.7, additive blend, fade global 0-2200ms",
+    "Effet 4 — screen-shake gradué : baseline 1.5px rumble pseudo-noise 4Hz pendant 0-700ms (camera settle), spike 6px à pullback-end, decay 250ms",
+    "Effet 5 — DEFEND! lettering : pop-in à +900ms, italic 84px Arial Black, double-stroke (#1a1a1a 10px outer + #FFD24A 4px inner) fill blanc, easeOutBack scale 0.6→~1.18→1.0 sur 380ms, ±5° wobble idle 1.4Hz, fade-out 500ms à +3700ms",
+    "Effet 6 — letterbox cinematic : bandes noires 60px top/bottom slide-in 0-400ms easeOutCubic, soft inner gradient vignette 40px, slide-out 400ms à +3500ms",
+    "playable/script.js — 1 import + 1 appel gated game.phase==='intro' en tête de _paintOverlay (avant comeback flash / vignette / praise / hand)"
+  ],
+  "review": "pending",
+  "juicy_checklist_validated": [
+    "screen-shake graduated: 4Hz baseline 1.5px rumble pendant 0-700 + spike 6px à +700ms decay 250ms",
+    "particles 2+ types: lens-flare halo radial + 6 branches étoilées + letterbox bands + parallax tint gradients (4 systèmes)",
+    "color-shift dynamique: lens-flare alpha pulse 0.8Hz 0.3→0.7 + parallax tints fade naturel sur (scale-1)/0.6 + DEFEND alpha sweep",
+    "scale-punch + rotation jitter: DEFEND easeOutBack 0.6→~1.18→1.0 sur 380ms + ±5° wobble idle persistant",
+    "glow-bloom: lens-flare lighter composite halo radial 140px + sky tint lighter additive",
+    "trail persistence: lens-flare halo run 0-2200ms (>2000ms) + DEFEND visible 900-4200ms (>3000ms)",
+    "layered timing 3+ events: zoom-pullback @0, shake-spike @+700, DEFEND pop @+900, letterbox-out @+3500, DEFEND fade @+3700, flare-end @+2200 (6 events orchestrés)",
+    "lettering animé: DEFEND 84px italic Arial Black, double-stroke 10px+4px, scale-punch + wobble + fade — checklist criteria depassed (>=56px stroke>=3px)"
+  ],
+  "juicy_omitted": [
+    "audio_stinger: pas de WebAudio context dans shared/ (mute-safe parity), skipped pour bundle propre",
+    "slow-mo flash: l'intro est déjà cinématique non-interactive — pas de trigger gameplay à anchor un slow-mo (le slow-mo est plus pertinent en V2 charge-meter sur impact charged)"
+  ],
+  "limitations": [
+    "Trade-off camera zoom: le brief suggérait wrap des draws scene_exterior dans un transform (idéal). Comme drawScriptOverlay est appelé EN FIN de chaîne de rendu (post-scene), wrap demanderait modifier scene_exterior/index.js — risque de casser le combat loop hors-scope. Choix : snapshot framebuffer + redraw scalé via offscreen canvas. Coût per-frame acceptable car intro statique 4.5s, hors combat. Léger blur de rasterisation pendant scale > 1, mais lecture cinéma cohérente."
+  ]
+}
