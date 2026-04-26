@@ -1,0 +1,19 @@
+{
+  "id": "V2",
+  "axis": "mechanic",
+  "name": "combo-meter",
+  "baseline": "iter/run3-gold-baseline",
+  "branch": "iter/r3-V2-combo-meter",
+  "hypothesis": "A combo meter (x1, x2, x3, x5) appears top-right after the 1st player hit. Each consecutive hit within 2s raises the multiplier; damage scales x1.0 / x1.5 / x2.0 / x3.0. A 'xN COMBO!' praise float pops on level-up. Combo resets after >2s idle or on fail/forcewin entry. Target metric: depth perception / mechanic clarity.",
+  "diff_from_baseline": [
+    "playable/combo_meter.js (new): state, level-up logic, golden-badge meter rendering",
+    "playable/praise_floats.js: spawnComboPraise(level), combo-aware lifetime/font",
+    "scene_exterior/index.js: import combo + praise; in _impactEnemy multiply dmg by getComboMultiplier(), record hit, spawn combo praise on level-up",
+    "playable/script.js: drawComboMeter in _paintOverlay (tutorial/freeplay only); resetCombo on fail/forcewin entry"
+  ],
+  "axis_isolated": true,
+  "untouched": ["intro hook", "palette", "endcard", "fail screen", "scene_interior"],
+  "review": "pending",
+  "build_kb": 2900,
+  "build_ok": true
+}
