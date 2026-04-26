@@ -13,7 +13,8 @@
   ],
   "axis_isolated": true,
   "untouched": ["intro hook", "palette", "endcard", "fail screen", "scene_interior"],
-  "review": "pending",
+  "review": "pass",
+  "review_notes": "Axis respected (mechanic). Bundle contains COMBO/recordHit/getComboMultiplier tokens (3 matches vs 0 in baseline). Thumbnail shows interior aim phase (combo meter only after first hit, per hypothesis). Bundle 2.96 MB. No regression markers.",
   "build_kb": 2900,
   "build_ok": true
 }

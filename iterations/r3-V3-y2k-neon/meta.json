@@ -8,5 +8,6 @@
     "modified_files": ["playable/script.js"],
     "scope": "palette only — overlay applied at top of _paintOverlay, gated to skip endcard and forcewin phases so Sami's juice stays intact."
   },
-  "review": "pending"
+  "review": "needs-fix",
+  "review_notes": "Axis declared (palette) is correct, but the captured thumbnail shows no visible Y2K neon wash, scan-lines, vignette, or chromatic band — looks identical to baseline. Bundle differs from baseline by only ~1KB and the announced overlay function names (applyY2KPostFX, drawNeonAccent, scan-line, neon hex stops) are not detectable in the bundle. Either the overlay is too low-opacity to be visible (raise alpha) or the import/_paintOverlay wiring did not survive the build. Re-capture and verify the overlay actually paints. Bundle size OK (2.96 MB), no regression markers, combat loop intact."
 }

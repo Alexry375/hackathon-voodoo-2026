@@ -22,5 +22,6 @@
     "VICTORY title, subtitle, tap-hint"
   ],
   "target_metric": "CTA pull / install rate",
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis respected (endcard) and additive-only confirmed: thumbnail shows new LEVEL 2 wood panel + dragon silhouette + 'tap to play' above the 3 stars, AND baseline juice fully preserved (VICTORY title, 3 stars, '4.8  -  12M+ players', shimmer PLAY NOW CTA, 'Tap anywhere to install'). Bundle 2.96 MB, no regression markers."
 }

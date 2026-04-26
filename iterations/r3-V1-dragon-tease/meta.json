@@ -8,5 +8,6 @@
     "Adds pulsing 'BEWARE!' subtitle (Arial Black bold italic, red #B0000F with black stroke, easeOutBack pop at 900ms)",
     "Hook layer fades in at 200-600ms and fades out at 3900-4500ms; only active while game.phase === 'intro'"
   ],
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis respected (intro hook). Thumbnail shows red dragon eye top-right + 'BEWARE!' overlay during intro. Bundle 2.96 MB, well under 5 MB. Combat loop tokens preserved, no regression markers."
 }
