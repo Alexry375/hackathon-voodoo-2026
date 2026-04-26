@@ -31,8 +31,8 @@ const ASSET_BY_ID = { cyclop: 'CYCLOP', skeleton: 'SKELETON', orc: 'ORC' };
  */
 const WEAPON_BY_ID = {
   skeleton: { asset: 'WEAPON_SKELETON', width: 72, anchor: { x:  18, y: -10 }, pivot: { x: 0.20, y: 0.55 }, restAngle: -25 },
-  cyclop:   { asset: 'WEAPON_CYCLOP',   width: 46, anchor: { x:  22, y: -18 }, pivot: { x: 0.25, y: 0.65 }, restAngle: -20 },
-  orc:      { asset: 'WEAPON_ORC',      width: 46, anchor: { x:  20, y: -14 }, pivot: { x: 0.25, y: 0.65 }, restAngle: -20 },
+  cyclop:   { asset: 'WEAPON_CYCLOP',   width: 46, anchor: { x:  22, y:   4 }, pivot: { x: 0.25, y: 0.65 }, restAngle: -20 },
+  orc:      { asset: 'WEAPON_ORC',      width: 46, anchor: { x:  20, y:   6 }, pivot: { x: 0.25, y: 0.65 }, restAngle: -20 },
 };
 
 /**
