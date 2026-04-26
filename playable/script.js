@@ -16,7 +16,7 @@ import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_curso
 import { drawEndcard, setEndcardOpacity, installEndcardTap } from './endcard.js';
 
 // Phase timings (ms since boot)
-const PHASE_INTRO_END     = 3200;   // enemy bomb cinematic ~3.2s
+const PHASE_INTRO_END     = 4500;   // bomb impact ~3s + buffer + zoom 900ms + guard
 const PHASE_TUTORIAL_MAX  = 22000;
 const PHASE_FREEPLAY_END  = 38000;
 const PHASE_FORCEWIN_END  = 42500;
