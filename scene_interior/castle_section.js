@@ -84,7 +84,7 @@ const C = {
   dark: '#141414', mid: '#1C1C1C', light: '#262626',
   outline: '#000', platBrown: '#7A4520', platLight: '#A06230',
   platDark: '#502E12', baseWood: '#8B5E3C', baseLight: '#A07040',
-  spire: '#1A1C20', sky: '#BACEB8',
+  spire: '#1A1C20', sky: '#7ABEAA',
   tread: '#2A2A2A', gear: '#7C7368',
 };
 

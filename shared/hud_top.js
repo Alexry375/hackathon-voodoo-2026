@@ -21,31 +21,39 @@ export function drawTopHud(ctx) {
   const centerX = W / 2;
 
   // ── Bar backgrounds (full width, split at center) ─────────────────────────
-  ctx.fillStyle = '#1a1a1a';
+  ctx.fillStyle = '#111111';
   ctx.fillRect(0, barY, W, BAR_H);
 
   // ── Blue fill (left half, grows left→right) ───────────────────────────────
   const bluePct = Math.max(0, Math.min(1, state.hp_self_pct / 100));
-  ctx.fillStyle = '#2B8FE8';
+  const blueGrad = ctx.createLinearGradient(0, barY, 0, barY + BAR_H);
+  blueGrad.addColorStop(0,   '#4AABFF');
+  blueGrad.addColorStop(0.5, '#2B8FE8');
+  blueGrad.addColorStop(1,   '#1666BB');
+  ctx.fillStyle = blueGrad;
   ctx.fillRect(0, barY, halfW * bluePct, BAR_H);
   if (bluePct > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.20)';
-    ctx.fillRect(0, barY + 1, halfW * bluePct, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(1, barY + 2, halfW * bluePct - 2, 4);
   }
 
   // ── Red fill (right half, grows right→left) ───────────────────────────────
   const redPct = Math.max(0, Math.min(1, state.hp_enemy_pct / 100));
   const redW = halfW * redPct;
-  ctx.fillStyle = '#E83030';
+  const redGrad = ctx.createLinearGradient(0, barY, 0, barY + BAR_H);
+  redGrad.addColorStop(0,   '#FF5555');
+  redGrad.addColorStop(0.5, '#E83030');
+  redGrad.addColorStop(1,   '#BB1111');
+  ctx.fillStyle = redGrad;
   ctx.fillRect(W - redW, barY, redW, BAR_H);
   if (redPct > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.20)';
-    ctx.fillRect(W - redW, barY + 1, redW, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(W - redW, barY + 2, redW - 1, 4);
   }
 
-  // ── Bar border ────────────────────────────────────────────────────────────
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 1.5;
+  // ── Bar border — thick black outline, looks like styled UI panel ──────────
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
   ctx.strokeRect(0, barY, W, BAR_H);
   // center divider
   ctx.beginPath();
@@ -53,11 +61,26 @@ export function drawTopHud(ctx) {
   ctx.lineTo(centerX, barY + BAR_H);
   ctx.stroke();
 
+  // ── VS badge: slightly rounded pill behind text ───────────────────────────
+  const vsW = 42, vsH = BAR_H + 8;
+  const vsBadgeX = centerX - vsW / 2, vsBadgeY = barY - 3;
+  ctx.fillStyle = '#222222';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(vsBadgeX, vsBadgeY, vsW, vsH, 5);
+  } else {
+    ctx.rect(vsBadgeX, vsBadgeY, vsW, vsH);
+  }
+  ctx.fill();
+  ctx.stroke();
+
   // ── VS text centered on bar ───────────────────────────────────────────────
   ctx.font = 'bold 22px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 6;
   ctx.strokeStyle = '#000';
   ctx.strokeText('VS', centerX, barY + BAR_H / 2);
   ctx.fillStyle = '#FFFFFF';
@@ -74,7 +97,7 @@ export function drawTopHud(ctx) {
   ctx.font = 'bold 22px sans-serif';
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 7;
   ctx.strokeStyle = '#000';
 
   ctx.strokeText(`${Math.round(state.hp_self_pct)}%`, iconCenterL, pctY);

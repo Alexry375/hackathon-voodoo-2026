@@ -66,14 +66,19 @@ function loop() {
   currentTilt += (targetTilt - currentTilt) * TILT_EASE;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
-  // Same sage-green sky as exterior
-  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
-  bgGrad.addColorStop(0, '#8BBFA0');
-  bgGrad.addColorStop(1, '#AACBA8');
-  ctx.fillStyle = bgGrad;
+  // Interior: much darker than exterior sky — only a sliver of daylight shows
+  // through the castle's broken top cutout. Background gets near-black to
+  // make units and platforms read clearly against a dim stone environment.
+  ctx.fillStyle = '#0A1210';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Subtle sky tint only at very top (where cutout peeks through).
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.25);
+  bgGrad.addColorStop(0, '#6A9880');
+  bgGrad.addColorStop(1, 'rgba(10,18,16,0)');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height * 0.25);
   // Dark ground
-  ctx.fillStyle = '#7A2A1A';
+  ctx.fillStyle = '#3A1408';
   ctx.fillRect(0, canvas.height * 0.72, canvas.width, canvas.height * 0.28);
 
   drawCastleSection(ctx, { tilt_deg: currentTilt, damage_level: damageLevel });

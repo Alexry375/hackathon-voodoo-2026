@@ -50,6 +50,56 @@ export function drawWorld(ctx) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Draw a smooth hill silhouette as a series of bezier humps from x0 to x1.
+ * Caller must call ctx.beginPath() + ctx.moveTo(x0, GY) before, lineTo+closePath+fill after.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} x0 @param {number} x1
+ * @param {number} peakMin @param {number} peakMax  Y range for hill tops (smaller Y = higher)
+ * @param {number} humps   number of hills across the width
+ * @param {number} seed    deterministic offset for variety
+ */
+function _jungleHillPath(ctx, x0, x1, peakMin, peakMax, humps, seed) {
+  const step = (x1 - x0) / humps;
+  let px = x0;
+  for (let i = 0; i < humps; i++) {
+    const nx = px + step;
+    const midX = px + step / 2;
+    // pseudo-random but deterministic peak height
+    const t = (Math.sin(seed + i * 2.3) * 0.5 + 0.5);
+    const peakY = peakMin + t * (peakMax - peakMin);
+    ctx.quadraticCurveTo(midX, peakY, nx, peakMax + (Math.sin(seed + i * 1.7) * 0.3 + 0.5) * (peakMin - peakMax) * 0.4);
+    px = nx;
+  }
+}
+
+/**
+ * Draw a row of rounded tropical tree crown blobs along the treeline.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} groundY
+ * @param {number} x0 @param {number} x1
+ * @param {number} heightFrac  0–1: how far up the tree canopy sits (higher = further down)
+ */
+function _drawRoundedTreeCanopy(ctx, groundY, x0, x1, heightFrac) {
+  const baseY = groundY - 60 + heightFrac * 120;
+  const spacing = heightFrac < 0.8 ? 70 : 54;
+  const offset = heightFrac < 0.8 ? 0 : 27;
+  for (let tx = x0 + offset; tx < x1; tx += spacing) {
+    const s = Math.sin(tx * 0.031 + heightFrac * 4) * 0.5 + 0.5;
+    const crownR  = 44 + s * 38;
+    const crownY  = baseY - 40 - s * 80;
+    // Elliptical crown — slightly wider than tall for tropical canopy feel.
+    ctx.beginPath();
+    ctx.ellipse(tx, crownY, crownR * 1.15, crownR * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Second overlapping blob for fullness.
+    const crownR2 = crownR * 0.72;
+    ctx.beginPath();
+    ctx.ellipse(tx + crownR * 0.5, crownY + crownR * 0.15, crownR2, crownR2 * 0.8, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
  * @param {CanvasRenderingContext2D} ctx
  */
 function _drawBackground(ctx) {
@@ -61,71 +111,38 @@ function _drawBackground(ctx) {
 
   // --- Sky gradient: warm teal-green daylight (matches source) ---
   const sky = ctx.createLinearGradient(0, 0, 0, GY);
-  sky.addColorStop(0,    '#A8CCBA');
-  sky.addColorStop(0.45, '#BACEB8');
-  sky.addColorStop(0.8,  '#C8D8B8');
-  sky.addColorStop(1,    '#D0E4B8');
+  sky.addColorStop(0,    '#8EC8E4');
+  sky.addColorStop(0.3,  '#AADCCA');
+  sky.addColorStop(0.7,  '#C4E8B8');
+  sky.addColorStop(1,    '#D4F0B8');
   ctx.fillStyle = sky;
   ctx.fillRect(-BLEED, -BLEED, W + BLEED * 2, GY + BLEED);
 
-  // --- Back hills (light sage) ---
-  ctx.fillStyle = '#7EB87A';
+  // --- Distant rolling hills: soft aqua-green, gentle humps ---
+  ctx.fillStyle = '#82B895';
   ctx.beginPath();
   ctx.moveTo(-BLEED, GY);
-  ctx.lineTo(-BLEED, GY - 220);
-  ctx.bezierCurveTo(100, GY - 310, 300, GY - 360, 500, GY - 280);
-  ctx.bezierCurveTo(660, GY - 220, 820, GY - 330, 980, GY - 285);
-  ctx.bezierCurveTo(1130, GY - 245, 1280, GY - 305, W + BLEED, GY - 220);
+  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 280, GY - 180, 7, 0);
   ctx.lineTo(W + BLEED, GY);
   ctx.closePath();
   ctx.fill();
 
-  // --- Treeline: pointed conifer silhouettes matching source style ---
-  // Back layer — medium dark green conifers
-  ctx.fillStyle = '#3A6B40';
-  for (let tx = -BLEED; tx < W + BLEED; tx += 44) {
-    const hs   = Math.sin(tx * 0.027) * 0.5 + 0.5;
-    const tH   = 160 + hs * 120;
-    const tW   = 40 + hs * 24;
-    const baseY = GY - 190 + Math.sin(tx * 0.017) * 35;
-    // Stacked tiers: 3 triangles narrowing upward
-    for (let tier = 0; tier < 3; tier++) {
-      const frac = tier / 3;
-      const tipY  = baseY - tH * (1 - frac * 0.55);
-      const midY  = baseY - tH * (0.55 - frac * 0.18);
-      const halfW = (tW * 0.5) * (1 - frac * 0.35);
-      ctx.beginPath();
-      ctx.moveTo(tx, tipY);
-      ctx.lineTo(tx + halfW, midY);
-      ctx.lineTo(tx - halfW, midY);
-      ctx.closePath();
-      ctx.fill();
-    }
-    // Trunk
-    ctx.fillRect(tx - tW * 0.06, baseY - tH * 0.22, tW * 0.12, tH * 0.22);
-  }
+  // --- Mid hills: deeper green, slightly in front ---
+  ctx.fillStyle = '#5A9A6A';
+  ctx.beginPath();
+  ctx.moveTo(-BLEED, GY);
+  _jungleHillPath(ctx, -BLEED, W + BLEED, GY - 210, GY - 110, 9, 42);
+  ctx.lineTo(W + BLEED, GY);
+  ctx.closePath();
+  ctx.fill();
 
-  // Front layer — very dark near-black tall conifers
+  // --- Near tree canopy: rounded tropical crowns (dark jungle green) ---
+  ctx.fillStyle = '#2E6535';
+  _drawRoundedTreeCanopy(ctx, GY, -BLEED, W + BLEED, 0.72);
+
+  // --- Foreground canopy layer: near-black silhouette ---
   ctx.fillStyle = '#1A3020';
-  for (let tx = -BLEED + 22; tx < W + BLEED; tx += 52) {
-    const hs   = Math.sin(tx * 0.038 + 1.5) * 0.5 + 0.5;
-    const tH   = 190 + hs * 110;
-    const tW   = 48 + hs * 22;
-    const baseY = GY - 75 + Math.sin(tx * 0.021) * 20;
-    for (let tier = 0; tier < 3; tier++) {
-      const frac = tier / 3;
-      const tipY  = baseY - tH * (1 - frac * 0.52);
-      const midY  = baseY - tH * (0.52 - frac * 0.17);
-      const halfW = (tW * 0.5) * (1 - frac * 0.32);
-      ctx.beginPath();
-      ctx.moveTo(tx, tipY);
-      ctx.lineTo(tx + halfW, midY);
-      ctx.lineTo(tx - halfW, midY);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.fillRect(tx - tW * 0.06, baseY - tH * 0.20, tW * 0.12, tH * 0.20);
-  }
+  _drawRoundedTreeCanopy(ctx, GY, -BLEED, W + BLEED, 0.88);
 
   // --- Green grass ground surface strip ---
   const grass = ctx.createLinearGradient(0, GY - 40, 0, GY + 30);

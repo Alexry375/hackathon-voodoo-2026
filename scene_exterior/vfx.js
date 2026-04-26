@@ -1,18 +1,18 @@
 // Scene-wide VFX overlay for the exterior view.
-// Owns: rain, explosions, smoke trails, low-HP castle damage chunks.
+// Owns: explosions, smoke trails, low-HP castle damage chunks.
 // Procedural Canvas2D — no image assets, no deps.
 // All state lives in module-local pools to avoid per-frame allocations.
 
-const MAX_PARTICLES = 200;
-const RAIN_COUNT = 80;
+const MAX_PARTICLES = 280;
 
 /** @typedef {{x:number,y:number,vx:number,vy:number,life_ms:number,age_ms:number,kind:number,size:number,hue:number,alive:boolean,smokeColor?:string}} Particle */
 
-// kind enum: 0=explosion spark, 1=smoke puff, 2=dust, 3=ring (single per explosion)
+// kind enum: 0=spark, 1=smoke, 2=dust, 3=ring, 4=flash (bright central burst)
 const KIND_SPARK = 0;
 const KIND_SMOKE = 1;
 const KIND_DUST = 2;
 const KIND_RING = 3;
+const KIND_FLASH = 4;
 
 /** @type {Particle[]} */
 const particles = [];
@@ -59,11 +59,10 @@ export function loadVfxAssets() {
   return Promise.resolve();
 }
 
-// palette presets — player shots burn bright warm (gold/orange), enemy shots
-// burn darker orange-red (orange-red outer sparks, grey smoke core).
+// palette presets — source game explosions are fiery yellow/orange.
 const PALETTES = {
-  player: { hueBase: 45,  hueRange: 20,  dustColor: '#555555' }, // gold → orange, grey smoke
-  enemy:  { hueBase: 18,  hueRange: 18,  dustColor: '#555555' }, // orange-red, grey smoke
+  player: { hueBase: 38,  hueRange: 22, flashHue: 50 }, // gold → orange fireball
+  enemy:  { hueBase: 15,  hueRange: 18, flashHue: 28 }, // orange-red impact
 };
 
 /**
@@ -73,50 +72,64 @@ const PALETTES = {
  */
 export function triggerExplosion(x, y, { size, palette = 'player' }) {
   const big = size === 'big';
-  const sparkCount = big ? 30 : 15;
-  const dustCount = big ? 8 : 4;
   const pal = PALETTES[palette] || PALETTES.player;
 
+  // Central flash: white-hot at center, fades to transparent.
+  const flash = spawn();
+  flash.x = x; flash.y = y;
+  flash.vx = 0; flash.vy = 0;
+  flash.life_ms = big ? 320 : 180;
+  flash.age_ms = 0;
+  flash.kind = KIND_FLASH;
+  flash.size = big ? 140 : 70;
+  flash.hue = pal.flashHue;
+  flash.alive = true;
+
+  // Hot bright sparks — fast upward bias, yellow-orange core color.
+  const sparkCount = big ? 40 : 20;
   for (let i = 0; i < sparkCount; i++) {
     const p = spawn();
     const ang = Math.random() * Math.PI * 2;
-    const spd = (big ? 220 : 140) * (0.4 + Math.random() * 0.8);
-    p.x = x; p.y = y;
+    const spd = (big ? 280 : 170) * (0.3 + Math.random() * 0.9);
+    p.x = x + (Math.random() - 0.5) * (big ? 16 : 8);
+    p.y = y + (Math.random() - 0.5) * (big ? 16 : 8);
     p.vx = Math.cos(ang) * spd;
-    p.vy = Math.sin(ang) * spd - (big ? 60 : 30);
-    p.life_ms = 450 + Math.random() * (big ? 350 : 200);
+    p.vy = Math.sin(ang) * spd - (big ? 90 : 50);
+    p.life_ms = 350 + Math.random() * (big ? 400 : 200);
     p.age_ms = 0;
     p.kind = KIND_SPARK;
-    p.size = (big ? 5 : 3) + Math.random() * 3;
+    p.size = (big ? 6 : 3.5) + Math.random() * 3.5;
     p.hue = pal.hueBase + Math.random() * pal.hueRange;
     p.alive = true;
   }
 
+  // Black smoke puffs rising from impact — gives the fire a base.
+  const dustCount = big ? 10 : 5;
   for (let i = 0; i < dustCount; i++) {
     const p = spawn();
-    const ang = Math.random() * Math.PI * 2;
-    const spd = (big ? 60 : 35) * (0.3 + Math.random() * 0.8);
-    p.x = x + (Math.random() - 0.5) * 20;
+    const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2;
+    const spd = (big ? 55 : 32) * (0.4 + Math.random() * 0.7);
+    p.x = x + (Math.random() - 0.5) * 30;
     p.y = y + (Math.random() - 0.5) * 20;
     p.vx = Math.cos(ang) * spd;
-    p.vy = Math.sin(ang) * spd - 20;
-    p.life_ms = 700 + Math.random() * 500;
+    p.vy = Math.sin(ang) * spd;
+    p.life_ms = 800 + Math.random() * 600;
     p.age_ms = 0;
     p.kind = KIND_DUST;
-    p.size = (big ? 22 : 14) + Math.random() * 10;
+    p.size = (big ? 28 : 16) + Math.random() * 14;
     p.hue = 0;
     p.alive = true;
   }
 
-  // Single expanding ring; size encodes target radius in `size`, lifetime is what fades it.
+  // Outer shock ring — bright warm color instead of plain white.
   const ring = spawn();
   ring.x = x; ring.y = y;
   ring.vx = 0; ring.vy = 0;
-  ring.life_ms = 150;
+  ring.life_ms = big ? 200 : 130;
   ring.age_ms = 0;
   ring.kind = KIND_RING;
-  ring.size = big ? 90 : 50;
-  ring.hue = 0;
+  ring.size = big ? 120 : 60;
+  ring.hue = pal.flashHue;
   ring.alive = true;
 }
 
@@ -175,53 +188,93 @@ function drawRain(ctx, w, h, dt_s) {
   ctx.restore();
 }
 
+function _tickParticle(p, dt_s) {
+  if (p.kind === KIND_SPARK) p.vy += 480 * dt_s;
+  else if (p.kind === KIND_DUST) p.vy += 30 * dt_s;
+  p.x += p.vx * dt_s;
+  p.y += p.vy * dt_s;
+}
+
+function _drawSingleParticle(ctx, p) {
+  const t = p.age_ms / p.life_ms;
+  const fade = 1 - t;
+
+  if (p.kind === KIND_SPARK) {
+    const hueShift = p.hue - t * 20;
+    ctx.globalAlpha = Math.min(1, fade * 1.2);
+    ctx.fillStyle = `hsl(${hueShift}, 100%, ${70 - t * 30}%)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (0.6 + fade * 0.6), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (p.kind === KIND_SMOKE) {
+    ctx.globalAlpha = fade * 0.55;
+    ctx.fillStyle = p.smokeColor || '#9aa0a6';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (1 + t * 1.5), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (p.kind === KIND_DUST) {
+    ctx.globalAlpha = Math.min(0.50, fade * 0.60);
+    ctx.fillStyle = '#3A2010';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (1 + t * 1.1), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (p.kind === KIND_RING) {
+    const r = p.size * (0.3 + t * 1.4);
+    ctx.globalAlpha = fade * 0.85;
+    const h = p.hue || 50;
+    ctx.strokeStyle = `hsla(${h}, 90%, 70%, ${fade.toFixed(3)})`;
+    ctx.lineWidth = (6 * fade + 1);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (p.kind === KIND_FLASH) {
+    const r = p.size * (0.5 + t * 0.8);
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+    const h = p.hue || 50;
+    grad.addColorStop(0,    `rgba(255,255,255,${(fade * 0.95).toFixed(3)})`);
+    grad.addColorStop(0.25, `hsla(${h + 15}, 100%, 90%, ${(fade * 0.80).toFixed(3)})`);
+    grad.addColorStop(0.6,  `hsla(${h}, 90%, 60%, ${(fade * 0.45).toFixed(3)})`);
+    grad.addColorStop(1,    `hsla(${h - 10}, 80%, 40%, 0)`);
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawParticles(ctx, dt_ms) {
   const dt_s = dt_ms / 1000;
   ctx.save();
+
+  // Tick all particles first.
   for (let i = 0; i < MAX_PARTICLES; i++) {
     const p = particles[i];
     if (!p.alive) continue;
     p.age_ms += dt_ms;
     if (p.age_ms >= p.life_ms) { p.alive = false; continue; }
-
-    // Gravity for sparks/dust; smoke and rings get none.
-    if (p.kind === KIND_SPARK) p.vy += 480 * dt_s;
-    else if (p.kind === KIND_DUST) p.vy += 30 * dt_s;
-
-    p.x += p.vx * dt_s;
-    p.y += p.vy * dt_s;
-
-    const t = p.age_ms / p.life_ms;
-    const fade = 1 - t;
-
-    if (p.kind === KIND_SPARK) {
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = `hsl(${p.hue}, 90%, ${55 + (1 - t) * 20}%)`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * (0.5 + fade * 0.5), 0, Math.PI * 2);
-      ctx.fill();
-    } else if (p.kind === KIND_SMOKE) {
-      ctx.globalAlpha = fade * 0.55;
-      ctx.fillStyle = p.smokeColor || '#9aa0a6';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * (1 + t * 1.5), 0, Math.PI * 2);
-      ctx.fill();
-    } else if (p.kind === KIND_DUST) {
-      ctx.globalAlpha = fade * 0.5;
-      ctx.fillStyle = '#555555';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * (1 + t * 0.8), 0, Math.PI * 2);
-      ctx.fill();
-    } else if (p.kind === KIND_RING) {
-      const r = p.size * (0.3 + t * 1.4);
-      ctx.globalAlpha = fade;
-      ctx.strokeStyle = `rgba(255, 240, 200, ${fade.toFixed(3)})`;
-      ctx.lineWidth = 4 * fade + 1;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    _tickParticle(p, dt_s);
   }
+
+  // Draw in layers so sparks always appear on top of smoke/dust.
+  // Pass 1: flash, dust, smoke, ring (background layers)
+  for (let i = 0; i < MAX_PARTICLES; i++) {
+    const p = particles[i];
+    if (!p.alive || p.kind === KIND_SPARK) continue;
+    _drawSingleParticle(ctx, p);
+  }
+  // Pass 2: sparks on top — with additive-style glow via shadowBlur
+  ctx.shadowBlur = 18;
+  for (let i = 0; i < MAX_PARTICLES; i++) {
+    const p = particles[i];
+    if (!p.alive || p.kind !== KIND_SPARK) continue;
+    const t = p.age_ms / p.life_ms;
+    const h = p.hue - t * 20;
+    ctx.shadowColor = `hsl(${h}, 100%, 60%)`;
+    _drawSingleParticle(ctx, p);
+  }
+  ctx.shadowBlur = 0;
+
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -372,11 +425,5 @@ export function updateAndDraw(ctx, _viewport, dt_ms, _hp = {}) {
   drawDamageNumbers(ctx, dt_ms);
 }
 
-// Screen-space pass: rain only. Caller MUST call this OUTSIDE the camera
-// transform so raindrops stay tied to the viewport, not the world.
-export function drawRainOverlay(ctx, viewport, dt_ms) {
-  const { w, h } = viewport;
-  const dt_s = Math.min(dt_ms, 50) / 1000;
-  if (!rain_inited) initRain(w, h);
-  drawRain(ctx, w, h, dt_s);
-}
+// Source game is sunny — no rain. Kept as a no-op to preserve the call site.
+export function drawRainOverlay(_ctx, _viewport, _dt_ms) {}
