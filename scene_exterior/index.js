@@ -873,22 +873,24 @@ function _drawBase(ctx) {
 }
 
 function _drawTreads(ctx, viewMode) {
-  // Castles are static — a single PNG tread (extracted from B01.mp4 + rembg)
-  // sits centred under the wooden base. Side-tinted via an asset swap if the
-  // future asset set diverges; for now both sides ship the same texture.
+  // The source castle rides on TWO separate treads (one under each tower)
+  // with arches + greenery visible between them, not a single full-width
+  // monster tread. Each unit is sized at ~36% of the castle width.
   const v = viewMode || view;
   const img = getImage(v === 'ENEMY' ? 'TREAD_ENEMY' : 'TREAD_OURS');
   if (!img || !img.width) return;
 
-  // Drawn width matches the castle base (slightly wider to overhang).
-  const tw = CASTLE_W + 28;
+  const tw = Math.round(CASTLE_W * 0.42);
   const th = tw * (img.height / img.width);
-  const x  = (W - tw) / 2;
-  // The PNG already includes spike trim above the wheels — sit its top edge
-  // a bit above TREAD_Y so the wood base overlaps the spikes naturally.
-  const y  = TREAD_Y - 14;
+  // Top edge of the spikes sits ~12 px above the wood base so the wood
+  // overlaps the spike row a tiny bit (matches the source).
+  const y  = TREAD_Y - 12;
+  // Centres of the two treads — placed under each main tower.
+  const cxL = CASTLE_X + Math.round(CASTLE_W * 0.22);
+  const cxR = CASTLE_X + Math.round(CASTLE_W * 0.78);
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(img, x, y, tw, th);
+  ctx.drawImage(img, cxL - tw / 2, y, tw, th);
+  ctx.drawImage(img, cxR - tw / 2, y, tw, th);
 }
 
 // ── Drawing — damage / projectiles / floats ──────────────────────────────────
