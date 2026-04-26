@@ -108,21 +108,25 @@ function _getContentBounds(img) {
 let _oursAttacksTaken = 0;
 
 function _damagePng(side) {
-  const prefix = side === 'OURS' ? 'CASTLE_BLUE_' : 'CASTLE_';
-  let suffix = null;
+  // Intact PNGs (BLUE_CASTLE / RED_CASTLE) now bake base + treads in too —
+  // mirrored from the tier-75 sprite so each side keeps its distinct
+  // tread/wood-base style. Treat them as a "tier-100" so the renderer skips
+  // the procedural base/treads (which would draw underneath at the wrong size
+  // and double up).
+  let key;
   if (side === 'OURS') {
-    if (_oursAttacksTaken === 0) return null;
-    if (_oursAttacksTaken <= 2)      suffix = '75';
-    else if (_oursAttacksTaken <= 4) suffix = '50';
-    else                              suffix = '25';
+    if      (_oursAttacksTaken === 0) key = 'BLUE_CASTLE';
+    else if (_oursAttacksTaken <= 2)  key = 'CASTLE_BLUE_75';
+    else if (_oursAttacksTaken <= 4)  key = 'CASTLE_BLUE_50';
+    else                               key = 'CASTLE_BLUE_25';
   } else {
     const hp = state.hp_enemy_pct;
-    if      (hp <= 25) suffix = '25';
-    else if (hp <= 50) suffix = '50';
-    else if (hp <= 75) suffix = '75';
-    if (!suffix) return null;
+    if      (hp <= 25) key = 'CASTLE_25';
+    else if (hp <= 50) key = 'CASTLE_50';
+    else if (hp <= 75) key = 'CASTLE_75';
+    else                key = 'RED_CASTLE';
   }
-  const img = tryGetImage(prefix + suffix);
+  const img = tryGetImage(key);
   return (img && img.complete && img.naturalWidth > 0) ? img : null;
 }
 
