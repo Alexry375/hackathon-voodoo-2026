@@ -1,0 +1,12 @@
+{
+  "id": "V3",
+  "axis": "palette",
+  "name": "y2k-neon",
+  "hypothesis": "Y2K neon overlay (pink/cyan diagonal wash + 4px scan-lines + violet corner vignette + sweeping chromatic-aberration band) creates a thumb-stop palette signature on TikTok/Reels 2026 feeds without altering gameplay, hook, or endcard structure.",
+  "diff_from_baseline": {
+    "added_files": ["playable/y2k_overlay.js"],
+    "modified_files": ["playable/script.js"],
+    "scope": "palette only — overlay applied at top of _paintOverlay, gated to skip endcard and forcewin phases so Sami's juice stays intact."
+  },
+  "review": "pending"
+}
