@@ -44,11 +44,10 @@ export function getZoomT() { return _zoomT; }
 // until the player taps and scene_manager.start() advances to EXTERIOR_OBSERVE.
 const EXTERIOR_STATES = new Set(['INTRO', 'EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
 
-// Gentle peek transition: exterior eases to a small zoom in toward the castle,
-// then the interior appears. Subtle — just enough to feel like entering.
-let _zoomT = 0;       // 0 = normal, 1 = fully transitioned
+// Transition state — kept minimal: a brief white flash on cut, then hard-cut.
+let _zoomT = 0;
 let _zoomActive = false;
-const ZOOM_SPEED = 0.0025; // full peek in ~400ms
+const ZOOM_SPEED = 0.012; // flash lasts ~80ms
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
@@ -250,11 +249,13 @@ function loop() {
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
 
-  // As we zoom into the castle, darken the exterior — "entering the wall".
+  // Brief white flash on the cut frame — matches source's snappy feel.
   if (_zoomActive && _zoomT > 0) {
-    const ease = 1 - (1 - _zoomT) * (1 - _zoomT);
-    ctx.fillStyle = `rgba(0,0,0,${(ease * 0.85).toFixed(3)})`;
-    ctx.fillRect(0, 0, viewport.w, viewport.h);
+    const alpha = Math.max(0, 1 - _zoomT * 5); // fades out in first 20% of duration
+    if (alpha > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+      ctx.fillRect(0, 0, viewport.w, viewport.h);
+    }
   }
 
   ctx.restore();

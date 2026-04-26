@@ -110,15 +110,6 @@ function loop() {
   drawTopHud(ctx);
   drawScriptOverlay(ctx, t);
 
-  // Fade in from black as the exterior's enter-castle overlay clears.
-  if (_getZoomT) {
-    const zoomT = _getZoomT();
-    if (zoomT > 0) {
-      const fadeAlpha = 1 - zoomT; // 1 = solid black, 0 = fully revealed
-      ctx.fillStyle = `rgba(0,0,0,${fadeAlpha.toFixed(3)})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-  }
 
   ctx.restore();
 }
