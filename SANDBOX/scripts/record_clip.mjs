@@ -40,15 +40,16 @@ await page.goto(URL, { waitUntil: 'networkidle' });
 // Opening cinematic + tutorial wait
 await page.waitForTimeout(5200);
 
-// Scripted drag-fire (interior aim)
+// Scripted drag-fire (interior aim) — slowed for readability per Gemini P3
 await page.mouse.move(410, 530);
+await page.waitForTimeout(220);
 await page.mouse.down();
-await page.mouse.move(240, 700, { steps: 14 });
-await page.waitForTimeout(120);
+await page.mouse.move(240, 700, { steps: 30 });
+await page.waitForTimeout(420);
 await page.mouse.up();
 
-// Full fire→cinematic→back to interior
-await page.waitForTimeout(5200);
+// Full fire→pan→phase2→impact→dwell→zoom (no riposte)
+await page.waitForTimeout(5000);
 
 // Force endcard for last 2s
 await page.evaluate(() => /** @type {any} */ (window).__forcePhase('endcard'));

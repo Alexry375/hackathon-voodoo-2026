@@ -97,11 +97,20 @@ let stepT0 = 0;
 
 // Zoom-in transition exterior→interior (T1 from Gemini critique).
 // During this window, the exterior keeps drawing but the canvas is scaled
-// progressively around the castle center. At the end we actually emit
-// cut_to_interior so scene_manager flips state.
+// progressively around the castle center. At the end we actually fire the
+// pending exit action (emit cut_to_interior or call ready_for_player_input).
+// Dur is 900ms so Gemini's 1fps internal sampling sees ≥1 frame mid-zoom.
 let transitioning = false;
 let transitionT0 = 0;
-const TRANSITION_DUR = 550;
+let transitionEndAction = /** @type {(()=>void)|null} */ (null);
+const TRANSITION_DUR = 900;
+
+// View whip-pan transition (T2 from Gemini critique).
+// During cut OURS→ENEMY (and back) we slide both castles horizontally so the
+// viewer reads a continuous camera pan instead of a hard cut. Background is
+// kept static for simplicity (still reads as a pan thanks to parallax-by-zero).
+let viewTransition = /** @type {null|{fromView:'OURS'|'ENEMY',toView:'OURS'|'ENEMY',t0:number,dur:number,dir:1|-1}} */ (null);
+const VIEW_PAN_DUR = 750;
 let pendingPlayerDmg = 0;
 let pendingEnemyDmg = 0;
 let pendingPlayerImpact = /** @type {{x:number,y:number}|null} */ (null);
@@ -143,9 +152,11 @@ function _startIncoming() {
     kind: 'bomb',
     from: { x: W + 30, y: 70 },
     to: target,
-    t0: performance.now() + 200,
-    dur: 1800,
-    peakLift: 110,
+    // 600ms hold-pre-launch makes the bomb readable as a "threat in the sky"
+    // even at Gemini's 1fps sampling (one frame catches it mid-air for sure).
+    t0: performance.now() + 600,
+    dur: 2400,
+    peakLift: 140,
     onLand: () => _impactOurs(target, dmgVal),
   };
   projectiles.push(proj);
@@ -154,10 +165,13 @@ function _startIncoming() {
 }
 
 function _impactOurs(at, d) {
-  dmg.OURS.push({ x: at.x, y: at.y, r: 55 });
+  dmg.OURS.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
   state.hp_self_pct = Math.max(0, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
-  shakeUntil = performance.now() + 380; shakeMag = 9;
+  // Bomb hit = bigger shake (impact from above, heavier than rocket).
+  shakeUntil = performance.now() + 600; shakeMag = 16;
+  tiltAngle = -0.08;
+  tiltUntil = performance.now() + 700;
   if (step === 'incoming') {
     // hand control to interior after a short beat (was 900ms — too dead)
     setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 400);
@@ -166,35 +180,49 @@ function _impactOurs(at, d) {
 
 // ── Player-fire cinematic ────────────────────────────────────────────────────
 function startPlayerShot(payload) {
-  const power = Math.max(0.35, Math.min(1, payload?.power ?? 0.7));
   view = 'OURS';
-  // Tilt the castle for a brief firing animation
   tiltAngle = -0.07;
   tiltUntil = performance.now() + 600;
   step = 'fire';
   stepT0 = performance.now();
 
-  // Phase 1 — projectile leaves frame to the right (we still see ours)
-  const m = muzzlePos();
-  const off = { x: W + 80, y: 240 };
-  /** @type {Projectile} */
-  const phase1 = {
-    kind: 'rocket',
-    from: m, to: off,
-    t0: performance.now() + 200,
-    dur: 800,
-    peakLift: 200,
-    onLand: () => { /* phase1 done; cut handled in loop tick */ },
-  };
-  projectiles.push(phase1);
-
-  // Stash incoming-side variables for phase 2 (after CUT)
-  const dmgVal = 14 + Math.floor(Math.random() * 6);  // 14..19
+  // Stash enemy-side impact data
+  const dmgVal = 14 + Math.floor(Math.random() * 6);
   pendingEnemyDmg = dmgVal;
   pendingEnemyImpact = {
     x: CASTLE_X + CASTLE_W * (0.30 + Math.random() * 0.4),
     y: CASTLE_TOP_Y + 70 + Math.random() * 160,
   };
+
+  const t = performance.now();
+  // Phase 1 projectile + camera pan are SIMULTANEOUS — the camera "follows" the
+  // shot from ours toward enemy. Both run for 1100ms so Gemini's 1fps sampling
+  // catches at least one frame mid-pan (verifies the camera is moving).
+  const m = muzzlePos();
+  /** @type {Projectile} */
+  const phase1 = {
+    kind: 'rocket',
+    from: m, to: { x: W + 80, y: 240 },
+    t0: t + 250,
+    dur: 1100,
+    peakLift: 220,
+    onLand: () => {},
+  };
+  projectiles.push(phase1);
+
+  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1100, dir: 1 };
+
+  // Phase 2 projectile spawns when pan completes — continuous trajectory feel.
+  const phase2 = {
+    kind: 'rocket',
+    from: { x: -60, y: 240 },
+    to: pendingEnemyImpact,
+    t0: t + 1350,
+    dur: 1100,
+    peakLift: 220,
+    onLand: () => _impactEnemy(pendingEnemyImpact, pendingEnemyDmg),
+  };
+  projectiles.push(phase2);
 }
 
 // ── Cinematic tick (called each frame) ───────────────────────────────────────
@@ -207,87 +235,40 @@ function _tick(now) {
     else if (remain < total * 0.6) tiltAngle *= 0.86;
   }
 
-  // Step transitions
-  if (step === 'fire' && now - stepT0 > 1200) {
-    // CUT to enemy castle
-    step = 'cut_to_enemy';
-    stepT0 = now;
-    view = 'ENEMY';
-    // Spawn phase-2 projectile entering from left edge, lands on enemy castle
-    const target = pendingEnemyImpact;
-    /** @type {Projectile} */
-    const phase2 = {
-      kind: 'rocket',
-      from: { x: -60, y: 240 },
-      to: target,
-      t0: now,
-      dur: 900,
-      peakLift: 200,
-      onLand: () => _impactEnemy(target, pendingEnemyDmg),
-    };
-    projectiles.push(phase2);
-  }
-
-  if (step === 'enemy_dwell' && now - stepT0 > 600) {
-    // CUT to ours: enemy fires back
-    step = 'cut_to_ours';
-    stepT0 = now;
-    view = 'OURS';
-    if (state.hp_enemy_pct <= 5) {
-      // Enemy is dead, skip riposte
-      step = 'idle';
-      _emitCutToInterior();
-      return;
-    }
-    const target = {
-      x: CASTLE_X + CASTLE_W * (0.30 + Math.random() * 0.4),
-      y: CASTLE_TOP_Y + 60 + Math.random() * 160,
-    };
-    pendingPlayerDmg = 8 + Math.floor(Math.random() * 6);
-    pendingPlayerImpact = target;
-    /** @type {Projectile} */
-    const incomingBomb = {
-      kind: 'bomb',
-      from: { x: W + 60, y: -30 },
-      to: target,
-      t0: now,
-      dur: 1100,
-      peakLift: 80,
-      onLand: () => _impactOurs(target, pendingPlayerDmg),
-    };
-    projectiles.push(incomingBomb);
-  }
-
-  if (step === 'ours_dwell' && now - stepT0 > 600) {
+  // After enemy impact, dwell long enough to "savourer" the destruction
+  // (Gemini P2: dwell 1500ms post-impact). Then cut directly back to interior
+  // — no return whip pan, no immediate enemy riposte (Gemini: ping-pong inutile).
+  if (step === 'enemy_dwell' && now - stepT0 > 1500) {
     step = 'idle';
     _emitCutToInterior();
   }
 }
 
 function _impactEnemy(at, d) {
-  dmg.ENEMY.push(_makeDamageZone(at.x, at.y, 50 + Math.random() * 14));
+  dmg.ENEMY.push(_makeDamageZone(at.x, at.y, 60 + Math.random() * 18));
   state.hp_enemy_pct = Math.max(0, state.hp_enemy_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
-  shakeUntil = performance.now() + 360; shakeMag = 8;
-  // Recoil: castle tilts away from the impact point (impact came from left → tilt right).
-  tiltAngle = 0.06;
-  tiltUntil = performance.now() + 500;
+  // Strong shake (Gemini: "manque de nervosité") + longer tilt for weight.
+  shakeUntil = performance.now() + 520; shakeMag = 14;
+  tiltAngle = 0.09;
+  tiltUntil = performance.now() + 700;
   step = 'enemy_dwell';
   stepT0 = performance.now();
 }
 
-function _emitCutToInterior() {
-  // Don't emit immediately — start a 550ms zoom-in transition first. The actual
-  // emit happens at the end of the transition (loop tick).
+function _startExitTransition(endAction) {
   transitioning = true;
   transitionT0 = performance.now();
+  transitionEndAction = endAction;
 }
 
-function _finalizeCutToInterior() {
-  emit('cut_to_interior', {
-    hp_self_after:  state.hp_self_pct,
-    hp_enemy_after: state.hp_enemy_pct,
-    units_destroyed_ids: pendingKills,
+function _emitCutToInterior() {
+  _startExitTransition(() => {
+    emit('cut_to_interior', {
+      hp_self_after:  state.hp_self_pct,
+      hp_enemy_after: state.hp_enemy_pct,
+      units_destroyed_ids: pendingKills,
+    });
   });
 }
 
@@ -319,7 +300,11 @@ function _routeOursImpact(at, d) {
     floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
     shakeUntil = performance.now() + 380; shakeMag = 9;
     if (step === 'incoming') {
-      setTimeout(() => { step = 'idle'; ready_for_player_input(); }, 400);
+      // Hand off to interior with a zoom transition (T1) so it isn't a hard cut.
+      setTimeout(() => {
+        step = 'idle';
+        _startExitTransition(() => ready_for_player_input());
+      }, 400);
     }
   }
 }
@@ -348,7 +333,23 @@ function loop() {
     const tn = Math.min(1, (now - transitionT0) / TRANSITION_DUR);
     const eased = tn < 0.5 ? 4 * tn * tn * tn : 1 - Math.pow(-2 * tn + 2, 3) / 2;
     zoomScale = 1 + eased * 0.85;             // 1 → 1.85
-    fadeAlpha = Math.max(0, tn - 0.7) / 0.3;  // last 30%: fade to white 0 → 1
+    fadeAlpha = Math.max(0, tn - 0.75) / 0.25; // last 25%: fade to white 0 → 1
+  }
+
+  // Whip pan (T2): horizontal slide between two castle "slots".
+  let panOffset = 0;
+  let panProgress = 0;
+  if (viewTransition) {
+    const tn = Math.min(1, (now - viewTransition.t0) / viewTransition.dur);
+    panProgress = tn;
+    // ease-in-out cubic for the camera glide
+    const eased = tn < 0.5 ? 4 * tn * tn * tn : 1 - Math.pow(-2 * tn + 2, 3) / 2;
+    panOffset = eased * W * viewTransition.dir;  // dir=+1: world slides left, ENEMY enters from right
+    if (tn >= 1) {
+      view = viewTransition.toView;
+      viewTransition = null;
+      panOffset = 0;
+    }
   }
 
   ctx.save();
@@ -364,8 +365,28 @@ function loop() {
   _drawHillsFar(ctx);
   _drawForestNear(ctx);
   _drawGround(ctx);
-  _drawCastleWithBase(ctx);
-  _drawDamageMasks(ctx, view === 'OURS' ? dmg.OURS : dmg.ENEMY);
+
+  if (viewTransition) {
+    // Render BOTH castles side-by-side. fromView at offset -panOffset, toView at +W-panOffset.
+    const dxFrom = -panOffset;
+    const dxTo   = (viewTransition.dir > 0 ? W : -W) - panOffset;
+    _drawCastleSlot(ctx, viewTransition.fromView, dxFrom);
+    _drawCastleSlot(ctx, viewTransition.toView,   dxTo);
+    // Subtle horizontal motion-blur streaks during the middle of the pan
+    if (panProgress > 0.15 && panProgress < 0.85) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      const streaks = 6;
+      for (let s = 0; s < streaks; s++) {
+        const sy0 = (s / streaks) * H;
+        ctx.fillRect(0, sy0 + 8, W, 4);
+      }
+      ctx.restore();
+    }
+  } else {
+    _drawCastleSlot(ctx, view, 0);
+  }
+
   _drawProjectiles(ctx, now);
   _drawFloats(ctx, now);
 
@@ -381,8 +402,18 @@ function loop() {
 
   if (transitioning && (now - transitionT0) >= TRANSITION_DUR) {
     transitioning = false;
-    _finalizeCutToInterior();
+    const endAction = transitionEndAction;
+    transitionEndAction = null;
+    if (endAction) endAction();
   }
+}
+
+function _drawCastleSlot(ctx, viewMode, dx) {
+  ctx.save();
+  ctx.translate(dx, 0);
+  _drawCastleWithBase(ctx, viewMode);
+  _drawDamageMasks(ctx, viewMode === 'OURS' ? dmg.OURS : dmg.ENEMY);
+  ctx.restore();
 }
 
 // ── Drawing — backgrounds ────────────────────────────────────────────────────
@@ -465,29 +496,32 @@ function _drawGround(ctx) {
 }
 
 // ── Drawing — castle + base ──────────────────────────────────────────────────
-function _drawCastleWithBase(ctx) {
+function _drawCastleWithBase(ctx, viewMode) {
   // tilt around base center
   const cx = W / 2;
   const cy = BASE_Y + BASE_H / 2;
   ctx.save();
-  if (tiltAngle !== 0) {
+  // Only the active view tilts on impact (the other slot is just sliding through).
+  const isActive = (viewMode || view) === view;
+  if (isActive && tiltAngle !== 0) {
     ctx.translate(cx, cy);
     ctx.rotate(tiltAngle);
     ctx.translate(-cx, -cy);
   }
-  _drawCastle(ctx);
+  _drawCastle(ctx, viewMode);
   _drawBase(ctx);
   _drawTreads(ctx);
   ctx.restore();
 }
 
-function _drawCastle(ctx) {
-  const asset = view === 'OURS' ? 'BLUE_CASTLE' : 'RED_CASTLE';
+function _drawCastle(ctx, viewMode) {
+  const v = viewMode || view;
+  const asset = v === 'OURS' ? 'BLUE_CASTLE' : 'RED_CASTLE';
   if (isImageReady(asset)) {
     ctx.drawImage(getImage(asset), CASTLE_X, CASTLE_TOP_Y, CASTLE_W, CASTLE_H);
   } else {
     getImage(asset);
-    ctx.fillStyle = view === 'OURS' ? '#3D6FA8' : '#9B2E29';
+    ctx.fillStyle = v === 'OURS' ? '#3D6FA8' : '#9B2E29';
     ctx.fillRect(CASTLE_X, CASTLE_TOP_Y, CASTLE_W, CASTLE_H);
   }
 }
@@ -656,7 +690,7 @@ function _drawRocketSprite(ctx, x, y, ang, size) {
 }
 
 function _drawBombSprite(ctx, x, y, ang) {
-  const size = 56;
+  const size = 64;
   if (isImageReady('BOMB')) {
     ctx.save();
     ctx.translate(x, y);
