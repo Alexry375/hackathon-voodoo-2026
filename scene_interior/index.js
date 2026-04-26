@@ -15,6 +15,7 @@ import { drawRipStones } from './rip.js';
 import { getActiveFloor, getActiveUnitId } from './turn.js';
 import { drawTopHud } from '../shared/hud_top.js';
 import { drawScriptOverlay } from '../playable/script.js';
+import { drawSky, drawHillsFar, drawForestNear, drawGround } from '../scene_exterior/index.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -74,7 +75,14 @@ function loop() {
   currentTilt += (targetTilt - currentTilt) * TILT_EASE;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
-  ctx.fillStyle = '#88CCAA';
+  // Atmospheric bg coherent with exterior — same sky/hills/forest/ground layers
+  // (no parallax: interior is a static cross-section). Slight darken overlay
+  // suggests "we're inside, looking out at the same valley".
+  drawSky(ctx);
+  drawHillsFar(ctx);
+  drawForestNear(ctx);
+  drawGround(ctx);
+  ctx.fillStyle = 'rgba(15,20,30,0.22)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Entrance zoom-in: scale 1.45 → 1.0 around castle center over ENTRANCE_DUR.

@@ -725,6 +725,11 @@ function _drawCastleSlot(ctx, viewMode, dx) {
 const BG_X0 = -W;
 const BG_W  = 3 * W;
 
+export function drawSky(ctx) { return _drawSky(ctx); }
+export function drawHillsFar(ctx) { return _drawHillsFar(ctx); }
+export function drawForestNear(ctx) { return _drawForestNear(ctx); }
+export function drawGround(ctx) { return _drawGround(ctx); }
+
 function _drawSky(ctx) {
   // Misty teal-to-pale-green à la source (sec_01, sec_08).
   const g = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
