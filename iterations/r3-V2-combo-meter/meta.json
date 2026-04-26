@@ -4,15 +4,36 @@
   "name": "combo-meter",
   "baseline": "iter/run3-gold-baseline",
   "branch": "iter/r3-V2-combo-meter",
-  "hypothesis": "A combo meter (x1, x2, x3, x5) appears top-right after the 1st player hit. Each consecutive hit within 2s raises the multiplier; damage scales x1.0 / x1.5 / x2.0 / x3.0. A 'xN COMBO!' praise float pops on level-up. Combo resets after >2s idle or on fail/forcewin entry. Target metric: depth perception / mechanic clarity.",
+  "title": "Combo-meter JUICY — 8-effect stack (badge hue-shift+lettering trail+shake scaling+radial flash+ring burst+slow-mo+freeze+broken feedback)",
+  "hypothesis": "Combo meter (x1..x5) top-right reacts to consecutive hits with a stacked-juice feedback loop (hue-shift badge, ring-burst sparks, radial flash, screen-shake scaling, slow-mo + freeze on x5, COMBO BROKEN on miss/timeout). Hypothesis: layering 6+ composed effects per increment turns the mechanic into a thumb-stop dopamine hit, raising perceived depth and time-on-creative.",
   "diff_from_baseline": [
-    "playable/combo_meter.js (new): state, level-up logic, golden-badge meter rendering",
-    "playable/praise_floats.js: spawnComboPraise(level), combo-aware lifetime/font",
-    "scene_exterior/index.js: import combo + praise; in _impactEnemy multiply dmg by getComboMultiplier(), record hit, spawn combo praise on level-up",
-    "playable/script.js: drawComboMeter in _paintOverlay (tutorial/freeplay only); resetCombo on fail/forcewin entry"
+    "playable/combo_meter.js (NEW ~280 LOC): state machine (count, level, hue interpolation, sparks pool, slowMo/freeze gates), API recordHit/recordMiss/getComboMultiplier/getTimeScale/getComboShakePx/drawComboMeter",
+    "Effect 1 — Top-right badge (x≈440 y≈130) with radial halo pulse + bold-italic stroked digit + pop-bounce on increment (1.0→1.4→1.0/250ms)",
+    "Effect 2 — Background hue gradient slides between palette stops (#FFD23A→#FF8C2A→#FF3838→#FF2AA0→#3AAEFF) with 200ms eased interpolation, not brutal swap",
+    "Effect 3 — Lettering 'xN COMBO!' via spawnComboPraise extended in praise_floats.js: italic bold 76px, dual stroke (hue-of-level outer + black inner), ±10° rotation jitter, 3 ghost trail copies fading at 35% alpha",
+    "Effect 4 — Screen-shake amplitude scales (x2→4px, x3→8px, x4→11px, x5→14px) with 250ms decay, applied via overlay translate cumulative with existing shake",
+    "Effect 5 — Radial flash full-screen on level-up: alpha 0→0.25→0 over 200ms, hue assorted to multiplier, blend lighter",
+    "Effect 6 — Particle ring burst: 14 sparks emitted radially from badge center on level-up, hue-matched, vel 220-400px/s with strong drag, fade 600ms, additive blending, pool capped at 60",
+    "Effect 7 — Slow-mo on x5 reach: 80ms freeze-frame (timeScale 0.05) then 250ms slow (timeScale 0.55) exposed via getTimeScale(); script.js paints a white-flash dim proportional to (1-ts) for visible time-warp without invasively patching physics dt",
+    "Effect 8 — COMBO BROKEN feedback: 2.2s no-fire watchdog in script.js triggers recordMiss → red 'COMBO BROKEN!' praise + badge fades to grey for 800ms",
+    "scene_exterior/index.js: import combo_meter; at _impactEnemy callsite call recordHit() and multiply pendingEnemyDmg by getComboMultiplier() (rounded)",
+    "playable/script.js: import combo_meter, draw inside translate-shake save/restore, slow-mo white-flash overlay, miss watchdog tied to player_fire timestamps"
+  ],
+  "juicy_checklist_validated": [
+    "halo_radial_pulse",
+    "hue_interpolation_smooth",
+    "lettering_trail_persistence",
+    "screen_shake_scaling",
+    "radial_flash_full_screen",
+    "particle_ring_burst",
+    "slow_mo_with_freeze_frame",
+    "combo_broken_feedback"
+  ],
+  "juicy_omitted": [
+    "hp_bar_overshoot: invasive on shared/hud_top, deferred — wiring an overshoot scaler from combo state would require shared/hud_top changes outside the V2 isolation budget"
   ],
   "axis_isolated": true,
-  "untouched": ["intro hook", "palette", "endcard", "fail screen", "scene_interior"],
+  "untouched": ["intro hook", "palette globally", "endcard", "fail screen", "scene_interior"],
   "review": "pending",
   "build_kb": 2900,
   "build_ok": true
