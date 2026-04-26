@@ -1,0 +1,11 @@
+{
+  "id": "V2",
+  "title": "Bullseye-target — crit zone on enemy castle weak point",
+  "axis": "mechanic",
+  "hypothesis": "A pulsing bullseye marker (3 concentric rings + center) sits on the enemy castle weak point (mid-keep). Hits within 36px of center deal 1.5x damage and spawn a gold 'CRIT!' float + radial flash. Lifts mechanic clarity (where to aim) + adds juicy combo loop.",
+  "diff_from_baseline": [
+    "scene_exterior/index.js: bullseye marker drawn over enemy castle (nx=0.50, y=520), pulsing rings + dot, crit flash + radial burst on hits within 36px, 1.5x damage scaling, beefier shake/recoil on crit",
+    "playable/praise_floats.js: extended spawnPraise with kind:'crit' variant (108px gold gradient, dark-orange stroke, larger rotation jitter); added spawnCritPraise export"
+  ],
+  "review": "pending"
+}
