@@ -27,6 +27,16 @@ let _dragStart = null;   // canvas-space {x,y}
 let _dragCurrent = null; // canvas-space {x,y}
 
 /**
+ * Live aim state — used by units.js to rotate the active mob's weapon
+ * in sync with the drag. Returns null when the player isn't dragging.
+ * @returns {{angle_deg: number, power: number} | null}
+ */
+export function getCurrentAim() {
+  if (!_aiming || !_dragStart || !_dragCurrent) return null;
+  return _resolveShot();
+}
+
+/**
  * Map a pointer event's clientX/Y to intrinsic canvas coordinates.
  * Handles CSS-scaled canvases (viewport != width/height).
  */

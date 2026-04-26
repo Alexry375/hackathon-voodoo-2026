@@ -829,7 +829,7 @@ function _drawCastleWithBase(ctx, viewMode) {
   }
   _drawCastle(ctx, viewMode);
   _drawBase(ctx);
-  _drawTreads(ctx);
+  _drawTreads(ctx, viewMode);
   ctx.restore();
 }
 
@@ -872,36 +872,23 @@ function _drawBase(ctx) {
   ctx.strokeRect(x, BASE_Y, w, BASE_H);
 }
 
-function _drawTreads(ctx) {
-  const xs = [W / 2 - 110, W / 2 + 110];
-  for (const cx of xs) {
-    const tw = 150;
-    const x = cx - tw / 2;
-    ctx.fillStyle = '#1F1F1F';
-    ctx.fillRect(x, TREAD_Y, tw, TREAD_H);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x, TREAD_Y, tw, TREAD_H);
-    ctx.clip();
-    ctx.fillStyle = '#3A3A3A';
-    // Treads scroll with castle motion (rolling-without-slipping fakery).
-    // Scroll +dx in cart frame so visible top teeth shift right as castle rolls right.
-    const off = _treadScrollOffset * 1.6;
-    const startI = Math.floor(off / 14) * 14 - 14;
-    for (let i = startI; i < tw + 14; i += 14) {
-      ctx.fillRect(x + i + 2 - off, TREAD_Y + 5, 10, TREAD_H - 10);
-    }
-    ctx.restore();
-    ctx.fillStyle = '#7C7368';
-    for (const wx of [x + 18, x + tw - 18, x + tw / 2]) {
-      ctx.beginPath();
-      ctx.arc(wx, TREAD_Y + TREAD_H / 2, 9, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.strokeStyle = '#1A1A1A';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, TREAD_Y, tw, TREAD_H);
-  }
+function _drawTreads(ctx, viewMode) {
+  // Castles are static — a single PNG tread (extracted from B01.mp4 + rembg)
+  // sits centred under the wooden base. Side-tinted via an asset swap if the
+  // future asset set diverges; for now both sides ship the same texture.
+  const v = viewMode || view;
+  const img = getImage(v === 'ENEMY' ? 'TREAD_ENEMY' : 'TREAD_OURS');
+  if (!img || !img.width) return;
+
+  // Drawn width matches the castle base (slightly wider to overhang).
+  const tw = CASTLE_W + 28;
+  const th = tw * (img.height / img.width);
+  const x  = (W - tw) / 2;
+  // The PNG already includes spike trim above the wheels — sit its top edge
+  // a bit above TREAD_Y so the wood base overlaps the spikes naturally.
+  const y  = TREAD_Y - 14;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, x, y, tw, th);
 }
 
 // ── Drawing — damage / projectiles / floats ──────────────────────────────────

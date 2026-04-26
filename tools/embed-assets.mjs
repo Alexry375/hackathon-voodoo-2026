@@ -18,9 +18,16 @@ const ASSETS = {
   // projectiles
   ROCKET:     ['assets_unpack/Projectile_1.png',  'image/png'],
   BOMB:       ['assets_unpack/Projectile_2.png',  'image/png'],
-  // weapons
+  // weapons (legacy procedural slots, kept as fallback)
   BAZOOKA:    ['assets_unpack/Weapon_1.png',      'image/png'],
   CANNON:     ['assets_unpack/Weapon_2.png',      'image/png'],
+  // mob-held weapons (CC0 — Snoops "Bows and Guns" + OGA bomb)
+  WEAPON_SKELETON: ['weapon_assets/candidates/skeleton/snoops_3_multibarrel.png', 'image/png'],
+  WEAPON_CYCLOP:   ['weapon_assets/candidates/cyclop/snoops_1_bomb-fuse.png',     'image/png'],
+  WEAPON_ORC:      ['weapon_assets/candidates/cyclop/snoops_2_bomb-stripes.png',  'image/png'],
+  // tank treads (extracted from B01.mp4 + rembg)
+  TREAD_OURS:      ['treads/tread_ours.png',  'image/png'],
+  TREAD_ENEMY:     ['treads/tread_enemy.png', 'image/png'],
   // audio
   MUSIC:      ['assets_unpack/Music.ogg',         'audio/ogg'],
   SFX:        ['assets_unpack/Sfx.wav',           'audio/wav'],
