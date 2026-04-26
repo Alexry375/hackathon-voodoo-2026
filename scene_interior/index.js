@@ -85,15 +85,16 @@ function loop() {
   ctx.fillStyle = 'rgba(15,20,30,0.22)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Entrance zoom-in: scale 1.45 → 1.0 around castle center over ENTRANCE_DUR.
-  // Cubic ease-out so the de-zoom snaps in early then settles.
+  // Entrance zoom-in: scale 1.20 → 1.0 around castle center over ENTRANCE_DUR.
+  // Lighter punch-in (was 1.45) so the bg layers stay visible around the
+  // castle and the transition reads as "same valley, closer view".
   const eAge = (performance.now() - entranceT0) / ENTRANCE_DUR;
   const eOn = entranceT0 > 0 && eAge < 1;
   let eDimAlpha = 0;
   if (eOn) {
     const k = 1 - Math.min(1, Math.max(0, eAge));
     const easeOut = 1 - Math.pow(k, 3);
-    const scale = 1 + (1 - easeOut) * 0.45;     // 1.45 → 1.0
+    const scale = 1 + (1 - easeOut) * 0.20;     // 1.20 → 1.0
     const cx = canvas.width / 2, cy = canvas.height * 0.62;
     ctx.save();
     ctx.translate(cx, cy);
