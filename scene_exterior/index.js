@@ -1027,31 +1027,59 @@ function _drawForestNear(ctx) {
 }
 
 function _drawGround(ctx) {
-  // Curved grass top edge (organic).
-  ctx.fillStyle = '#7CA055';
+  // Three layers (turf → topsoil → deep dirt) with scalloped lower edges
+  // and thin dark outlines, matching the source's vector-cartoon stack.
+  // Palette sampled from clip2 frame 0.
+  const GRASS_TOP = HORIZON_Y + 86;
+  const SOIL_TOP  = HORIZON_Y + 118;
+  const DEEP_TOP  = HORIZON_Y + 152;
+
+  // Scalloped edge: sequence of downward circular semicircles joined at sharp
+  // points along baseY. r = bump radius (= half bumpW). Issues a series of
+  // ctx.arc() calls so the bumps are true circles, not bezier blobs.
+  const drawScallopedEdge = (baseY, r) => {
+    const x0 = BG_X0, x1 = BG_X0 + BG_W;
+    for (let x = x0 + r; x < x1 + r; x += 2 * r) {
+      ctx.arc(x, baseY, r, Math.PI, 0, true); // downward semicircle, ccw
+    }
+  };
+
+  const drawScallopedFill = (topY, baseY, r, fill) => {
+    const x0 = BG_X0, x1 = BG_X0 + BG_W;
+    ctx.beginPath();
+    ctx.moveTo(x0, topY);
+    ctx.lineTo(x1, topY);
+    ctx.lineTo(x1, baseY);
+    // Trace the scalloped lower edge right→left to close the polygon CCW.
+    for (let x = x1 - r; x > x0 - r; x -= 2 * r) {
+      ctx.arc(x, baseY, r, 0, Math.PI, false); // downward semicircle, cw
+    }
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  };
+
+  // ── Layer 3 (deep brick-red dirt) — bottom slab, completely flat.
+  ctx.fillStyle = '#5D2621';
+  ctx.fillRect(BG_X0, DEEP_TOP, BG_W, H - DEEP_TOP);
+
+  // ── Layer 2 (topsoil) — scalloped lower edge dipping into deep dirt.
+  drawScallopedFill(SOIL_TOP, DEEP_TOP, 14, '#6B3C32');
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#2A0F0C';
   ctx.beginPath();
-  ctx.moveTo(BG_X0, H);
-  ctx.lineTo(BG_X0, HORIZON_Y + 90);
-  for (let x = BG_X0; x <= BG_X0 + BG_W; x += 8) {
-    const y = HORIZON_Y + 90 - 6 * Math.sin(x * 0.025);
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(BG_X0 + BG_W, H);
-  ctx.closePath();
-  ctx.fill();
-  // grass-to-dirt transition strip
-  ctx.fillStyle = '#5C7A3C';
-  ctx.fillRect(BG_X0, HORIZON_Y + 100, BG_W, 6);
-  // wet red-brown dirt (deep)
-  const dy = HORIZON_Y + 106;
-  ctx.fillStyle = '#3B1A1A';
-  ctx.fillRect(BG_X0, dy, BG_W, H - dy);
-  // dirt streaks
-  ctx.fillStyle = 'rgba(155,40,40,0.32)';
-  for (let i = 0; i < 54; i++) {
-    const x = BG_X0 + ((i * 41) % BG_W);
-    ctx.fillRect(x, dy, 2, 90);
-  }
+  ctx.moveTo(BG_X0, DEEP_TOP);
+  drawScallopedEdge(DEEP_TOP, 14);
+  ctx.stroke();
+
+  // ── Layer 1 (grass turf) — slightly larger scallops dipping into topsoil.
+  drawScallopedFill(GRASS_TOP, SOIL_TOP, 12, '#608B49');
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#1F2E14';
+  ctx.beginPath();
+  ctx.moveTo(BG_X0, SOIL_TOP);
+  drawScallopedEdge(SOIL_TOP, 12);
+  ctx.stroke();
 }
 
 // ── Drawing — castle + base ──────────────────────────────────────────────────
