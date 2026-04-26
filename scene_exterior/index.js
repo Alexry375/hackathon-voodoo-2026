@@ -215,26 +215,26 @@ function _emitTrailParticle(kind, x, y, dirAng, now) {
   if (kind === 'rocket' || kind === 'rocket_p1') {
     particles.push({
       kind: 'trail_core', x, y, vx: 0, vy: 0, ax: 0, ay: -8, t0: now,
-      life: 180, size: 6, color: '#FF4A3A',
+      life: 140, size: 6, color: '#FF4A3A',
       rot: 0, rotSpeed: 0, sizeGrow: 0.4,
     });
     particles.push({
       kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 15, vy: -12,
       ax: 0, ay: -18, t0: now,
-      life: 420, size: 11, color: '#822018',
+      life: 330, size: 11, color: '#822018',
       rot: 0, rotSpeed: 0, sizeGrow: 1.0,
     });
   } else if (kind === 'bomb' || kind === 'bomb_p2') {
     particles.push({
       kind: 'trail_puff', x, y, vx: (Math.random() - 0.5) * 12, vy: -10,
       ax: 0, ay: -14, t0: now,
-      life: 450, size: 10, color: '#3A3A3A',
+      life: 350, size: 10, color: '#3A3A3A',
       rot: 0, rotSpeed: 0, sizeGrow: 1.0,
     });
   } else if (kind === 'raven') {
     particles.push({
       kind: 'trail_wave', x, y, vx: 0, vy: -4, ax: 0, ay: -5, t0: now,
-      life: 380, size: 6, color: '#3A3A3A',
+      life: 290, size: 6, color: '#3A3A3A',
       rot: Math.random() * Math.PI * 2,
       rotSpeed: 3,
       sizeGrow: 0.7,
