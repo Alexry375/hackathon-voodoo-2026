@@ -1,10 +1,10 @@
 Voici une analyse chronologique détaillée de la vidéo de gameplay :
 
 **00:00 - 00:10**
-- **Entités visibles :** En haut, une interface utilisateur (UI) affiche les scores "VS" avec un château bleu à gauche (100%) et un château rouge à droite (100%). Au centre, un château bleu sur chenilles subit l'attaque de corbeaux noirs et s'effondre partiellement. À droite, un château rouge sur chenilles est intact. En bas, une interface de sélection de personnages apparaît. Un curseur en forme de main indique l'action.
-- **Événements déclenchés :** Le château bleu subit des dégâts continus causés par les corbeaux, sa vie chute rapidement à 96% puis 67%. 
+- **Entités visibles :** En haut, une interface utilisateur (UI) affiche les scores "VS" avec un château bleu à gauche (100%) et un château rouge à droite (100%). Au centre, un château bleu sur chenilles subit la contre-attaque ennemie (corbeaux noirs explosifs lancés depuis le château rouge) et s'effondre partiellement. À droite, un château rouge sur chenilles est intact. En bas, une interface de sélection de personnages apparaît. Un curseur en forme de main indique l'action.
+- **Événements déclenchés :** Le château bleu subit des dégâts par vagues, à raison d'une salve de corbeaux par tour ennemi : sa vie chute rapidement à 96% puis 67%.
 - **Actions du joueur :** Le joueur interagit avec l'interface du bas pour faire glisser et viser avec un personnage rouge (sorte de diablotin). Une ligne en pointillés blancs montre la trajectoire. À la fin du segment, le joueur relâche le tir.
-- **Événements déclenchés :** Un gros missile rouge est tiré vers le château ennemi. Il percute la tour gauche du château rouge, créant une forte explosion et détruisant cette partie. La vie du château rouge chute à 58% puis 56%. Le château bleu, sous les attaques des corbeaux, voit sa vie descendre à 35%.
+- **Événements déclenchés :** Un gros missile rouge est tiré vers le château ennemi. Il percute la tour gauche du château rouge, créant une forte explosion et détruisant cette partie. La vie du château rouge chute à 58% puis 56%. Au tour ennemi qui suit, la riposte du château rouge (vague de corbeaux) fait descendre la vie du château bleu à 35%.
 
 **00:10 - 00:20**
 - **Entités visibles :** Les deux châteaux sont maintenant lourdement endommagés. Le menu du bas propose de nouveaux personnages. L'UI en haut indique Bleu 35% VS Rouge 56%.
@@ -12,14 +12,14 @@ Voici une analyse chronologique détaillée de la vidéo de gameplay :
 - **Événements déclenchés :** Une volée de petits missiles à tête rouge est tirée. Ils retombent en pluie sur le château rouge, causant de multiples petites explosions et détruisant davantage sa structure. La barre de vie du château rouge descend à 51% puis 44%.
 
 **00:20 - 00:30**
-- **Entités visibles :** Le château bleu est presque entièrement détruit, ne laissant que la base sur chenilles et quelques pans de murs. Des corbeaux continuent de voler. L'UI indique Bleu 31% VS Rouge 44%. Le menu du bas affiche de nouveaux personnages, dont un gobelin vert.
-- **Événements déclenchés :** Des corbeaux kamikazes s'écrasent sur la base du château bleu, faisant chuter sa vie à 31%.
+- **Entités visibles :** Le château bleu est presque entièrement détruit, ne laissant que la base sur chenilles et quelques pans de murs. Des corbeaux ennemis sont en vol. L'UI indique Bleu 31% VS Rouge 44%. Le menu du bas affiche de nouveaux personnages, dont un gobelin vert.
+- **Événements déclenchés :** Au tour ennemi, une nouvelle vague de corbeaux kamikazes lancée depuis le château rouge s'écrase sur la base du château bleu, faisant chuter sa vie à 31%.
 - **Actions du joueur :** Le joueur sélectionne le personnage gobelin vert et vise presque à l'horizontale avec la ligne en pointillés.
 
 **00:30 - 00:40**
 - **Entités visibles :** Un projectile enflammé. Les restes des châteaux. L'UI en haut. Le menu du bas avec le personnage squelette réapparu.
 - **Actions du joueur :** Le joueur tire un projectile de feu jaune/orange.
-- **Événements déclenchés :** Le projectile percute le flanc gauche du château rouge dans une grande explosion de flammes. La vie du château rouge reste affichée à 44% à ce moment-là. De nouveaux corbeaux attaquent le château bleu, réduisant sa vie à 17%.
+- **Événements déclenchés :** Le projectile percute le flanc gauche du château rouge dans une grande explosion de flammes. La vie du château rouge reste affichée à 44% à ce moment-là. Au tour ennemi qui suit, le château rouge contre-attaque avec une nouvelle vague de corbeaux qui s'écrasent sur le château bleu, réduisant sa vie à 17%.
 - **Actions du joueur :** Le joueur sélectionne à nouveau le personnage squelette au lance-missiles et vise haut dans les airs.
 
 **00:40 - 00:50**
