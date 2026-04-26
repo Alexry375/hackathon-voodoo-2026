@@ -1,7 +1,8 @@
 # tools/ — pipeline helpers
 
 CLI utilities for the Voodoo playable ad pipeline (Track 2). All Gemini calls
-route through OpenRouter (key in `.env`, var `OPENROUTER_API_KEY`).
+route through the **Files API directly** via the official `google-genai` SDK
+(env var `GEMINI_API_KEY`, loaded from `.env`).
 
 ## Available tools
 
@@ -13,52 +14,44 @@ route through OpenRouter (key in `.env`, var `OPENROUTER_API_KEY`).
 | `screenshot_phases.mjs` | Playwright sweep of forced narrative phases |
 | `embed-assets.mjs` / `build.mjs` | esbuild bundle plumbing |
 
-## Gemini video — known constraints via OpenRouter
+## Gemini direct API — official knobs (April 2026)
 
-Confirmed from official OpenRouter docs + Google AI Forum (April 2026) :
+Source : https://ai.google.dev/gemini-api/docs/video-understanding +
+https://ai.google.dev/gemini-api/docs/media-resolution
 
-- **Model**: `google/gemini-3.1-pro-preview` (SOTA Google, hardcoded in tools).
-- **Sampling**: Gemini samples video at **1 fps internally**. Higher input fps
-  is wasted payload — Google's official reco is to **pre-process to 1 fps before
-  upload**.
-- **Resolution**: 720p max useful. 540p is fine for our portrait playables.
-- **Formats**: mp4, mpeg, mov, webm only.
-- **Transport**: Vertex AI route (the one OpenRouter uses for Gemini) requires
-  **base64-encoded data URL** — public video URLs are NOT supported. Files API
-  is not available either.
-- **No `videoMetadata` / `fps` / `media_resolution` overrides** are exposed via
-  OpenRouter `extra_body`. Sampling is locked to default 1 fps.
+- **Model** : `gemini-2.5-pro` (or whatever the tool currently hardcodes).
+- **Files API** : upload once, reuse the file URI across calls. No 10 MB
+  inline cap. Files retained ~48 h server-side (`--cleanup` to force-delete).
+- **`fps`** (videoMetadata) : server-side sampling rate. Default 1 fps.
+  Pass `--fps 4` for sub-second granular critique on short clips. Internal
+  cap ~52 frames/call → at 4 fps, max ~13 s of clip.
+- **`media_resolution`** : LOW / MEDIUM / HIGH = 70 / 70 / 280 tokens per
+  frame. Default MEDIUM. Use HIGH for fine visual critique (cost ~4×).
+- **`--no-preprocess`** : skip our local 540p re-encode (the 540p we apply is
+  our AppLovin viewport choice — NOT a Google reco). Keep it ON by default
+  for bandwidth ; turn OFF if you need pixel-accurate critique.
 
 ## Practical rules of thumb
 
-| Constraint | Implication |
+| Lever | When to bump |
 |---|---|
-| 1 fps internal sampling | Sub-second transitions invisible. Use `--slow-mo N` to expose them. |
-| ~10 MB inline payload limit | At 540p/1fps a clip of ~60 s comfortably fits. |
-| Video tokens cost | A 12 s clip ≈ 1700 video tokens ≈ $0.02 input. |
-| No FPS knob | Slow-motion preprocessing is the only lever for finer pacing analysis. |
+| `--fps 4` | Sub-second transitions, easing, frame-perfect timing |
+| `--media-resolution HIGH` | Pixel-level visual critique (palette, outline, detail) |
+| `--no-preprocess` | When the local 540p re-encode would mask the issue |
+| `--cleanup` | CI / hands-off runs to keep Files API tidy |
 
-## Slow-motion trick for fine pacing critique
+## No more slow-motion hack
 
-```bash
-# 4× slowed → 1 fps Gemini sampling sees the original at 250 ms resolution
-python3 tools/compare_clips.py \
-    --prompt SANDBOX/prompts/critic-clips-pacing.md \
-    --clip ours:input/B01_castle_clashers/SANDBOX/extracts/playable_clip.mp4 \
-    --clip source:RESSOURCES/B01.mp4 \
-    --t 13 --slow-mo 4 \
-    --out input/B01_castle_clashers/SANDBOX/outputs/critique-clips-slow.md
-```
+Previously we re-encoded clips with `setpts=4*PTS` to fake 4× temporal
+resolution because OpenRouter locked sampling to 1 fps. **Drop it** — pass
+`--fps 4` instead. Sampling now happens server-side cleanly.
 
-Use `--slow-mo 4` when the critique target is **transition smoothness, easing,
-sub-second timing**. Use `--slow-mo 1` (default) for general pacing/structure.
+## Cost cheat-sheet (Gemini direct, April 2026)
 
-## Cost cheat-sheet (Gemini 3.1 Pro Preview via OR, April 2026)
-
-- 1 image (compare_images): ~$0.04–0.06
-- 1 short clip 12 s @ 1 fps (compare_clips): ~$0.04–0.05
-- 2 clips 12 s @ 1 fps (compare): ~$0.05–0.07
-- Full source video 56 s analysis (analyze_video): ~$0.07–0.10
+- 1 image (compare_images) : ~$0.04–0.06
+- 1 short clip 12 s @ fps=1 / MEDIUM (compare_clips) : ~$0.04–0.05
+- 1 short clip 12 s @ fps=4 / HIGH (compare_clips) : ~$0.15–0.20
+- Full source video 56 s @ fps=1 / MEDIUM (analyze_video) : ~$0.07–0.10
 
 No strict budget cap per `PROMPT.md` — call Gemini freely whenever a structural
 question can be settled by the video.

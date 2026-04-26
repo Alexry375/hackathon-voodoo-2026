@@ -67,11 +67,11 @@ if (!webms.length) {
 }
 const webm = join(TMP_DIR, webms[0]);
 
-// Convert to mp4 540p / 1fps / mute — Gemini samples at 1fps internally,
-// higher fps wastes payload (Google AI Forum reco).
+// Convert to mp4 540p / 24fps / mute — output keeps full motion so
+// compare_clips.py can sample at --fps 4-8 server-side via the Gemini Files API.
 const ff = spawnSync('ffmpeg', [
   '-y', '-i', webm,
-  '-vf', 'scale=540:-2', '-r', '1', '-an',
+  '-vf', 'scale=540:-2', '-r', '24', '-an',
   '-c:v', 'libx264', '-crf', '28', '-preset', 'veryfast',
   OUT_MP4,
 ], { stdio: 'inherit' });
