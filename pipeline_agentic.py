@@ -29,8 +29,8 @@ from google.api_core.exceptions import ResourceExhausted
 MAX_WORKERS_API = 5
 
 # --- Modèles ---
-MODELE_VISION = "models/gemini-3.1-pro-preview"  # Phases 1 & 3 (multimodal)
-MODELE_TEXTE  = "models/gemini-3.1-pro-preview"  # Phases 2 & 4 (text-only)
+MODELE_VISION = "models/gemini-2.5-pro"  # Phases 1 & 3 (multimodal)
+MODELE_TEXTE  = "models/gemini-2.5-pro"  # Phases 2 & 4 (text-only)
 
 # OpenRouter models (provider alternatif)
 OPENROUTER_VISION = "google/gemini-2.5-pro-preview"
@@ -176,14 +176,16 @@ def phase1_debroussailleur(fichier_video, modele_id: str) -> str:
 SYSTEME_PLANIFICATEUR = """\
 Tu es un agent d'analyse de gameplay spécialisé dans la décomposition de vidéos de jeux mobiles casual.
 
-Lis le contenu fourni et identifie exactement N aspects distincts qui méritent une analyse vidéo approfondie.
-N est indiqué dans le message.
+Lis le contenu fourni (analyse d'un nœud parent) et détermine s'il reste des pistes NON ENCORE EXPLORÉES
+qui méritent une analyse vidéo approfondie. Tu peux générer entre 0 et MAX_N aspects.
 
-Contraintes :
-- Exactement N aspects, ni plus ni moins
-- Chaque aspect porte sur un seul sujet précis, non redondant avec les autres
+Règles strictes :
+- Si le sujet est totalement épuisé ou trop général pour être affiné, retourne une liste vide ("aspects": [])
+- Ne génère un aspect que s'il apporte une information nouvelle, non couverte par l'analyse parente
+- Pas de redondance entre les aspects générés
 - Chaque prompt doit être autonome et ciblé pour être soumis directement à la vidéo
 - Orienté vers la création d'un playable ad HTML
+- MAX_N est indiqué dans le message utilisateur
 
 Format de sortie : JSON valide strict, sans markdown ni texte autour.
 {
@@ -193,7 +195,7 @@ Format de sortie : JSON valide strict, sans markdown ni texte autour.
       "description": "Ce qu'il faut analyser.",
       "prompt": "Analyse la vidéo en te concentrant UNIQUEMENT sur [sujet]. Décris [détails attendus].",
       "priority": 5,
-      "reason": "Pourquoi cet aspect est important."
+      "reason": "Pourquoi cet aspect apporte quelque chose de nouveau par rapport à l'analyse parente."
     }
   ]
 }\
@@ -206,8 +208,8 @@ Format de sortie : JSON valide strict, sans markdown ni texte autour.
     reraise=True,
 )
 def _phase2_pour_noeud(parent: Noeud, branching: int, modele_id: str) -> list[dict]:
-    """Génère les sous-aspects pour un noeud parent donné."""
-    message = f"N (nombre d'aspects à générer) : {branching}\n\nCONTENU À ANALYSER :\n{parent.analyse}"
+    """Génère 0 à branching sous-aspects pour un noeud parent donné."""
+    message = f"MAX_N (nombre maximum d'aspects à générer, peut être 0) : {branching}\n\nANALYSE PARENTE À APPROFONDIR :\n{parent.analyse}"
     
     if PROVIDER == "gemini":
         config = genai.types.GenerationConfig(
@@ -250,13 +252,20 @@ def _phase3_pour_noeud(fichier_video, noeud: Noeud, modele_id: str) -> None:
     if PROVIDER == "gemini":
         modele = genai.GenerativeModel(model_name=modele_id)
         reponse = modele.generate_content([fichier_video, noeud.prompt])
-        noeud.analyse = reponse.text
+        try:
+            noeud.analyse = reponse.text
+        except ValueError:
+            candidate = reponse.candidates[0] if reponse.candidates else None
+            reason = candidate.finish_reason if candidate else "unknown"
+            noeud.analyse = f"[Analyse indisponible — finish_reason={reason}]"
+            print(f"  ⚠ [d{noeud.profondeur}] {noeud.id} réponse vide (finish_reason={reason})")
+            return
     else:  # openrouter
         messages = [
             {"role": "user", "content": noeud.prompt}
         ]
         noeud.analyse = appel_openrouter(messages, modele_id, temperature=0.5)
-    
+
     print(f"  ✓ [d{noeud.profondeur}] {noeud.id} ({len(noeud.analyse)} car.)")
 
 
@@ -281,10 +290,14 @@ def construire_arbre(
     niveau_courant = [noeud_racine]
 
     for profondeur in range(1, profondeur_max + 1):
-        nb_attendus = len(niveau_courant) * branching
+        nb_parents_actifs = len(niveau_courant)
         print(f"\n{'─'*55}")
-        print(f"  NIVEAU {profondeur}/{profondeur_max}  —  {len(niveau_courant)} parent(s) × {branching} = {nb_attendus} analyses")
+        print(f"  NIVEAU {profondeur}/{profondeur_max}  —  {nb_parents_actifs} parent(s) actif(s) (max {nb_parents_actifs * branching} aspects)")
         print(f"{'─'*55}")
+
+        if nb_parents_actifs == 0:
+            print("  Toutes les branches épuisées, arrêt anticipé.")
+            break
 
         # Phase 2 : planification parallèle (un appel par noeud parent)
         print(f"  [Phase 2] Génération des sous-aspects en parallèle...")
@@ -298,6 +311,10 @@ def construire_arbre(
             for future in concurrent.futures.as_completed(futures):
                 parent = futures[future]
                 aspects = future.result()
+
+                if not aspects:
+                    print(f"  ↳ [{parent.id}] : branche épuisée, pas de sous-aspects.")
+                    continue
 
                 for aspect in aspects:
                     safe_id = aspect["id"].replace(" ", "_")[:40]
@@ -324,7 +341,7 @@ def construire_arbre(
                     parent.enfants_ids.append(noeud_id)
                     nouveaux_noeuds.append(noeud)
 
-        print(f"  {len(nouveaux_noeuds)} noeuds créés.")
+        print(f"  {len(nouveaux_noeuds)} noeuds créés (sur {nb_parents_actifs * branching} max).")
 
         # Phase 3 : analyses vidéo parallèles (tous les nouveaux noeuds d'un coup)
         print(f"  [Phase 3] {len(nouveaux_noeuds)} analyses vidéo en parallèle...")
@@ -459,13 +476,11 @@ def executer_pipeline(chemin_video: str, output_dir: str = ".", branching: int =
     os.makedirs(output_dir, exist_ok=True)
     nom_base = os.path.splitext(os.path.basename(chemin_video))[0]
 
-    total_appels_video = sum(branching ** d for d in range(1, profondeur + 1))
-    total_fichiers_md  = total_appels_video + 1  # +1 pour game_spec.md
+    max_appels_video = sum(branching ** d for d in range(1, profondeur + 1))
     modeles_info = f"{MODELE_VISION}" if provider == "openrouter" else f"vision={MODELE_VISION}, texte={MODELE_TEXTE}"
-    print(f"\n[Config] branching={branching}, profondeur={profondeur}, provider={provider}")
+    print(f"\n[Config] branching=0..{branching} (organique), profondeur={profondeur}, provider={provider}")
     print(f"         Modèles : {modeles_info}")
-    print(f"         Appels vidéo Phase 3 estimés : {total_appels_video}")
-    print(f"         Fichiers .md estimés         : {total_fichiers_md}")
+    print(f"         Appels vidéo max (si arbre plein) : {max_appels_video}")
 
     fichier_video = None
     try:
@@ -499,7 +514,8 @@ def executer_pipeline(chemin_video: str, output_dir: str = ".", branching: int =
         nb_noeuds = len(tous_noeuds) - 1  # exclure __racine__
         print(f"\n{'='*60}")
         print(f"[OK] Pipeline terminé.")
-        print(f"     {nb_noeuds} analyses, {total_fichiers_md} fichiers .md générés")
+        print(f"     {nb_noeuds} analyses effectuées (max théorique : {max_appels_video})")
+        print(f"     {nb_noeuds + 1} fichiers .md générés")
         print(f"     Index : {chemin_spec}")
         print(f"{'='*60}")
 
