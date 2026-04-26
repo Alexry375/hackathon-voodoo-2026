@@ -37,19 +37,28 @@ import { setFreezeOverview } from '../scene_exterior/index.js';
 const PHASE_INTRO_END    = 4500;
 const FORCEWIN_FLASH_MS  = 2500;
 const ENDCARD_FADE_MS    = 400;
+// Comeback cinematic when the user taps Continue on the fail screen.
+//   0 → REVENGE_HP_REFILL_MS : HP visibly refills 8 → 100 with a green flash
+//   REVENGE_TEXT_AT          : "POWER UP!" praise float pops centred
+//   REVENGE_TOTAL_MS         : red HP set to 0 → forcewin flash → endcard
+const REVENGE_HP_REFILL_MS = 700;
+const REVENGE_TEXT_AT      = 350;
+const REVENGE_TOTAL_MS     = 1500;
 // Game ends when:
 //   - red HP hits 0           → forcewin (player won)
 //   - blue HP hits 0          → fail screen
 //   - decorative timer hits 0 → fail screen (out of time)
 
 const game = {
-  phase: /** @type {'intro'|'tutorial'|'freeplay'|'fail'|'forcewin'|'endcard'} */ ('intro'),
+  phase: /** @type {'intro'|'tutorial'|'freeplay'|'fail'|'continue_revenge'|'forcewin'|'endcard'} */ ('intro'),
   t0: 0,                    // wall-clock at boot (used for the deco countdown only)
   forcewinT0: 0,            // wall-clock at forcewin entry (gates flash duration)
   endcardT0: 0,             // wall-clock at endcard entry (gates fade-in)
+  revengeT0: 0,             // wall-clock at continue-cinematic entry
+  revengeStartHp: 8,        // blue HP at the moment Continue was tapped
   shotsFired: 0,
-  enemyAttacks: 0,          // increments each cut_to_interior (= one full enemy turn)
-  endRequested: false,      // set when an end condition is met; cleared on resolve
+  enemyAttacks: 0,
+  endRequested: false,
   endVerdict: /** @type {'fail'|'win'|null} */ (null),
 };
 /** @type {any} */ (window).__game = game;
@@ -61,10 +70,12 @@ export function runScript(canvas) {
   installEndcardTap(canvas);
   installPersistentCta(canvas);
   installFailScreenTap(canvas, () => {
-    state.hp_self_pct = 100;
-    state.hp_enemy_pct = 0;
-    game.phase = 'forcewin';
-    game.forcewinT0 = performance.now();
+    // User tapped Continue — start the comeback cinematic instead of
+    // hard-cutting to forcewin. The phase machine drives the rest.
+    game.phase = 'continue_revenge';
+    game.revengeT0 = performance.now();
+    game.revengeStartHp = state.hp_self_pct;
+    game._revengeTextSpawned = false;
   });
 
   on('player_fire', () => { game.shotsFired += 1; });
@@ -193,8 +204,32 @@ function _updatePhase(elapsed) {
     }
     case 'fail':
       // No auto-continue — the user MUST tap one of the two CTAs.
-      // (PLAY NOW → install redirect; Continue → refill + forcewin.)
+      // (PLAY NOW → install redirect; Continue → comeback cinematic.)
       break;
+    case 'continue_revenge': {
+      const r = performance.now() - game.revengeT0;
+      // 1. HP refill (lerped, eased) over the first ~700ms
+      if (r < REVENGE_HP_REFILL_MS) {
+        const k = r / REVENGE_HP_REFILL_MS;
+        const eased = 1 - Math.pow(1 - k, 3);
+        state.hp_self_pct = game.revengeStartHp + (100 - game.revengeStartHp) * eased;
+      } else {
+        state.hp_self_pct = 100;
+      }
+      // 2. Spawn the "POWER UP!" praise float once at REVENGE_TEXT_AT
+      if (!game._revengeTextSpawned && r >= REVENGE_TEXT_AT) {
+        game._revengeTextSpawned = true;
+        spawnPraise('POWER UP!', { x: 270, y: 460, color: '#7DF07F' });
+      }
+      // 3. After the full beat, hand off to forcewin (which renders the
+      //    white flash, then the endcard takes over).
+      if (r >= REVENGE_TOTAL_MS) {
+        state.hp_enemy_pct = 0;
+        game.phase = 'forcewin';
+        game.forcewinT0 = performance.now();
+      }
+      break;
+    }
     case 'forcewin':
       if (performance.now() - game.forcewinT0 > FORCEWIN_FLASH_MS) {
         game.phase = 'endcard';
@@ -213,11 +248,31 @@ function _updatePhase(elapsed) {
 function _paintOverlay(ctx, t, elapsed) {
   const W = ctx.canvas.width, H = ctx.canvas.height;
 
+  // Comeback green flash — paints a sin-pulse green wash + radial highlight
+  // around the blue castle area while HP refills. Reads as "your castle is
+  // being healed / powered up".
+  if (game.phase === 'continue_revenge') {
+    const r = performance.now() - game.revengeT0;
+    const k = Math.min(1, r / REVENGE_HP_REFILL_MS);
+    const wash = Math.sin(k * Math.PI) * 0.45;          // 0 → 0.45 → 0
+    const heroR = 100 + 280 * k;
+    const grad = ctx.createRadialGradient(W / 2, H * 0.55, 40, W / 2, H * 0.55, heroR);
+    grad.addColorStop(0, `rgba(160, 255, 170, ${wash})`);
+    grad.addColorStop(1, 'rgba(120, 235, 130, 0)');
+    ctx.save();
+    ctx.fillStyle = `rgba(80, 230, 100, ${wash * 0.35})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
   // Critical-HP red vignette — soft pulsing radial overlay when blue is at
   // ≤5% HP. Sits BELOW HUD/CTA so HP/install button stay readable, but
   // above gameplay so the danger reads instantly.
   if (state.hp_self_pct <= 5 &&
       game.phase !== 'endcard' && game.phase !== 'forcewin' &&
+      game.phase !== 'continue_revenge' &&
       !isFailScreenShown()) {
     const pulse = 0.5 + 0.5 * Math.sin(t * 2 * Math.PI * 1.6);
     const peak = 0.55 + 0.20 * pulse;
