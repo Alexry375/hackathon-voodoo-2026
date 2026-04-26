@@ -43,8 +43,8 @@ const ASSETS = {
   SFX_IMPACT_RAFALE: ['audio_assets/impacts/missile_salvo_fireworks.ogg', 'audio/ogg'],
   SFX_RAVEN_CAW:     ['audio_assets/raven/raven_caw.ogg',                 'audio/ogg'],
   SFX_RAVEN_POP:     ['audio_assets/raven/balloon_pop.ogg',               'audio/ogg'],
-  // tutorial hand (Kenney CC0)
-  HAND_POINTER:      ['hand_assets/WINNER.png',                            'image/png'],
+  // tutorial hand — 3D pointing hand, chroma-keyed from JPEG (128×256)
+  HAND_POINTER:      ['hand_assets/HAND_3D.png',                           'image/png'],
   // end-card background
   ENDCARD_BG: ['ref_frames/frame_55s.jpg',        'image/jpeg'],
 };

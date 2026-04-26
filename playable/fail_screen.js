@@ -1,11 +1,18 @@
-// Fake-fail overlay — scripted "ALMOST!" beat with hearts and a TAP TO CONTINUE
-// CTA. The playable never genuinely loses; tapping refills HP and lets the
-// player land the killing blow → forcewin → endcard.
+// Fake-fail overlay — scripted "ALMOST!" beat with hearts, a big PLAY NOW
+// button (with a hand sprite drawing the eye), and a smaller dimmer CONTINUE
+// option below. The playable never genuinely loses:
+//   - PLAY NOW  → window.Voodoo.playable.redirectToInstallPage() (the goal)
+//   - CONTINUE  → refill HP and let the player land the killing blow
 
 import { drawHandCursor, showHandOn, hideHand } from './hand_cursor.js';
 
 const W = 540, H = 960;
-const CTA_BTN = { x: 90, y: 700, w: 360, h: 92, r: 18 };
+
+// PLAY NOW — big, centred, pulsing green (the primary CTA).
+const PLAY_BTN = { x: 60, y: 640, w: 420, h: 120, r: 22 };
+// CONTINUE — smaller, dimmer, lower (the deflection option).
+const CONT_BTN = { x: 150, y: 800, w: 240, h: 60, r: 14 };
+
 const FADE_MS = 280;
 const SCALE_IN_MS = 350;
 
@@ -15,13 +22,15 @@ let _fadingOut = false;
 let _t0 = 0;
 let _tapped = false;
 let _tapHandlerInstalled = false;
+let _onContinueCb = null;
 
 export function showFailScreen() {
   _visible = true;
   _fadingOut = false;
   _tapped = false;
   _t0 = performance.now();
-  showHandOn({ x: CTA_BTN.x + CTA_BTN.w / 2, y: CTA_BTN.y - 40 });
+  // Hand points at PLAY NOW (centre of big button), tip just above the top edge.
+  showHandOn({ x: PLAY_BTN.x + PLAY_BTN.w / 2, y: PLAY_BTN.y - 6 });
 }
 
 export function hideFailScreen() {
@@ -33,8 +42,6 @@ export function hideFailScreen() {
 
 /** @returns {boolean} */
 export function isFailScreenShown() {
-  // Returns true as soon as showFailScreen() runs (so the very first draw
-  // call can bootstrap _opacity), and stays true through the fade-out tail.
   return _visible || _opacity > 0.05;
 }
 
@@ -44,19 +51,44 @@ export function isFailScreenInteractive() {
 }
 
 /**
+ * Install a single pointerdown handler. Hit-tests both buttons.
+ *  - PLAY NOW → redirectToInstallPage (NO continue callback)
+ *  - CONTINUE → onContinue callback
  * @param {HTMLCanvasElement} canvas
  * @param {() => void} onContinue
  */
 export function installFailScreenTap(canvas, onContinue) {
+  _onContinueCb = onContinue;
   if (_tapHandlerInstalled) return;
   _tapHandlerInstalled = true;
   canvas.addEventListener('pointerdown', (ev) => {
     if (!isFailScreenInteractive()) return;
-    ev.preventDefault();
-    _tapped = true;
-    hideFailScreen();
-    try { onContinue(); } catch (e) { console.error(e); }
-  });
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width;
+    const sy = canvas.height / rect.height;
+    const x = (ev.clientX - rect.left) * sx;
+    const y = (ev.clientY - rect.top) * sy;
+
+    const inPlay = x >= PLAY_BTN.x && x <= PLAY_BTN.x + PLAY_BTN.w
+                && y >= PLAY_BTN.y && y <= PLAY_BTN.y + PLAY_BTN.h;
+    const inCont = x >= CONT_BTN.x && x <= CONT_BTN.x + CONT_BTN.w
+                && y >= CONT_BTN.y && y <= CONT_BTN.y + CONT_BTN.h;
+
+    if (inPlay) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      _tapped = true;
+      hideFailScreen();
+      try { /** @type {any} */ (window).Voodoo?.playable?.redirectToInstallPage(); }
+      catch (e) { console.error(e); }
+    } else if (inCont) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      _tapped = true;
+      hideFailScreen();
+      try { _onContinueCb?.(); } catch (e) { console.error(e); }
+    }
+  }, true); // capture so persistent_cta's handler doesn't grab the event first
 }
 
 /**
@@ -86,7 +118,7 @@ export function drawFailScreen(ctx, t) {
   const titleScale = 0.7 + 0.3 * eased;
 
   ctx.save();
-  ctx.translate(W / 2, 300);
+  ctx.translate(W / 2, 270);
   ctx.scale(titleScale, titleScale);
   ctx.fillStyle = '#FFD23A';
   ctx.strokeStyle = '#000';
@@ -102,50 +134,76 @@ export function drawFailScreen(ctx, t) {
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 4;
-  ctx.font = 'bold 32px sans-serif';
+  ctx.font = 'bold 30px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.strokeText('Tougher than it looks!', W / 2, 370);
-  ctx.fillText('Tougher than it looks!', W / 2, 370);
+  ctx.strokeText('Tougher than it looks!', W / 2, 340);
+  ctx.fillText('Tougher than it looks!', W / 2, 340);
 
   // Hearts row — two full, rightmost broken
   const heartSize = 64;
   const spacing = 80;
-  const heartY = 470;
+  const heartY = 440;
   const cxMid = W / 2;
   drawHeart(ctx, cxMid - spacing, heartY, heartSize, true);
   drawHeart(ctx, cxMid,           heartY, heartSize, true);
   drawHeart(ctx, cxMid + spacing, heartY, heartSize, false);
 
-  // CTA pulse (1 Hz)
-  const pulse = 1 + 0.04 * Math.sin(t * 2 * Math.PI);
-  const bcx = CTA_BTN.x + CTA_BTN.w / 2;
-  const bcy = CTA_BTN.y + CTA_BTN.h / 2;
-  ctx.save();
-  ctx.translate(bcx, bcy);
-  ctx.scale(pulse, pulse);
-  ctx.translate(-bcx, -bcy);
-  ctx.fillStyle = '#3FB13F';
-  roundRect(ctx, CTA_BTN.x, CTA_BTN.y, CTA_BTN.w, CTA_BTN.h, CTA_BTN.r);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  roundRect(ctx, CTA_BTN.x + 4, CTA_BTN.y + 4, CTA_BTN.w - 8, 14, CTA_BTN.r - 4);
-  ctx.fill();
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 4;
-  roundRect(ctx, CTA_BTN.x, CTA_BTN.y, CTA_BTN.w, CTA_BTN.h, CTA_BTN.r);
-  ctx.stroke();
+  // "TAP PLAY NOW" instruction text
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 4;
-  ctx.font = 'bold 38px sans-serif';
+  ctx.font = 'bold 28px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.strokeText('TAP TO CONTINUE', bcx, bcy + 2);
-  ctx.fillText('TAP TO CONTINUE', bcx, bcy + 2);
+  ctx.strokeText('TAP PLAY NOW TO INSTALL', W / 2, 570);
+  ctx.fillText('TAP PLAY NOW TO INSTALL', W / 2, 570);
+
+  // === PLAY NOW (primary, big, pulsing) ===
+  const pulse = 1 + 0.045 * Math.sin(t * 2 * Math.PI);
+  const pcx = PLAY_BTN.x + PLAY_BTN.w / 2;
+  const pcy = PLAY_BTN.y + PLAY_BTN.h / 2;
+  ctx.save();
+  ctx.translate(pcx, pcy);
+  ctx.scale(pulse, pulse);
+  ctx.translate(-pcx, -pcy);
+  ctx.fillStyle = '#3FB13F';
+  roundRect(ctx, PLAY_BTN.x, PLAY_BTN.y, PLAY_BTN.w, PLAY_BTN.h, PLAY_BTN.r);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  roundRect(ctx, PLAY_BTN.x + 4, PLAY_BTN.y + 4, PLAY_BTN.w - 8, 18, PLAY_BTN.r - 4);
+  ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 5;
+  roundRect(ctx, PLAY_BTN.x, PLAY_BTN.y, PLAY_BTN.w, PLAY_BTN.h, PLAY_BTN.r);
+  ctx.stroke();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 5;
+  ctx.font = 'bold 52px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.strokeText('PLAY NOW', pcx, pcy + 4);
+  ctx.fillText('PLAY NOW', pcx, pcy + 4);
   ctx.restore();
 
-  // Hand cursor on top of the CTA
+  // === CONTINUE (secondary, smaller, dimmer, no pulse) ===
+  const ccx = CONT_BTN.x + CONT_BTN.w / 2;
+  const ccy = CONT_BTN.y + CONT_BTN.h / 2;
+  ctx.fillStyle = '#5A5A5A';
+  roundRect(ctx, CONT_BTN.x, CONT_BTN.y, CONT_BTN.w, CONT_BTN.h, CONT_BTN.r);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, CONT_BTN.x, CONT_BTN.y, CONT_BTN.w, CONT_BTN.h, CONT_BTN.r);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Continue', ccx, ccy + 1);
+
+  // Hand cursor on top of everything (already targeted at PLAY NOW)
   drawHandCursor(ctx, t);
 
   ctx.restore();
@@ -155,8 +213,8 @@ export function drawFailScreen(ctx, t) {
  * @param {CanvasRenderingContext2D} ctx
  * @param {number} cx
  * @param {number} cy
- * @param {number} size  approx total height in px
- * @param {boolean} filled  true = full red heart, false = broken outline
+ * @param {number} size
+ * @param {boolean} filled
  */
 function drawHeart(ctx, cx, cy, size, filled) {
   const s = size / 64;
@@ -164,12 +222,7 @@ function drawHeart(ctx, cx, cy, size, filled) {
   ctx.translate(cx, cy);
   ctx.scale(s, s);
 
-  // Cartoon heart: two top arcs + triangular bottom.
-  const r = 16;            // lobe radius
-  const lobeY = -8;        // lobe centre y
-  const leftX = -r;
-  const rightX = r;
-  const tipY = 28;         // bottom tip
+  const r = 16, lobeY = -8, leftX = -r, rightX = r, tipY = 28;
 
   ctx.beginPath();
   ctx.moveTo(0, lobeY + r * 0.7);
@@ -186,7 +239,6 @@ function drawHeart(ctx, cx, cy, size, filled) {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 4;
     ctx.stroke();
-    // soft top highlight
     ctx.beginPath();
     ctx.ellipse(-10, lobeY - 4, 6, 3, -0.4, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
@@ -195,7 +247,6 @@ function drawHeart(ctx, cx, cy, size, filled) {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 4;
     ctx.stroke();
-    // Diagonal jagged crack across the heart.
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(-22, -22);

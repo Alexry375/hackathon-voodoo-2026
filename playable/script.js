@@ -24,14 +24,17 @@ import {
 } from './fail_screen.js';
 import { spawnPraise, drawPraiseFloats } from './praise_floats.js';
 
-// Phase timings (ms since boot)
-const PHASE_INTRO_END     = 4500;   // bomb impact ~3s + buffer + zoom 900ms + guard
-const PHASE_TUTORIAL_MAX  = 22000;
-const PHASE_FAIL_TRIGGER  = 32000;  // mid-freeplay fake-fail beat
-const PHASE_FAIL_TIMEOUT  = 6000;   // auto-continue if user doesn't tap
-const PHASE_FREEPLAY_END  = 42000;  // pushed back to absorb fail-screen dwell
-const PHASE_FORCEWIN_END  = 46500;
+// Phase timings (ms since boot) — total runtime ≤28s before endcard.
+const PHASE_INTRO_END     = 4500;   // enemy bomb impact + zoom-in to interior
+const PHASE_TUTORIAL_MAX  = 12000;  // hand-cursor demo + first 1-2 player shots
+const PHASE_FAIL_TRIGGER  = 18000;  // fake-fail beat ("ALMOST!") — keeps user engaged
+const PHASE_FAIL_TIMEOUT  = 4000;   // auto-continue if user doesn't tap
+const PHASE_FREEPLAY_END  = 23000;  // fail dwell ends, snap to forcewin
+const PHASE_FORCEWIN_END  = 27000;  // big finish + endcard takeover at 27s
 const ENDCARD_FADE_MS     = 400;
+// Floor on enemy HP during freeplay so the fail beat always has room to fire.
+// Cleared the moment the user taps PLAY NOW or auto-continue triggers forcewin.
+const ENEMY_HP_FLOOR_FREEPLAY = 12;
 
 const game = {
   phase: /** @type {'intro'|'tutorial'|'freeplay'|'fail'|'forcewin'|'endcard'} */ ('intro'),
@@ -88,9 +91,11 @@ export function drawScriptOverlay(ctx, t) {
 function _updatePhase(elapsed) {
   // Show persistent PLAY NOW from end of intro through forcewin; hidden during
   // the dedicated endcard (which has its own full-screen CTA).
+  // Hide the small top-right CTA during the fail screen — the big PLAY NOW
+  // button in the fail overlay supersedes it (avoids two competing CTAs).
   setPersistentCtaVisible(
     game.phase === 'tutorial' || game.phase === 'freeplay' ||
-    game.phase === 'fail' || game.phase === 'forcewin'
+    game.phase === 'forcewin'
   );
 
   switch (game.phase) {
@@ -104,15 +109,17 @@ function _updatePhase(elapsed) {
       }
       break;
     case 'freeplay':
+      // Hold enemy HP above the floor so the user can't kill the castle before
+      // the scripted fail beat fires — that beat is what hooks the player into
+      // tapping PLAY NOW.
+      if (state.hp_enemy_pct < ENEMY_HP_FLOOR_FREEPLAY) {
+        state.hp_enemy_pct = ENEMY_HP_FLOOR_FREEPLAY;
+      }
       if (elapsed > PHASE_FAIL_TRIGGER) {
-        // Fake-fail beat: drop HP visibly, show ALMOST! overlay.
         state.hp_self_pct = 8;
         game.phase = 'fail';
         game.failShownAt = elapsed;
         showFailScreen();
-      } else if (state.hp_enemy_pct <= 5) {
-        game.phase = 'forcewin';
-        state.hp_enemy_pct = 0;
       }
       break;
     case 'fail':

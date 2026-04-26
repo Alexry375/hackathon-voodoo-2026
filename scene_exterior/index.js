@@ -591,7 +591,9 @@ function _spawnEnemyRiposteFlock() {
   // landing point shifts. Targets come from OURS_IMPACT_CYCLE, shared with
   // the intro raven, so consecutive enemy shots never cluster.
   const target = _nextOursImpact();
-  const dmgVal = 14 + Math.floor(Math.random() * 6);
+  // Bumped from 14-19 → 22-30 so blue HP visibly slides toward the danger
+  // zone before the scripted fail beat fires at t≈18 s.
+  const dmgVal = 22 + Math.floor(Math.random() * 9);
   const t = performance.now();
   /** @type {Projectile} */
   const flock = {
@@ -655,7 +657,9 @@ function _emitCutToInterior() {
 const _origImpactOurs = _impactOurs;
 function _impactOursDuringResolve(at, d) {
   _oursAttacksTaken++;
-  state.hp_self_pct = Math.max(30, state.hp_self_pct - d);  // never KO during ad
+  // Floor at 15: blue must visibly slide into the danger zone so the
+  // scripted fail beat (which slams HP to 8) feels earned, not arbitrary.
+  state.hp_self_pct = Math.max(15, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: false });
   triggerShake(11, 380);
