@@ -26,6 +26,7 @@ import { subscribe, ready_for_player_input } from '../shared/scene_manager.js';
 import { drawTopHud } from '../shared/hud_top.js';
 import { getImage, tryGetImage, isImageReady } from '../shared/assets.js';
 import { drawScriptOverlay } from '../playable/script.js';
+import { isFailScreenShown } from '../playable/fail_screen.js';
 import { drawRaven } from './raven.js';
 import { drawRavenFlock } from './raven_flock.js';
 import { planForUnit, drawProjectileP1, drawProjectileP2 } from './projectile_sprites.js';
@@ -893,7 +894,10 @@ function loop() {
 
   drawTopHud(ctx);
   drawScriptOverlay(ctx, now / 1000);
-  if (awaitingTap) _drawTapPrompt(ctx, now / 1000);
+  // Hide the "tap blue castle" hand whenever the fail screen owns the screen —
+  // only one hand cursor must be visible at a time, and the fail screen's
+  // PLAY-NOW hand wins.
+  if (awaitingTap && !isFailScreenShown()) _drawTapPrompt(ctx, now / 1000);
 
   // Fire the end action once the iris is fully closed (~92% of duration) so
   // the actual scene swap is hidden behind black. Then keep drawing exterior

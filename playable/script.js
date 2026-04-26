@@ -109,17 +109,20 @@ function _updatePhase(elapsed) {
       }
       break;
     case 'freeplay':
-      // Hold enemy HP above the floor so the user can't kill the castle before
-      // the scripted fail beat fires — that beat is what hooks the player into
-      // tapping PLAY NOW.
       if (state.hp_enemy_pct < ENEMY_HP_FLOOR_FREEPLAY) {
         state.hp_enemy_pct = ENEMY_HP_FLOOR_FREEPLAY;
       }
-      if (elapsed > PHASE_FAIL_TRIGGER) {
+      // Only fire the fail beat when we're cleanly between turns
+      // (player aim screen, no projectile in flight). Otherwise wait one
+      // more frame — the trigger will retry on the next tick.
+      if (elapsed > PHASE_FAIL_TRIGGER && getSceneState() === 'INTERIOR_AIM') {
         state.hp_self_pct = 8;
         game.phase = 'fail';
         game.failShownAt = elapsed;
         showFailScreen();
+        // Wipe any lingering tutorial/aim hand state — fail screen owns the
+        // hand cursor from now on.
+        try { hideHand(); } catch {}
       }
       break;
     case 'fail':

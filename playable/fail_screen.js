@@ -61,8 +61,30 @@ export function installFailScreenTap(canvas, onContinue) {
   _onContinueCb = onContinue;
   if (_tapHandlerInstalled) return;
   _tapHandlerInstalled = true;
-  canvas.addEventListener('pointerdown', (ev) => {
+
+  // Swallow ALL pointer events while the fail screen owns the screen, so
+  // gameplay underneath (aim drag, unit selection) can't react. We listen on
+  // `window` with capture=true so we preempt the canvas-level handlers
+  // gameplay registered earlier.
+  const swallow = (ev) => {
+    if (!isFailScreenShown()) return;
+    if (ev.target !== canvas) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+  };
+  window.addEventListener('pointermove', swallow, true);
+  window.addEventListener('pointerup', swallow, true);
+  window.addEventListener('pointercancel', swallow, true);
+
+  window.addEventListener('pointerdown', (ev) => {
+    if (ev.target !== canvas) return;
+    if (!isFailScreenShown()) return;
+    // Always block downstream handlers once the fail screen is up — even if
+    // the tap misses both buttons, gameplay must not react.
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
     if (!isFailScreenInteractive()) return;
+
     const rect = canvas.getBoundingClientRect();
     const sx = canvas.width / rect.width;
     const sy = canvas.height / rect.height;
@@ -75,20 +97,17 @@ export function installFailScreenTap(canvas, onContinue) {
                 && y >= CONT_BTN.y && y <= CONT_BTN.y + CONT_BTN.h;
 
     if (inPlay) {
-      ev.preventDefault();
-      ev.stopPropagation();
       _tapped = true;
       hideFailScreen();
       try { /** @type {any} */ (window).Voodoo?.playable?.redirectToInstallPage(); }
       catch (e) { console.error(e); }
     } else if (inCont) {
-      ev.preventDefault();
-      ev.stopPropagation();
       _tapped = true;
       hideFailScreen();
       try { _onContinueCb?.(); } catch (e) { console.error(e); }
     }
-  }, true); // capture so persistent_cta's handler doesn't grab the event first
+  }, true);
+  void canvas; // canvas reference is used for hit-test math via getBoundingClientRect inside the handler
 }
 
 /**
