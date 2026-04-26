@@ -1,0 +1,12 @@
+{
+  "id": "V1",
+  "title": "Dragon-tease — boss tease eye blinks behind enemy castle in intro",
+  "axis": "hook",
+  "hypothesis": "A red dragon eye blinking behind the enemy castle plus a pulsing BEWARE! subtitle creates a Zeigarnik pattern-interrupt that boosts retention@5s.",
+  "diff_from_baseline": [
+    "New playable/dragon_tease.js draws a red blinking dragon eye + radial halo at top-right of canvas during intro phase",
+    "Adds pulsing 'BEWARE!' subtitle (Arial Black bold italic, red #B0000F with black stroke, easeOutBack pop at 900ms)",
+    "Hook layer fades in at 200-600ms and fades out at 3900-4500ms; only active while game.phase === 'intro'"
+  ],
+  "review": "pending"
+}
