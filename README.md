@@ -5,19 +5,30 @@
 
 ---
 
-## ▶️ Voir le playable
+## ▶️ Tester la version GOLD STANDARD
+
+Le livrable est **`dist/playable.html`** sur la branche `main` (mise à jour systématiquement après chaque itération validée).
+
+### Option 1 — local (le plus simple)
 
 ```bash
-# Build
-node tools/build.mjs
-
-# Lance un serveur local (n'importe lequel — Python en exemple)
-python3 -m http.server 8765
+git pull origin main
+node tools/build.mjs    # rebuild si tu viens de tirer du nouveau
+xdg-open dist/playable.html   # ou: start dist/playable.html (Win) / open (Mac)
 ```
 
-Puis ouvrir **<http://localhost:8765/dist/playable.html>**.
+Ça suffit — le fichier s'ouvre dans le navigateur, splash → intro corbeaux → tutoriel drag → freeplay → fail screen / endcard.
 
-Format AppLovin/MRAID compliant : un seul fichier HTML, ~2.5 MB, portrait 540×960, ~25 s de gameplay (intro corbeaux → tir au drag → riposte → end card).
+### Option 2 — AppLovin Playable Preview (test format prod réel)
+
+1. Aller sur **<https://p.applov.in/playablePreview?create=1>**
+2. Upload `dist/playable.html`
+3. Scanner le QR code avec l'app **AppLovin Playable Preview** (à installer sur ton téléphone)
+4. Le playable tourne dans la sandbox réelle des ad networks
+
+⚠️ **Si tu vois la vue intérieure du château directement à l'ouverture, tu n'es pas sur la dernière version.** Le bug de mode dev/prod a été corrigé en commit `952a7cc` — refais `git pull` et `node tools/build.mjs`.
+
+Format AppLovin / MRAID compliant : un seul fichier HTML, **~2.82 MB** (sous le cap 5 MB), portrait 540×960, ~30 s de gameplay (loading splash → intro corbeaux → tutoriel hand drag → freeplay alternance → fail screen dual-CTA *ou* endcard avec confetti).
 
 ---
 
@@ -94,23 +105,27 @@ emit('unit_killed',    { unit_id });
 
 ---
 
-## 🎯 État actuel (MVP fonctionnel)
+## 🎯 État actuel — Gold standard (post-itération MarbleSort)
 
-- ✅ Intro cinématique (caméra ENEMY → corbeaux → impact OURS → cut interior)
-- ✅ Phase de visée drag avec preview balistique + arme qui suit l'angle
-- ✅ 3 mobs jouables (Cyclop, Skeleton rafale 4× missiles, Orc)
-- ✅ Cinématique tir : pan caméra, projectile, impact, recul château ennemi
-- ✅ Cycles d'impact déterministes (jamais 2 tirs au même endroit)
-- ✅ Audio : musique loop CC0 + SFX firing/impact par arme + corbeaux
-- ✅ Hand cursor stylisé pour le tutoriel
-- ✅ End card
+Flow joué :
+- ✅ **Loading splash** (HTML inline pré-bundle, jamais d'écran noir au boot)
+- ✅ **Intro cinématique** : caméra ENEMY → corbeaux → impact OURS (-50 HP) → auto-pan → intérieur
+- ✅ **Tutoriel** : hand cursor 3D pointe le mob actif, démo drag-to-aim, avance dès le 1er tir (pas de timeout)
+- ✅ **Freeplay** alternance bleu / rouge avec preview balistique + 3 mobs (Cyclop, Skeleton rafale 4×, Orc)
+- ✅ **Hooks MarbleSort** : timer countdown 1:00 décoratif, persistent PLAY NOW top-right, instruction text bold ("DRAG TO AIM!"), praise floats sur impact ("NICE!", "BOOM!", "DIRECT HIT!")
+- ✅ **Vignette rouge** pulsante quand HP bleu ≤ 5%
+- ✅ **Micro-feedback ambient** : glow trails projectiles, dust motes intérieur, idle pulses sur mobs
+- ✅ **Fin de partie naturelle** : HP=0 ou timer=0 — la screen apparaît au moment où la caméra fige sur la wide-overview avec les 2 châteaux visibles
+- ✅ **Fail screen dual-CTA** : gros PLAY NOW + smaller Continue, hand cursor sur PLAY NOW
+- ✅ **Continue cinematic** : refill HP animé + green flash + "POWER UP!" pop → forcewin (pas de teleport)
+- ✅ **Endcard juicy** : confetti burst, 3 stars animées scale-in, social proof "⭐ 4.8 · 12M+ players", shimmer sur CTA, tap-anywhere → install
 
-### Pistes ouvertes
+### Pistes ouvertes (post-MVP)
 
-- [ ] Améliorer extraction du caw corbeau (extraction depuis source vidéo en cours)
-- [ ] Brancher l'angle/power du drag sur la cible réelle (actuellement cosmétique, l'impact est pioché dans un cycle)
+- [ ] Brancher l'angle/power du drag sur la cible réelle (actuellement cosmétique, impact = cycle déterministe)
 - [ ] Sound mix : équilibrer musique vs SFX
-- [ ] End card polish + CTA optimisé
+- [ ] **Variations** (deliverable Track 2 obligatoire) — paramètres configurables (spawn speed, enemy count, difficulté)
+- [ ] **Bonus pipeline** : video → spec → codegen → bundle, end-to-end reproductible
 - [ ] Score Gemini ≥ 9/10 sur clip-vs-clip ([`pipeline/05-playwright-loop.md`](input/B01_castle_clashers/pipeline/05-playwright-loop.md))
 
 ---

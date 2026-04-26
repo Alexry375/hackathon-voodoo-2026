@@ -29,7 +29,12 @@ window.addEventListener('pointerdown', _bootAudio, { once: false, passive: true 
 window.addEventListener('keydown', _bootAudio, { once: false });
 
 const params = new URLSearchParams(location.search);
-const mode = params.get('mode') || (location.pathname.includes('/dist/') ? 'prod' : 'dev');
+// Detect dev mode by the presence of the devbar element (only in source
+// index.html). Path-based detection broke on AppLovin Preview, whose CDN
+// serves dist/playable.html from a URL without "/dist/" → bundle was
+// falling into dev mode and jumping straight to INTERIOR_AIM, bypassing
+// the intro/tutorial.
+const mode = params.get('mode') || (document.getElementById('devbar') ? 'dev' : 'prod');
 
 // In prod we let scene_manager.start() drive the cinematic from INTRO_INCOMING
 // (enemy bomb falls on us, then transitions to INTERIOR_AIM). In dev we jump
