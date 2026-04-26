@@ -4,12 +4,42 @@
 
 ---
 
-## Contexte minimal
+## Contexte minimal — RUN-3 (en cours)
 
 - **Repo** : `~/Global/Claude_Projects/hackathon_voodoo/` — remote `Alexry375/hackathon-voodoo-2026`. **Vérifie `git remote -v` avant tout push.**
-- **Branche de base** : `iteration-pipeline-alexis` (locale, pas encore poussée). **Bascule dessus au démarrage** : `git checkout iteration-pipeline-alexis`.
-- **Baseline figée** : `iterations/baseline/playable.html` (single-file 2.81 MB, build de `origin/feature-trail@14edd1a` par Sami : timeline 28s, 3D hand sprite, dual-CTA loss screen).
+- **Branche de base run-3** : `iter/run3-gold-baseline` (locale, pas encore poussée). **Bascule dessus au démarrage** : `git checkout iter/run3-gold-baseline`.
+- **Baseline gold-standard** : `iterations/baseline/playable.html` (single-file 2.82 MB, build de `origin/feature-trail@7061860` par Sami — inclut splash pré-canvas, endcard juicy avec stars/confetti/social-proof/shimmer/tap-anywhere, comeback cinematic, dev/prod fix 952a7cc, micro-feedback dead-time).
+- **Run-1 (tag `iter-run1-archive`) et Run-2 (sur `iteration-pipeline-alexis`)** : OBSOLÈTES — bâtis sur de vieux baselines (4eae529, 14edd1a) sans endcard juicy ni splash. Ignorer leur contenu, ne pas réutiliser.
 - **Deadline hackathon** : dimanche 14:30 (Voodoo × Unaite × Anthropic).
+
+---
+
+## ⚡ Mode parallèle 2 sessions (architecture run-3)
+
+Run-3 tourne sur **2 sessions Claude Code fraîches en parallèle**, chacune dans son propre worktree.
+
+| Session | Working tree | Port HTTP | V assignées | Sous-branches |
+|---|---|---|---|---|
+| **A** | `~/Global/Claude_Projects/hackathon_voodoo/` (principal) | 8766 | V1 + V3 | `iter/r3-V1-dragon-tease`, `iter/r3-V3-y2k-neon` |
+| **B** | `~/Global/Claude_Projects/hackathon_voodoo-r3b/` (worktree) | 8767 | V2 + V4 | `iter/r3-V2-combo-meter`, `iter/r3-V4-level-preview` |
+
+**Règles parallélisme (CRITIQUES)** :
+- Chaque session ne touche QUE ses 2 sous-branches `iter/r3-V<n>-*` assignées.
+- Aucune session ne commit `iterations/manifest.json`, `iterations/BRAINSTORM.md`, `iterations/ASSETS-BRIEF.md`, `iterations/HANDOFF.md` (ces fichiers sont **read-only** depuis les sub-sessions).
+- Aucune session ne merge dans `iter/run3-gold-baseline` — elles laissent leurs sous-branches commitées localement seulement.
+- Capture thumbnail : chacune utilise son propre port via `BASE_URL=http://127.0.0.1:<port>`.
+- Les sub-agents Variables forks chacun leur fichier source dans le working tree de la session ; le reset post-build s'applique localement à ce working tree.
+
+**Convergence** (Alexis, à la main, après que les 2 sessions ont fini) :
+```bash
+cd ~/Global/Claude_Projects/hackathon_voodoo
+git checkout iter/run3-gold-baseline
+git merge --no-ff iter/r3-V1-dragon-tease iter/r3-V3-y2k-neon
+git merge --no-ff iter/r3-V2-combo-meter iter/r3-V4-level-preview
+node iterations/build-manifest.mjs
+git add iterations/manifest.json && git commit -m "iter(run3): converge 4 variations from 2 parallel sessions"
+git worktree remove ../hackathon_voodoo-r3b
+```
 
 ---
 
@@ -33,7 +63,11 @@ Génère **30+ hypothèses** sur 5 axes possibles : `hook` (3 premières seconde
 
 Note chaque hypothèse 1–5 sur **lift attendu × coût × risque**. Sélectionne **top 4–5 variations**, **axes différents** (pas 5 hooks). Documente le tri dans `iterations/BRAINSTORM.md`.
 
-⚠️ **Pas de scoring Gemini** — décision actée, Gemini a été trop sévère en pratique. Pure heuristique humaine + tes raisonnements.
+⚠️ **Pas de scoring Gemini de SÉLECTION** — décision actée, Gemini a été trop sévère en pratique. Pure heuristique humaine + tes raisonnements pour le choix winner. Note : Gemini reste **autorisé en review qualité visuelle phase 6** (refinement), via `tools/compare_clips.py` / `tools/compare_images.py` — voir prompt PHASE6 livré séparément.
+
+⚡ **JUICY DOCTRINE — règle absolue run-3** : un effet seul = pas une variation. Chaque variation doit empiler **≥4 effets juicy en cascade synchronisée** sur le moment-clé de son axe. Voir BRAINSTORM.md section "JUICY DOCTRINE" et ASSETS-BRIEF.md section "JUICY CHECKLIST" pour la liste obligatoire (screen-shake gradué, particles ≥2 types, color-shift dynamique, scale-punch+rotation jitter, glow-bloom/chromatic, slow-mo flash, trail persistence, layered timing ≥3 events, lettering animé). Une exécution minimale = `needs-fix` automatique.
+
+**Anti-patterns reject** : un wash uniforme alpha 0.10, un badge avec un chiffre, un œil qui clignote tout seul, un texte qui pop puis disparait. Toujours composé, layered, en cascade.
 
 ---
 

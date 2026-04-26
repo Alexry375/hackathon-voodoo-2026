@@ -9,8 +9,39 @@ vieux baselines (4eae529 puis 14edd1a) qui n'avaient ni l'endcard juicy ni le co
 
 > Règle : pas de réf aux playables Castle Clashers ni au genre tower-defense / royal-match-castle.
 > Cross-pollination depuis puzzle / runner / idle / hyper-casual / TikTok creative.
-> Heuristique humaine pure — pas de scoring Gemini.
+> Heuristique humaine pure — pas de scoring Gemini de **sélection** (Gemini reste autorisé en review qualité phase 6).
 > **V4 doit être ADDITIVE** — couche par-dessus l'endcard juicy de Sami, ne PAS le récrire.
+
+---
+
+## ⚡ JUICY DOCTRINE — règle absolue Run-3
+
+Le baseline gold-standard de Sami est techniquement propre mais **émotionnellement tiède**. Les 4
+variations ne sont PAS des features additionnelles — ce sont des **amplificateurs sensoriels**.
+Le but : que le user ait envie de cliquer parce que ça lui *fait quelque chose* en 3 secondes.
+
+**Règle composition** : un effet seul = pas une variation. Chaque variation doit empiler **≥4
+effets juicy en cascade synchronisée** sur le moment-clé de son axe. Le sub-agent qui livre une
+exécution minimale (ex. "j'ai dessiné un œil + un texte") sera flag `needs-fix`. Critères :
+
+| Effet | Exemple concret |
+|---|---|
+| Screen-shake gradué | amplitude scale avec l'intensité, pas binaire |
+| Particles ≥2 types | sparkles + dust + radial flash, pas une seule famille |
+| Color-shift dynamique | hue-rotate ou palette stops qui glissent sur 200-400ms |
+| Scale-punch + rotation jitter | overshoot ≥1.15, jitter ±8°, settle ease-out-back |
+| Glow-bloom / chromatic aberration | à minima sur les moments-clés, pas constant |
+| Slow-mo flash | time-scale 0.4-0.7× pendant 150-300ms sur un trigger |
+| Persistence / trail | l'effet laisse une trace ≥400ms, pas pop-fade instantané |
+| Layered timing ≥3 events | sur la fenêtre 0-300ms, 3 events orchestrés (ex. flash 0ms + pop 80ms + shake 120ms) |
+| Lettering animé | font ≥56px, stroke épais, scale-pulse + rotation, fade 600-800ms |
+| Audio stinger (silent-ok) | sub-pulse low-freq via WebAudio si trivial à plug ; visuel doit rester 100% intelligible muted |
+
+**Minimum acceptable par variation** : 4 effets de cette table OU justification explicite dans
+meta.json sur pourquoi un effet est délibérément absent.
+
+**Anti-pattern** : "wash overlay alpha 0.10" tout seul = NO. "Badge rond avec un chiffre" tout
+seul = NO. "Œil qui clignote" tout seul = NO. Toujours composé.
 
 ---
 
@@ -155,14 +186,14 @@ le futur axe ENDCARD sur l'emotional pull. Garder comme back-up si une variation
 
 ---
 
-## Sélection finale Run-3 — 4 variations, axes orthogonaux
+## Sélection finale Run-3 — 4 variations, axes orthogonaux (version JUICY)
 
-| Var | Axe | Hypothèse | Métrique cible |
+| Var | Axe | Hypothèse JUICY (≥4 effets composés) | Métrique cible |
 |---|---|---|---|
-| V1-dragon-tease | hook | Œil rouge clignote derrière le castle ennemi pendant l'intro, "BEWARE!" subtitle, sub-pulse audio cue | retention@5s |
-| V2-combo-meter | mechanic | Compteur de combo x1→x2→x3 sur hits consécutifs <2s, gros texte "x3 COMBO!" + multiplicateur damage visible | clarity / depth perception |
-| V3-y2k-neon | palette | Overlay pink/cyan/purple chromatic + neon-outline sur projectiles + scan-lines subtiles | thumb-stop |
-| V4-level-preview | endcard (ADDITIVE) | Carte teaser "LEVEL 2 →" au-dessus des stars, slide-in à 800ms, sprite dragon silhouette | CTA pull |
+| V1-dragon-tease | hook | Œil rouge dragon **+ griffes en bordure d'écran (silhouette gauche/droite scratch in)** + vignette pulse rouge low-freq + tremblement écran 4Hz + lettering "BEWARE!" scale-punch+rotation jitter + lens-flare radial sur l'œil | retention@5s |
+| V2-combo-meter | mechanic | Compteur combo x1→x2→x3→x5 **avec hue jaune→orange→rose→cyan** + screen-shake amplitude scaling + radial flash full-screen au franchissement x3 + slow-mo 0.6× 200ms à x5 + lettering "x5 COMBO!" qui shake + ring particle burst sur chaque incrément | clarity / depth perception |
+| V3-y2k-neon | palette | Tinted overlay pink/cyan/purple **+ chromatic aberration RGB displacement permanent (split 2-3px) + glitch micro-flickers sur impact (3 frames)** + neon-trail persistance 400ms sur projectiles + scan-lines wave (vertical drift 0.5Hz) + boot-up CRT tube effect (vignette + flicker 200ms au splash) | thumb-stop |
+| V4-level-preview | endcard (ADDITIVE) | Panneau "LEVEL 2 →" qui **déchire un voile fog-of-war** (mask reveal animé) + dragon silhouette avec œil glow pulsing + breath particles (smoke wisps) + parallax 3 couches (sky / mountains / fog) + scale-punch d'entrée + chromatic glow sur le label "LEVEL 2 →" + bobbing 0.5Hz post-settle | CTA pull |
 
 Pas de variation narrative dans run-3 — recouvrement avec H5/E2.
 
