@@ -229,10 +229,17 @@ const VIEW_PAN_DUR = 750;
 // hand on top of OURS, and wait for the player's pointerdown. Tap kicks off
 // a 700ms zoom anim (overview → close on OURS) before firing the original
 // handoff action (ready_for_player_input or emit cut_to_interior).
+// Four phases for the overview beat: dezoom (close→wide entry), await (idle
+// at full wide), zoom-in (wide→close on tap), then chain into the existing
+// _startExitTransition for the iris-dive into interior. Timestamps drive the
+// active phase — zero means inactive. At any time at most one of dezoomT0 /
+// zoomInT0 is non-zero, with awaitingTap covering the static beat between.
 let awaitingTap = false;
 let pendingTapAction = /** @type {(()=>void)|null} */ (null);
-let overviewZoomT0 = 0; // performance.now() when zoom anim started; 0 = not animating
-const OVERVIEW_ZOOM_DUR = 700;
+let dezoomT0 = 0;
+let zoomInT0 = 0;
+const DEZOOM_DUR  = 600;
+const ZOOM_IN_DUR = 600;
 const OVERVIEW_SCALE = 0.55;
 const OVERVIEW_OURS_DX  = -W * 0.40;  // OURS pushed left in wide
 const OVERVIEW_ENEMY_DX = +W * 0.40;  // ENEMY pushed right in wide
@@ -269,17 +276,17 @@ export function mount(c) {
   c.addEventListener('pointerdown', _onCanvasTap);
 }
 
-function _startAwaitTap(action) {
-  awaitingTap = true;
+function _startDezoomToAwait(action) {
   pendingTapAction = action;
-  overviewZoomT0 = 0;
+  dezoomT0 = performance.now();
+  awaitingTap = false;
+  zoomInT0 = 0;
 }
 
 function _onCanvasTap() {
-  if (!awaitingTap || overviewZoomT0 !== 0) return;
-  // Kick off the zoom animation. Action fires when it lands.
-  overviewZoomT0 = performance.now();
-  awaitingTap = false; // suppress further taps during the anim
+  if (!awaitingTap || zoomInT0 !== 0 || dezoomT0 !== 0) return;
+  zoomInT0 = performance.now();
+  awaitingTap = false;
 }
 
 // ── Deterministic impact cycles ──────────────────────────────────────────────
@@ -385,7 +392,7 @@ function _impactOurs(at, d) {
     // a 700ms zoom anim eases into close on OURS and we then enter interior.
     setTimeout(() => {
       step = 'idle';
-      _startAwaitTap(() => ready_for_player_input());
+      _startDezoomToAwait(() => ready_for_player_input());
     }, 400);
   }
 }
@@ -496,7 +503,7 @@ function _tick(now) {
   if (step === 'ours_dwell' && now - stepT0 > 1500) {
     step = 'idle';
     // Same await-tap beat as intro: wide overview → tap → zoom → interior.
-    _startAwaitTap(() => {
+    _startDezoomToAwait(() => {
       emit('cut_to_interior', {
         hp_self_after:  state.hp_self_pct,
         hp_enemy_after: state.hp_enemy_pct,
@@ -702,20 +709,35 @@ function loop() {
   ctx.save(); ctx.translate(bgPanMid,  0); _drawForestNear(ctx); ctx.restore();
   ctx.save(); ctx.translate(bgPanNear, 0); _drawGround(ctx);     ctx.restore();
 
-  // Overview-tap beat: render BOTH castles small + horizontally spread, easing
-  // back to the normal close-on-OURS framing during the post-tap zoom anim.
-  // overviewT goes 0 (full wide) → 1 (full close, identical to default render).
+  // Overview-tap beat (4 phases). overviewT ∈ [0, 1] where 0 = full wide
+  // (scale 0.55, both castles spread) and 1 = full close (scale 1.0, OURS
+  // only — identical to the default render path so a frame at 1 is pixel-
+  // equivalent to no overview at all).
+  //   dezoom   : 1 → 0 over DEZOOM_DUR — smooth entry into wide
+  //   await    : stays at 0 — hand prompt visible, listening for tap
+  //   zoom-in  : 0 → 1 over ZOOM_IN_DUR — chains into the dive iris
+  // On zoom-in completion we fire _startExitTransition so the iris+punch
+  // zoom (1.0→5.0×) takes over from where zoom-in landed (1.0). The two
+  // are visually continuous — one accelerating dive 0.55 → 1.0 → 5.0.
   let overviewT = -1;
-  if (awaitingTap) {
-    overviewT = 0;
-  } else if (overviewZoomT0 > 0) {
-    const k = Math.min(1, (now - overviewZoomT0) / OVERVIEW_ZOOM_DUR);
-    overviewT = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; // ease-in-out cubic
+  if (dezoomT0 > 0) {
+    const k = Math.min(1, (now - dezoomT0) / DEZOOM_DUR);
+    const eased = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    overviewT = 1 - eased;
     if (k >= 1) {
-      overviewZoomT0 = 0;
+      dezoomT0 = 0;
+      awaitingTap = true;
+    }
+  } else if (awaitingTap) {
+    overviewT = 0;
+  } else if (zoomInT0 > 0) {
+    const k = Math.min(1, (now - zoomInT0) / ZOOM_IN_DUR);
+    overviewT = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    if (k >= 1) {
+      zoomInT0 = 0;
       const action = pendingTapAction;
       pendingTapAction = null;
-      if (action) action();
+      if (action) _startExitTransition(action);
     }
   }
 
