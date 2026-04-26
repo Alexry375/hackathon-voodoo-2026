@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>N7.42 — Voodoo × Unaite × Anthropic 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="deck">
+
+    <!-- ========== SLIDE 1 — INTRO ========== -->
+    <section class="slide" data-slide="1">
+      <div class="frame">
+        <div class="eyebrow">Voodoo × Unaite × Anthropic — avril 2026</div>
+        <h1 class="team">N7<span class="dot">·</span>42</h1>
+        <div class="track">
+          <span class="track-tag">Track 2</span>
+          <span class="track-flow">vidéo gameplay <span class="arrow">→</span> playable ad</span>
+        </div>
+        <ul class="roster">
+          <li>Antoine Monot</li>
+          <li>Sami Ennedoui</li>
+          <li>Kseniia Osipova</li>
+          <li>Alexis Briend</li>
+          <li>Bo Sébastien</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 2 — DEMO + PIPELINE ANTOINE ========== -->
+    <section class="slide" data-slide="2">
+      <div class="frame">
+        <div class="kicker">01 — Démo en ligne · 02 — Phase 1 · Antoine</div>
+        <h2>De la vidéo à l'<em>arborescence documentaire</em></h2>
+
+        <div class="demo-line">
+          <div class="demo-line-label">démo publique</div>
+          <a class="demo-link" href="https://n7-42.itch.io/castle-clashers" target="_blank">n7-42.itch.io/castle-clashers</a>
+          <div class="demo-line-meta">single-file 2.81 MB · sub-5MB AppLovin cap</div>
+        </div>
+
+        <div class="graph-box">
+          <img class="graph-img" src="./graph-antoine.jpeg" alt="Graphe pipeline Antoine">
+        </div>
+
+        <div class="io io-inline">
+          <div class="io-row"><span class="io-tag">in</span><code>Videos/B01.mp4</code></div>
+          <div class="io-row"><span class="io-tag">out</span><code>game_spec.md</code> + arborescence de fiches <code>.md</code></div>
+        </div>
+        <div class="caption"><code>pipeline_agentic.py</code> — Gemini 2.5 Pro · branching récursif, parallélisé</div>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 3 — PIPELINE MVP ========== -->
+    <section class="slide" data-slide="3">
+      <div class="frame">
+        <div class="kicker">03 — Phase 2 · Sami + Alexis</div>
+        <h2>Du <em>game_spec.md</em> au playable single-file</h2>
+
+        <div class="skills-strip">
+          <div class="skill"><span class="num">00</span>mission</div>
+          <div class="skill"><span class="num">01</span>skim &amp; validate</div>
+          <div class="skill"><span class="num">02</span>asset anchor</div>
+          <div class="skill"><span class="num">03</span>asset fanout</div>
+          <div class="skill"><span class="num">04</span>implementation</div>
+          <div class="skill"><span class="num">05</span>playwright loop</div>
+          <div class="skill"><span class="num">06</span>bundle &amp; deliver</div>
+        </div>
+
+        <div class="zoom">
+          <div class="zoom-title">Technique d'itération — un asset = un sous-agent</div>
+          <div class="case">
+            <div class="case-row">
+              <span class="case-tag">repéré</span>
+              <span>« Le projectile ennemi est un corbeau qui plonge en sinusoïdale »</span>
+            </div>
+            <div class="case-row">
+              <span class="case-tag fanout">fanout</span>
+              <span>1 sous-agent dédié corbeau : sprite, animation, trajectoire, SFX cawing, trail</span>
+            </div>
+            <div class="case-row">
+              <span class="case-tag merge">merge</span>
+              <span>livre <code>scene_exterior/raven.js</code> + <code>raven_flock.js</code> isolés, plug-and-play</span>
+            </div>
+          </div>
+          <div class="zoom-pun">Granularité par <strong>asset signifiant</strong>, pas par couche technique.</div>
+        </div>
+
+        <div class="badge">MVP livré en <strong>6 h 45</strong> · premier prompt → commit avec musique</div>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 4 — ITERATIONS ========== -->
+    <section class="slide" data-slide="4">
+      <div class="frame two-col">
+        <div class="col col-narrow">
+          <div class="kicker">04 — Phase 3 · Pipeline d'itérations</div>
+          <h2>Itérer <em>en parallèle</em>, comparer <em>côte à côte</em></h2>
+          <div class="roles">
+            <div class="role">
+              <div class="role-name">Main</div>
+              <div class="role-desc">brainstorm 30+ idées hors-genre · triage assets · arbitrage</div>
+            </div>
+            <div class="role">
+              <div class="role-name">Variables ×n</div>
+              <div class="role-desc">un sous-agent par axe unique · sous-branche · single-file build</div>
+            </div>
+            <div class="role">
+              <div class="role-name">Reviewer</div>
+              <div class="role-desc">vérifie axe respecté · pas de régression boucle · pass / fail</div>
+            </div>
+          </div>
+          <div class="axes">
+            <span>hook</span><span>mechanic</span><span>palette</span><span>narrative</span><span>endcard</span>
+          </div>
+          <div class="caption">Décision pragmatique · drop Gemini scoring · pas de skill bloat</div>
+        </div>
+        <div class="col col-wide">
+          <div class="kicker">live</div>
+          <div class="grid-frame-wrap">
+            <iframe class="grid-frame" src="../../iterations/" title="Iterations grid"></iframe>
+          </div>
+          <div class="caption mono">iterations/ — grid de comparaison live</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 5 — MERCI + SOURCES ========== -->
+    <section class="slide" data-slide="5">
+      <div class="frame">
+        <h1 class="thanks">Merci.</h1>
+        <div class="sources">
+          <div class="src-col">
+            <div class="src-title">Vidéo &amp; assets fournis</div>
+            <ul>
+              <li><strong>Voodoo</strong> — vidéo source <code>B01.mp4</code> (Castle Clashers)</li>
+              <li><strong>Voodoo</strong> — pack <code>Castle Clashers Assets</code> (PSB, PNG, OGG)</li>
+            </ul>
+          </div>
+          <div class="src-col">
+            <div class="src-title">Assets tiers</div>
+            <ul>
+              <li><strong>Kenney.nl</strong> — hand cursor sprite (CC0)</li>
+              <li><strong>Scenario.com</strong> — assets génératifs via MCP</li>
+              <li><strong>htdemucs_ft</strong> — séparation stems audio (musique &amp; voix)</li>
+            </ul>
+          </div>
+          <div class="src-col">
+            <div class="src-title">Modèles &amp; outils</div>
+            <ul>
+              <li><strong>Anthropic Claude</strong> — Opus 4.7, Sonnet 4.6, Claude Code</li>
+              <li><strong>Google Gemini 2.5 Pro</strong> — analyse vidéo multimodale</li>
+              <li><strong>esbuild · Playwright · Three.js</strong> — bundling, capture, rendu</li>
+            </ul>
+          </div>
+          <div class="src-col">
+            <div class="src-title">Hosts &amp; orga</div>
+            <ul>
+              <li><strong>Voodoo</strong> · <strong>Unaite</strong> · <strong>Anthropic</strong> — hackathon avril 2026</li>
+              <li><strong>itch.io</strong> — hosting démo publique</li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer">N7.42 — Antoine · Sami · Kseniia · Alexis · Sébastien</div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="dots" aria-label="Slides">
+    <button data-go="1"></button><button data-go="2"></button><button data-go="3"></button><button data-go="4"></button><button data-go="5"></button>
+  </nav>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const dots = document.querySelectorAll('.dots button');
+    let cur = 0;
+
+    function go(i) {
+      cur = Math.max(0, Math.min(slides.length - 1, i));
+      slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+      dots.forEach((d, k) => d.classList.toggle('active', k === cur));
+      location.hash = String(cur + 1);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(cur - 1); }
+      else if (e.key === 'Home') go(0);
+      else if (e.key === 'End') go(slides.length - 1);
+    });
+
+    dots.forEach(d => d.addEventListener('click', () => go(parseInt(d.dataset.go, 10) - 1)));
+
+    const init = parseInt((location.hash || '#1').slice(1), 10) - 1;
+    go(isNaN(init) ? 0 : init);
+  </script>
+</body>
+</html>

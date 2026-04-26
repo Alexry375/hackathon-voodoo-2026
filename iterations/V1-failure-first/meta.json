@@ -1,0 +1,12 @@
+{
+  "id": "V1",
+  "title": "Failure-first — enemy strikes in the first 800ms",
+  "axis": "hook",
+  "hypothesis": "Pattern-interrupt by drama: the enemy already hits the player castle for ~70% damage in the first 1.5s, screen-shakes, instruction reads 'OH NO! THEY HIT FIRST!' — user feels behind and wants to recover, lifting retention@5s.",
+  "diff_from_baseline": [
+    "playable/script.js: PHASE_INTRO_END 4500→2400ms + 1500ms 'OH NO! THEY HIT FIRST!' instruction during shortened intro",
+    "scene_exterior/index.js: _startIncoming rewritten — raven flock back-dated to be mid-air at frame 0, lands on OUR castle at ~800ms with dmg=70, amplified screen-shake/tilt for opening hit only",
+    "shared/hud_top.js: added HP-drop detector overlaying fading red flash on blue HP bar, amplitude scales with damage taken"
+  ],
+  "review": "pending"
+}
