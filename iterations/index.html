@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Iterations — Castle Clashers</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header>
+    <h1>Iterations</h1>
+    <span id="count"></span>
+  </header>
+
+  <main id="grid"></main>
+
+  <div id="modal" hidden>
+    <button id="modal-close" aria-label="Close">×</button>
+    <div id="modal-meta"></div>
+    <iframe id="modal-frame" allow="autoplay; fullscreen"></iframe>
+  </div>
+
+  <script type="module">
+    const STATUS_COLOR = { pass: '#3ad17d', fail: '#e84e4e', 'needs-fix': '#e8b94e', pending: '#888' };
+
+    async function load() {
+      const res = await fetch('./manifest.json', { cache: 'no-store' });
+      const { variations } = await res.json();
+      document.getElementById('count').textContent = `${variations.length} variation(s)`;
+      const grid = document.getElementById('grid');
+      grid.innerHTML = variations.map(card).join('');
+      grid.querySelectorAll('.card').forEach(el => {
+        el.addEventListener('click', () => open(el.dataset.dir, el.dataset.id));
+      });
+    }
+
+    function card(v) {
+      const status = v.review || 'pending';
+      const color = STATUS_COLOR[status] || '#888';
+      const thumb = `${v.dir}/thumbnail.png`;
+      return `
+        <article class="card" data-dir="${v.dir}" data-id="${v.id}">
+          <div class="thumb" style="background-image:url('${thumb}')"></div>
+          <div class="body">
+            <div class="row">
+              <span class="id">${v.id}</span>
+              <span class="status" style="background:${color}">${status}</span>
+            </div>
+            <h2>${v.title || v.id}</h2>
+            <div class="axis">${v.axis || ''}</div>
+            <p class="hyp">${v.hypothesis || ''}</p>
+          </div>
+        </article>`;
+    }
+
+    function open(dir, id) {
+      const modal = document.getElementById('modal');
+      const frame = document.getElementById('modal-frame');
+      const meta = document.getElementById('modal-meta');
+      meta.textContent = id;
+      frame.src = `${dir}/playable.html`;
+      modal.hidden = false;
+    }
+
+    document.getElementById('modal-close').addEventListener('click', () => {
+      const modal = document.getElementById('modal');
+      const frame = document.getElementById('modal-frame');
+      frame.src = 'about:blank';
+      modal.hidden = true;
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.getElementById('modal-close').click();
+    });
+
+    load().catch(err => {
+      document.getElementById('grid').innerHTML =
+        `<div class="error">manifest.json introuvable. Lance <code>node iterations/build-manifest.mjs</code>.</div>`;
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
