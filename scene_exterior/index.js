@@ -414,7 +414,7 @@ function _startIntroPanAndFlock() {
     x: CASTLE_X + CASTLE_W * 0.55,
     y: CASTLE_TOP_Y + 120,
   };
-  const dmgVal = 33;
+  const dmgVal = 50;  // intro bomb — bigger so blue is at ~50 HP after 1 move
   // Camera pan ENEMY→OURS (dir=-1, world slides right). Same duration shape as
   // the player-shot pan so the cinematic reads consistently.
   viewTransition = { fromView: 'ENEMY', toView: 'OURS', t0: now, dur: 1300, dir: -1 };
@@ -592,9 +592,10 @@ function _spawnEnemyRiposteFlock() {
   // landing point shifts. Targets come from OURS_IMPACT_CYCLE, shared with
   // the intro raven, so consecutive enemy shots never cluster.
   const target = _nextOursImpact();
-  // Bumped from 14-19 → 22-30 so blue HP visibly slides toward the danger
-  // zone before the scripted fail beat fires at t≈18 s.
-  const dmgVal = 22 + Math.floor(Math.random() * 9);
+  // Enemy retaliation deals 42-50 dmg — combined with the 50-dmg intro bomb
+  // this brings blue to the fail-trigger threshold (≤10 HP) after just one
+  // retaliation, i.e. blue dies in ≤2 enemy moves total.
+  const dmgVal = 42 + Math.floor(Math.random() * 9);
   const t = performance.now();
   /** @type {Projectile} */
   const flock = {
@@ -658,9 +659,9 @@ function _emitCutToInterior() {
 const _origImpactOurs = _impactOurs;
 function _impactOursDuringResolve(at, d) {
   _oursAttacksTaken++;
-  // Floor at 15: blue must visibly slide into the danger zone so the
-  // scripted fail beat (which slams HP to 8) feels earned, not arbitrary.
-  state.hp_self_pct = Math.max(15, state.hp_self_pct - d);
+  // Floor at 5: blue HP must be able to drop below the fail-trigger threshold
+  // (≤10) so the scripted fail beat fires from real damage, not a forced poke.
+  state.hp_self_pct = Math.max(5, state.hp_self_pct - d);
   floats.push({ x: at.x, y: at.y - 24, t0: performance.now(), text: `-${d}`, color: '#FFE54A' });
   _spawnExplosion(at.x, at.y, { heavy: false });
   triggerShake(11, 380);

@@ -23,41 +23,54 @@ import {
   installFailScreenTap, drawFailScreen,
 } from './fail_screen.js';
 import { spawnPraise, drawPraiseFloats } from './praise_floats.js';
+import { startDecoTimer, drawDecoTimer, setDecoTimerVisible } from './deco_timer.js';
+import { setInstruction, drawInstruction } from './instruction_text.js';
 
-// Phase timings (ms since boot) — total runtime ≤28s before endcard.
-const PHASE_INTRO_END     = 4500;   // enemy bomb impact + zoom-in to interior
-const PHASE_TUTORIAL_MAX  = 12000;  // hand-cursor demo + first 1-2 player shots
-const PHASE_FAIL_TRIGGER  = 18000;  // fake-fail beat ("ALMOST!") — keeps user engaged
-const PHASE_FAIL_TIMEOUT  = 4000;   // auto-continue if user doesn't tap
-const PHASE_FREEPLAY_END  = 23000;  // fail dwell ends, snap to forcewin
-const PHASE_FORCEWIN_END  = 27000;  // big finish + endcard takeover at 27s
-const ENDCARD_FADE_MS     = 400;
-// Floor on enemy HP during freeplay so the fail beat always has room to fire.
-// Cleared the moment the user taps PLAY NOW or auto-continue triggers forcewin.
+// Event-driven phase machine — no time-based gates except for two short
+// animation windows (intro pan and forcewin flash). Everything else advances
+// when the player or the enemy actually does something.
+//
+// PHASE_INTRO_END is kept because the intro is a fixed-length cinematic that
+// the player can't shortcut. FORCEWIN_FLASH_MS gates the white flash before
+// the endcard fades in.
+const PHASE_INTRO_END    = 4500;
+const FORCEWIN_FLASH_MS  = 2500;
+const ENDCARD_FADE_MS    = 400;
+// Floor on enemy HP so the fail beat (HP-driven) always has time to fire
+// before the player accidentally finishes the enemy castle.
 const ENEMY_HP_FLOOR_FREEPLAY = 12;
+// Fail beat triggers when blue drops at or below this HP (≈ after 2 enemy
+// attacks given the new damage values).
+const BLUE_HP_FAIL_THRESHOLD = 10;
 
 const game = {
   phase: /** @type {'intro'|'tutorial'|'freeplay'|'fail'|'forcewin'|'endcard'} */ ('intro'),
-  t0: 0,
+  t0: 0,                    // wall-clock at boot (used for the deco countdown only)
+  forcewinT0: 0,            // wall-clock at forcewin entry (gates flash duration)
+  endcardT0: 0,             // wall-clock at endcard entry (gates fade-in)
   shotsFired: 0,
-  failShownAt: 0,
+  enemyAttacks: 0,          // increments each cut_to_interior (= one full enemy turn)
 };
 /** @type {any} */ (window).__game = game;
 
 /** @param {HTMLCanvasElement} canvas */
 export function runScript(canvas) {
   game.t0 = performance.now();
+  startDecoTimer();
   installEndcardTap(canvas);
   installPersistentCta(canvas);
   installFailScreenTap(canvas, () => {
-    // User tapped CONTINUE → refill HP, fast-forward to forcewin.
     state.hp_self_pct = 100;
-    game.phase = 'forcewin';
-    game.t0 = performance.now() - PHASE_FREEPLAY_END;
     state.hp_enemy_pct = 0;
+    game.phase = 'forcewin';
+    game.forcewinT0 = performance.now();
   });
 
   on('player_fire', () => { game.shotsFired += 1; });
+  on('cut_to_interior', () => {
+    // Each cut back to interior = one completed enemy attack cycle.
+    game.enemyAttacks += 1;
+  });
 
   // Praise float on every player_fire — synchronous, fires at the moment of
   // launch so the user sees positive feedback before the projectile lands
@@ -66,11 +79,6 @@ export function runScript(canvas) {
   on('player_fire', () => {
     if (game.phase === 'tutorial' || game.phase === 'freeplay') {
       spawnPraise();
-    }
-  });
-  on('cut_to_interior', () => {
-    if (game.phase === 'freeplay' && state.hp_self_pct < 30) {
-      state.hp_self_pct = 30;
     }
   });
 }
@@ -97,13 +105,28 @@ function _updatePhase(elapsed) {
     game.phase === 'tutorial' || game.phase === 'freeplay' ||
     game.phase === 'forcewin'
   );
+  // Decorative countdown is visible whenever the player is "in the game" —
+  // hidden during pure cinematic beats (intro, fail overlay, endcard).
+  setDecoTimerVisible(
+    game.phase === 'tutorial' || game.phase === 'freeplay' ||
+    game.phase === 'forcewin'
+  );
+  // Instruction text: phase-specific persistent hint. Tutorial nudges first
+  // shot; freeplay nudges the player to keep firing; everything else hides it.
+  if (game.phase === 'tutorial') setInstruction('DRAG TO AIM!');
+  else if (game.phase === 'freeplay') setInstruction('FIRE BACK!');
+  else setInstruction(null);
 
   switch (game.phase) {
     case 'intro':
+      // Intro is a fixed cinematic — no input bypass.
       if (elapsed > PHASE_INTRO_END) game.phase = 'tutorial';
       break;
     case 'tutorial':
-      if (game.shotsFired >= 2 || elapsed > PHASE_TUTORIAL_MAX) {
+      // Advance only when the player actually fires their first shot. No
+      // timeout — they can stare at the hand-drag demo for as long as they
+      // want (matches MarbleSort's behaviour).
+      if (game.shotsFired >= 1) {
         game.phase = 'freeplay';
         hideHand();
       }
@@ -112,38 +135,31 @@ function _updatePhase(elapsed) {
       if (state.hp_enemy_pct < ENEMY_HP_FLOOR_FREEPLAY) {
         state.hp_enemy_pct = ENEMY_HP_FLOOR_FREEPLAY;
       }
-      // Only fire the fail beat when we're cleanly between turns
-      // (player aim screen, no projectile in flight). Otherwise wait one
-      // more frame — the trigger will retry on the next tick.
-      if (elapsed > PHASE_FAIL_TRIGGER && getSceneState() === 'INTERIOR_AIM') {
+      // Fail beat fires when blue HP is critical AND we're cleanly between
+      // turns (no projectile in flight). With the new damage values blue
+      // reaches the threshold after the 2nd enemy attack.
+      if (state.hp_self_pct <= BLUE_HP_FAIL_THRESHOLD &&
+          getSceneState() === 'INTERIOR_AIM') {
         state.hp_self_pct = 8;
         game.phase = 'fail';
-        game.failShownAt = elapsed;
         showFailScreen();
-        // Wipe any lingering tutorial/aim hand state — fail screen owns the
-        // hand cursor from now on.
         try { hideHand(); } catch {}
       }
       break;
     case 'fail':
-      // Auto-continue if user doesn't tap within timeout.
-      if (elapsed - game.failShownAt > PHASE_FAIL_TIMEOUT) {
-        state.hp_self_pct = 100;
-        game.phase = 'forcewin';
-        game.t0 = performance.now() - PHASE_FREEPLAY_END;
-        state.hp_enemy_pct = 0;
-        hideFailScreen();
-      }
+      // No auto-continue — the user MUST tap one of the two CTAs.
+      // (PLAY NOW → install redirect; Continue → refill + forcewin.)
       break;
     case 'forcewin':
-      if (elapsed > PHASE_FORCEWIN_END) {
+      if (performance.now() - game.forcewinT0 > FORCEWIN_FLASH_MS) {
         game.phase = 'endcard';
+        game.endcardT0 = performance.now();
         try { /** @type {any} */ (window).Voodoo?.playable?.win(); } catch {}
       }
       break;
     case 'endcard': {
-      const fade = Math.max(0, elapsed - PHASE_FORCEWIN_END) / ENDCARD_FADE_MS;
-      setEndcardOpacity(Math.min(1, fade));
+      const fade = (performance.now() - game.endcardT0) / ENDCARD_FADE_MS;
+      setEndcardOpacity(Math.min(1, Math.max(0, fade)));
       break;
     }
   }
@@ -157,6 +173,8 @@ function _paintOverlay(ctx, t, elapsed) {
   if (game.phase !== 'endcard') {
     drawPraiseFloats(ctx, performance.now());
     drawPersistentCta(ctx, t);
+    drawDecoTimer(ctx);
+    drawInstruction(ctx, t);
   }
 
   if (game.phase === 'tutorial' && getSceneState() === 'INTERIOR_AIM') {
@@ -189,8 +207,8 @@ function _paintOverlay(ctx, t, elapsed) {
   }
 
   if (game.phase === 'forcewin') {
-    const since = elapsed - PHASE_FREEPLAY_END;
-    const alpha = since < 700 ? since / 700 * 0.85 : Math.max(0, 0.85 - (since - 700) / 3500 * 0.85);
+    const since = performance.now() - game.forcewinT0;
+    const alpha = since < 700 ? since / 700 * 0.85 : Math.max(0, 0.85 - (since - 700) / 1800 * 0.85);
     ctx.save();
     ctx.fillStyle = `rgba(255,255,255,${alpha})`;
     ctx.fillRect(0, 0, W, H);
@@ -207,16 +225,12 @@ function _paintOverlay(ctx, t, elapsed) {
 /** Test/dev helper: jump straight to a given phase. */
 export function _devForcePhase(phase) {
   game.phase = phase;
-  const PHASE_T0_MS = {
-    intro: 0,
-    tutorial: PHASE_INTRO_END + 100,
-    freeplay: PHASE_TUTORIAL_MAX + 100,
-    forcewin: PHASE_FREEPLAY_END + 100,
-    endcard: PHASE_FORCEWIN_END + 100,
-  };
-  game.t0 = performance.now() - (PHASE_T0_MS[phase] ?? 0);
-  if (phase === 'endcard') setEndcardOpacity(1);
-  if (phase === 'forcewin') state.hp_enemy_pct = 0;
+  const now = performance.now();
+  if (phase === 'intro')    game.t0 = now;
+  if (phase === 'tutorial') game.t0 = now - PHASE_INTRO_END - 100;
+  if (phase === 'forcewin') { game.forcewinT0 = now; state.hp_enemy_pct = 0; }
+  if (phase === 'endcard')  { game.endcardT0 = now; setEndcardOpacity(1); }
+  if (phase === 'fail')     { showFailScreen(); }
 }
 /** @type {any} */ (window).__forcePhase = _devForcePhase;
 
