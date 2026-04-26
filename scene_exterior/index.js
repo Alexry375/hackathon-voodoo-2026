@@ -405,10 +405,16 @@ function startPlayerShot(payload) {
       onLand: isLast
         ? () => {
             const sfx = IMPACT_SFX_BY_KIND[plan.kind] || 'SFX_IMPACT_ROCKET';
-            // Rafale fireworks are intentionally quieter in the source pack;
-            // bump them so they read on par with rocket impacts.
-            const vol = sfx === 'SFX_IMPACT_RAFALE' ? 1.0 : 0.7;
-            playSfx(sfx, { volume: vol });
+            // HTMLAudioElement caps volume at 1.0; to push the impact
+            // loud enough above the chiptune we stack overlapping
+            // playbacks. Rafale gets the heaviest stack since the source
+            // sample is intrinsically quieter than the cannon.
+            playSfx(sfx, { volume: 1.0 });
+            setTimeout(() => playSfx(sfx, { volume: 1.0 }), 30);
+            if (sfx === 'SFX_IMPACT_RAFALE') {
+              setTimeout(() => playSfx(sfx, { volume: 1.0 }), 80);
+              setTimeout(() => playSfx(sfx, { volume: 0.9 }), 140);
+            }
             _impactEnemy(pendingEnemyImpact, pendingEnemyDmg);
           }
         : (() => { _spawnExplosion(target.x - W, target.y, { heavy: false }); }),
