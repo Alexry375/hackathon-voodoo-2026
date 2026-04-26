@@ -17,18 +17,27 @@ import { drawDottedTrajectory } from '../scene_interior/aim.js';
 import { drawEndcard, setEndcardOpacity, installEndcardTap } from './endcard.js';
 import { emit } from '../shared/events.js';
 import { getActiveUnitId } from '../scene_interior/turn.js';
+import { installPersistentCta, setPersistentCtaVisible, drawPersistentCta } from './persistent_cta.js';
+import {
+  showFailScreen, hideFailScreen, isFailScreenShown,
+  installFailScreenTap, drawFailScreen,
+} from './fail_screen.js';
+import { spawnPraise, drawPraiseFloats } from './praise_floats.js';
 
 // Phase timings (ms since boot)
 const PHASE_INTRO_END     = 4500;   // bomb impact ~3s + buffer + zoom 900ms + guard
 const PHASE_TUTORIAL_MAX  = 22000;
-const PHASE_FREEPLAY_END  = 38000;
-const PHASE_FORCEWIN_END  = 42500;
+const PHASE_FAIL_TRIGGER  = 32000;  // mid-freeplay fake-fail beat
+const PHASE_FAIL_TIMEOUT  = 6000;   // auto-continue if user doesn't tap
+const PHASE_FREEPLAY_END  = 42000;  // pushed back to absorb fail-screen dwell
+const PHASE_FORCEWIN_END  = 46500;
 const ENDCARD_FADE_MS     = 400;
 
 const game = {
-  phase: /** @type {'intro'|'tutorial'|'freeplay'|'forcewin'|'endcard'} */ ('intro'),
+  phase: /** @type {'intro'|'tutorial'|'freeplay'|'fail'|'forcewin'|'endcard'} */ ('intro'),
   t0: 0,
   shotsFired: 0,
+  failShownAt: 0,
 };
 /** @type {any} */ (window).__game = game;
 
@@ -36,11 +45,27 @@ const game = {
 export function runScript(canvas) {
   game.t0 = performance.now();
   installEndcardTap(canvas);
+  installPersistentCta(canvas);
+  installFailScreenTap(canvas, () => {
+    // User tapped CONTINUE → refill HP, fast-forward to forcewin.
+    state.hp_self_pct = 100;
+    game.phase = 'forcewin';
+    game.t0 = performance.now() - PHASE_FREEPLAY_END;
+    state.hp_enemy_pct = 0;
+  });
 
   on('player_fire', () => { game.shotsFired += 1; });
 
-  // Lock player HP at >= 30 during freeplay so the ad never enters lose state.
-  on('cut_to_interior', (payload) => {
+  // Praise float on every player_fire — synchronous, fires at the moment of
+  // launch so the user sees positive feedback before the projectile lands
+  // (compared to cut_to_interior which fires ~3.5 s later, after the user has
+  // already moved on emotionally).
+  on('player_fire', () => {
+    if (game.phase === 'tutorial' || game.phase === 'freeplay') {
+      spawnPraise();
+    }
+  });
+  on('cut_to_interior', () => {
     if (game.phase === 'freeplay' && state.hp_self_pct < 30) {
       state.hp_self_pct = 30;
     }
@@ -61,6 +86,13 @@ export function drawScriptOverlay(ctx, t) {
 }
 
 function _updatePhase(elapsed) {
+  // Show persistent PLAY NOW from end of intro through forcewin; hidden during
+  // the dedicated endcard (which has its own full-screen CTA).
+  setPersistentCtaVisible(
+    game.phase === 'tutorial' || game.phase === 'freeplay' ||
+    game.phase === 'fail' || game.phase === 'forcewin'
+  );
+
   switch (game.phase) {
     case 'intro':
       if (elapsed > PHASE_INTRO_END) game.phase = 'tutorial';
@@ -72,9 +104,25 @@ function _updatePhase(elapsed) {
       }
       break;
     case 'freeplay':
-      if (elapsed > PHASE_FREEPLAY_END || state.hp_enemy_pct <= 5) {
+      if (elapsed > PHASE_FAIL_TRIGGER) {
+        // Fake-fail beat: drop HP visibly, show ALMOST! overlay.
+        state.hp_self_pct = 8;
+        game.phase = 'fail';
+        game.failShownAt = elapsed;
+        showFailScreen();
+      } else if (state.hp_enemy_pct <= 5) {
         game.phase = 'forcewin';
         state.hp_enemy_pct = 0;
+      }
+      break;
+    case 'fail':
+      // Auto-continue if user doesn't tap within timeout.
+      if (elapsed - game.failShownAt > PHASE_FAIL_TIMEOUT) {
+        state.hp_self_pct = 100;
+        game.phase = 'forcewin';
+        game.t0 = performance.now() - PHASE_FREEPLAY_END;
+        state.hp_enemy_pct = 0;
+        hideFailScreen();
       }
       break;
     case 'forcewin':
@@ -93,6 +141,13 @@ function _updatePhase(elapsed) {
 
 function _paintOverlay(ctx, t, elapsed) {
   const W = ctx.canvas.width, H = ctx.canvas.height;
+
+  // Praise floats + persistent CTA paint over EVERY non-endcard phase, including
+  // tutorial (which returns early below for hand-cursor reasons).
+  if (game.phase !== 'endcard') {
+    drawPraiseFloats(ctx, performance.now());
+    drawPersistentCta(ctx, t);
+  }
 
   if (game.phase === 'tutorial' && getSceneState() === 'INTERIOR_AIM') {
     const f = getActiveFloor();
@@ -114,6 +169,12 @@ function _paintOverlay(ctx, t, elapsed) {
       }
     }
     drawHandCursor(ctx, t);
+    return;
+  }
+
+  // Fail overlay sits above gameplay but below endcard.
+  if (isFailScreenShown()) {
+    drawFailScreen(ctx, t);
     return;
   }
 
