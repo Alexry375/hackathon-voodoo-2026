@@ -10,7 +10,7 @@ import { subscribe, getState, ready_for_player_input } from '../shared/scene_man
 import { state } from '../shared/state.js';
 import { on } from '../shared/events.js';
 import { drawTopHud } from '../shared/hud_top.js';
-import { applyCameraTransform, updateCamera, setPreset, snapPreset, setTarget } from '../shared/camera.js';
+import { applyCameraTransform, updateCamera, setPreset, snapPreset, snapTo, setTarget } from '../shared/camera.js';
 import { WORLD, CAM_PRESETS } from '../shared/world.js';
 import { loadCastleAssets, castleAssetsReady, drawWorld } from './castles.js';
 import { loadProjectileAssets, updateAndDraw as drawProjectile, getLeadProjectilePos, getRecentImpact, isFiring } from './projectile.js';
@@ -52,8 +52,8 @@ export function mount(c) {
     loadVfxAssets(),
   ]).catch(e => console.error('[scene_exterior] asset load failed:', e));
 
-  // Default camera = focus on enemy castle (this is the "ad-style" exterior view).
-  snapPreset('red');
+  // Source clip2.mp4 opens on the red (enemy) castle being attacked by a crow.
+  snapTo({ x: WORLD.red_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 });
 
   subscribe((s) => {
     visible = EXTERIOR_STATES.has(s);
@@ -62,11 +62,9 @@ export function mount(c) {
       loop();
     }
     if (s === 'EXTERIOR_OBSERVE' && !isAttacking()) {
-      // Smooth ease from red preset → blue preset (~500ms). Source video has
-      // no transition (single wide framing both castles), but our two-preset
-      // architecture needs SOMETHING — easing reads better than a hard cut.
+      // Tight on blue castle (player) — matches source: camera always on the castle being attacked.
       _enemyShotIncoming = true;
-      setPreset('blue', { ease: 0.02 });
+      setTarget({ x: WORLD.blue_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 }, { ease: 0.008 });
       pulseEnemyTint();
       const intensity = _firstWaveFired ? 'normal' : 'opening';
       _firstWaveFired = true;
@@ -76,9 +74,8 @@ export function mount(c) {
       }});
     }
     if (s === 'EXTERIOR_RESOLVE') {
-      // Player just fired — start camera at blue castle, projectile-follow code below
-      // takes over once a projectile is in flight.
-      setPreset('blue', { ease: 0.012 });
+      // Start on blue castle; _driveCamera takes over once projectile is in flight.
+      setTarget({ x: WORLD.blue_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 }, { ease: 0.012 });
     }
   });
 
@@ -86,7 +83,8 @@ export function mount(c) {
   // the camera so the launch is already framed when the projectile spawns.
   on('player_fire', () => {
     _enemyShotIncoming = false;
-    setPreset('blue', { ease: 0.018 });
+    // Widen to show trajectory arc — overview zoom but higher pivot.
+    setTarget({ x: WORLD.width / 2, y: WORLD.ground_y - 280, zoom: 0.72 }, { ease: 0.018 });
   });
 }
 
@@ -94,27 +92,22 @@ function _driveCamera() {
   // Enemy shots snap-cut, no follow. Already snapped in subscribe handler.
   if (_enemyShotIncoming) return;
 
-  // Player projectile in flight → follow it horizontally. Zoom kept tight
-  // (0.78) so the bg image always covers and we don't reveal void edges.
+  // Player projectile in flight → widen to show the arc.
   const lead = getLeadProjectilePos();
   if (lead) {
-    setTarget({
-      x: Math.max(CAM_PRESETS.blue.x, Math.min(CAM_PRESETS.red.x, lead.x)),
-      y: WORLD.ground_y - 200,
-      zoom: 0.78,
-    }, { ease: 0.02 });
+    setTarget({ x: WORLD.width / 2, y: WORLD.ground_y - 280, zoom: 0.72 }, { ease: 0.018 });
     return;
   }
 
-  // Recent impact → focus on impact for ~600ms.
+  // Recent impact → tight zoom on red castle to show the damage.
   const imp = getRecentImpact(700);
   if (imp) {
-    setTarget({ x: imp.x, y: imp.y, zoom: 0.95 }, { ease: 0.012 });
+    setTarget({ x: WORLD.red_castle.x, y: WORLD.ground_y - 280, zoom: 0.95 }, { ease: 0.020 });
     return;
   }
 
-  // Idle → enemy castle (ad default).
-  setTarget(CAM_PRESETS.red, { ease: 0.006 });
+  // Idle fallback → back to blue castle (attacked side).
+  setTarget({ x: WORLD.blue_castle.x, y: WORLD.ground_y - 280, zoom: 0.92 }, { ease: 0.006 });
 }
 
 // "Under attack" red flash at the bottom of the screen — kicked to 1 when an
@@ -152,12 +145,12 @@ function loop() {
 
   const viewport = { w: canvas.width, h: canvas.height };
 
-  // Sky fill (screen-space) — sampled from the bg's sky band so any camera
-  // reveal beyond the bg image still reads as sky, not green grass.
+  // Warm teal-green sky fill — matches source game palette.
   const sky = ctx.createLinearGradient(0, 0, 0, viewport.h);
-  sky.addColorStop(0,    '#9aa9b8');
-  sky.addColorStop(0.55, '#b3bdc8');
-  sky.addColorStop(1,    '#7c8a99');
+  sky.addColorStop(0,    '#A8CCBA');
+  sky.addColorStop(0.45, '#BACEB8');
+  sky.addColorStop(0.8,  '#C8D8B8');
+  sky.addColorStop(1,    '#D0E4B8');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
 
@@ -170,9 +163,9 @@ function loop() {
   // accumulate translates/scales every frame and ruin all subsequent renders.
   applyCameraTransform(ctx, viewport);
   try {
-    ctx.fillStyle = '#2a2f33';
+    ctx.fillStyle = '#3A0E06';
     ctx.fillRect(-4000, WORLD.ground_y, 12000, 8000);
-    if (castleAssetsReady()) drawWorld(ctx);
+    drawWorld(ctx);
     drawVfx(ctx, viewport, dt_ms);
     drawEnemy(ctx, viewport, dt_ms);
     drawProjectile(ctx, viewport, dt_ms);
@@ -183,7 +176,6 @@ function loop() {
   }
   // === End world-space ===
 
-  // Screen-space overlays — rain stays here so it tiles the viewport, not the world.
   drawRainOverlay(ctx, viewport, dt_ms);
   _drawEnemyTint(ctx, viewport, dt_ms);
   drawTopHud(ctx);

@@ -30,10 +30,10 @@ const TILT_EASE = 0.06;
 function targetTiltFor(hp_pct) {
   // Castle leans further right as it takes damage. Calibrated against frames 13/29/40.
   if (hp_pct >= 95) return 0;
-  if (hp_pct >= 65) return 4;
-  if (hp_pct >= 35) return 9;
-  if (hp_pct >= 18) return 14;
-  return 18;
+  if (hp_pct >= 65) return 6;
+  if (hp_pct >= 45) return 12;
+  if (hp_pct >= 25) return 20;
+  return 26;
 }
 
 /** @param {number} hp_pct */
@@ -66,8 +66,15 @@ function loop() {
   currentTilt += (targetTilt - currentTilt) * TILT_EASE;
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
-  ctx.fillStyle = '#88CCAA';
+  // Same sage-green sky as exterior
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
+  bgGrad.addColorStop(0, '#8BBFA0');
+  bgGrad.addColorStop(1, '#AACBA8');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Dark ground
+  ctx.fillStyle = '#7A2A1A';
+  ctx.fillRect(0, canvas.height * 0.72, canvas.width, canvas.height * 0.28);
 
   drawCastleSection(ctx, { tilt_deg: currentTilt, damage_level: damageLevel });
   drawUnits(ctx, t);

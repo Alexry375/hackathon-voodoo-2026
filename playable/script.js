@@ -103,7 +103,7 @@ function _updatePhase(elapsed) {
       }
       break;
     case 'freeplay':
-      if (elapsed > PHASE_FREEPLAY_END || state.hp_enemy_pct <= 5) {
+      if (elapsed > PHASE_FREEPLAY_END || state.hp_enemy_pct <= 0) {
         game.phase = 'forcewin';
         // force the enemy castle into death state for the cinematic
         state.hp_enemy_pct = 0;

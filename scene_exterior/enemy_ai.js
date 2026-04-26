@@ -2,8 +2,7 @@
 // Spawns a wave of incoming rockets from off-screen upper-left toward the player (blue) castle.
 // Owner: this module. Other modules read only the locked exports below.
 
-import { state, applyDamageToSelf, aliveUnits } from '../shared/state.js';
-import { emit } from '../shared/events.js';
+import { state, applyDamageToSelf } from '../shared/state.js';
 import { playSfx } from '../shared/audio.js';
 import { WORLD } from '../shared/world.js';
 import { getImage, isImageReady } from '../shared/assets.js';
@@ -18,19 +17,16 @@ import * as vfx from './vfx.js';
  *   onComplete: () => void,
  *   completed: boolean,
  *   cooldownMs: number,
- *   castleOnly: boolean,
  * }} */
 let wave = null;
 
 /**
  * @typedef {Object} Projectile
  * @property {number} x @property {number} y
- * @property {number} vx @property {number} vy        // px/ms
- * @property {number} tx @property {number} ty        // target
- * @property {number} ttlMs                            // remaining flight time
- * @property {number} totalMs                          // for trail cadence
- * @property {'castle' | 'unit'} kind
- * @property {string | null} unitId                    // when kind === 'unit'
+ * @property {number} vx @property {number} vy
+ * @property {number} tx @property {number} ty
+ * @property {number} ttlMs
+ * @property {number} totalMs
  * @property {number} smokeAccumMs
  * @property {boolean} resolved
  */
@@ -60,7 +56,6 @@ export function startEnemyAttack({ onComplete, intensity = 'normal' }) {
     onComplete,
     completed: false,
     cooldownMs: 400,
-    castleOnly: intensity === 'opening',
   };
 }
 
@@ -71,7 +66,7 @@ function rand(a, b) { return a + Math.random() * (b - a); }
  * @param {boolean} castleOnly  when true, never target units (opening wave)
  * @returns {Projectile}
  */
-function spawnProjectile(_viewport, castleOnly = false) {
+function spawnProjectile(_viewport) {
   // Q1 (Gemini): crows enter from the right edge of the screen flying right→left
   // with a slight downward tilt. Camera is panned left (blue castle in view) so
   // the red castle is off-screen right — crows emerge from that right edge.
@@ -86,18 +81,12 @@ function spawnProjectile(_viewport, castleOnly = false) {
   const vx = (tx - x) / flightMs; // always negative (right→left)
   const vy = (ty - y) / flightMs;
 
-  // 30% of normal-wave impacts target a unit. Opening wave always hits the castle
-  // so the player has their full roster intact on the first turn.
-  const alive = aliveUnits();
-  let kind = /** @type {'castle' | 'unit'} */ ('castle');
-  let unitId = null;
-  if (!castleOnly && alive.length > 0 && Math.random() < 0.3) {
-    kind = 'unit';
-    unitId = alive[Math.floor(Math.random() * alive.length)].id;
-  }
+  // Crows always target the castle — units only die when fired as projectiles.
+  const kind = /** @type {'castle' | 'unit'} */ ('castle');
+  const unitId = null;
 
   return { x, y, vx, vy, tx, ty, ttlMs: flightMs, totalMs: flightMs,
-           kind, unitId, smokeAccumMs: 0, resolved: false };
+           smokeAccumMs: 0, resolved: false };
 }
 
 /**
@@ -107,20 +96,15 @@ function resolveImpact(p) {
   if (p.resolved) return;
   p.resolved = true;
 
-  const dmg = Math.round(rand(5, 15));
+  // Opening wave: 7 crows × ~4.5 avg = ~31% total → player ends at ~69% (matches source ~67%).
+  // Normal wave: 2 crows × ~4.5 avg = ~9% total → chip damage between turns.
+  const dmg = Math.round(rand(3, 6));
 
-  if (p.kind === 'unit' && p.unitId) {
-    // scene_manager listens to 'unit_killed' and calls killUnit itself — do not call directly.
-    emit('unit_killed', { unit_id: p.unitId });
-    try { vfx.triggerExplosion(p.x, p.y, { size: 'small', palette: 'enemy' }); } catch (_) {}
-    playSfx({ volume: 0.8, rate: 1.1 });
-  } else {
-    applyDamageToSelf(-dmg);
-    const size = dmg >= 11 ? 'big' : 'small';
-    try { vfx.triggerExplosion(p.x, p.y, { size, palette: 'enemy' }); } catch (_) {}
-    playSfx({ volume: 0.9, rate: 0.65 });
-    addBite(p.x, p.y, { size });
-  }
+  applyDamageToSelf(-dmg);
+  const size = dmg >= 5 ? 'big' : 'small';
+  try { vfx.triggerExplosion(p.x, p.y, { size, palette: 'enemy' }); } catch (_) {}
+  playSfx({ volume: 0.9, rate: 0.65 });
+  addBite(p.x, p.y, { size });
 }
 
 /**
@@ -136,7 +120,7 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
   if (wave.pendingSpawns > 0) {
     wave.spawnTimerMs -= dt;
     if (wave.spawnTimerMs <= 0) {
-      wave.projectiles.push(spawnProjectile(viewport, wave.castleOnly));
+      wave.projectiles.push(spawnProjectile(viewport));
       wave.pendingSpawns -= 1;
       wave.spawnTimerMs = 300;
     }
@@ -155,19 +139,59 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
     if (p.ttlMs <= 0) resolveImpact(p);
   }
 
-  // Render rockets — rotated to velocity. Skip resolved ones (their explosion is owned by vfx).
-  if (isImageReady('BOMB')) {
-    const img = getImage('BOMB');
-    const size = 36;
-    for (const p of wave.projectiles) {
-      if (p.resolved) continue;
-      const angle = Math.atan2(p.vy, p.vx);
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(angle);
-      ctx.drawImage(img, -size / 2, -size / 2, size, size);
-      ctx.restore();
-    }
+  // Render crows — black bird silhouette matching source clip2.mp4.
+  for (const p of wave.projectiles) {
+    if (p.resolved) continue;
+    // Use elapsed flight time for per-crow phase offset so wings don't all flap in sync.
+    const flightElapsed = (p.totalMs - p.ttlMs) / 1000;
+    const wingFlap = Math.sin(flightElapsed * 8) * 12;
+
+    const angle = Math.atan2(p.vy, p.vx);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#1A1A1A';
+
+    // Body: filled ellipse torso
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head: small circle at the front
+    ctx.beginPath();
+    ctx.arc(10, -2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak: small triangle tip
+    ctx.beginPath();
+    ctx.moveTo(13, -3); ctx.lineTo(17, -1); ctx.lineTo(13, 1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Left wing: bezier arc flapping up from body center
+    const wingSpan = 12;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-4, -wingFlap * 0.5, -wingSpan * 0.7, -wingFlap, -wingSpan, -wingFlap);
+    ctx.bezierCurveTo(-wingSpan * 0.6, -wingFlap * 0.3, -3, 4, 0, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Right wing: mirror of left wing
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-4, wingFlap * 0.5, -wingSpan * 0.7, wingFlap, -wingSpan, wingFlap);
+    ctx.bezierCurveTo(-wingSpan * 0.6, wingFlap * 0.3, -3, -4, 0, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tail feathers: small fan at rear
+    ctx.beginPath();
+    ctx.moveTo(-8, 0); ctx.lineTo(-14, -4); ctx.lineTo(-12, 0); ctx.lineTo(-14, 4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   }
 
   // Cinematic complete? All spawned, all resolved, then cooldown.

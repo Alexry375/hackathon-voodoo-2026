@@ -14,8 +14,9 @@ export const WORLD = /** @type {const} */ ({
   ground_y: 760,
 
   // Castle pivot (base center) world positions.
-  blue_castle: { x: 320,  y: 760 },
-  red_castle:  { x: 1080, y: 760 },
+  // y raised 60px (760→700) to sit on top of terrain mounds added by the terrain agent.
+  blue_castle: { x: 320,  y: 710 },
+  red_castle:  { x: 1080, y: 710 },
 
   // Castle render height in world units (controls scale for the PNG).
   castle_h: 560,
@@ -23,10 +24,10 @@ export const WORLD = /** @type {const} */ ({
 
 /** Convenience for camera presets. */
 export const CAM_PRESETS = /** @type {const} */ ({
-  // Both castles visible — used for intro overview + post-impact wide.
-  overview: { x: WORLD.width / 2, y: WORLD.ground_y - 200, zoom: 0.55 },
-  // Tight on the player's castle — used during aim phase if camera ever shows exterior.
-  blue:     { x: WORLD.blue_castle.x,  y: WORLD.ground_y - 200, zoom: 0.85 },
-  // Tight on the enemy castle — default exterior view.
-  red:      { x: WORLD.red_castle.x,   y: WORLD.ground_y - 200, zoom: 0.85 },
+  // Wide view used only during projectile flight arc.
+  overview: { x: WORLD.width / 2,      y: WORLD.ground_y - 280, zoom: 0.72 },
+  // Tight on the player's (blue) castle — default exterior view during crow attack.
+  blue:     { x: WORLD.blue_castle.x,  y: WORLD.ground_y - 280, zoom: 0.92 },
+  // Tight on the enemy (red) castle — hold after player projectile impact.
+  red:      { x: WORLD.red_castle.x,   y: WORLD.ground_y - 280, zoom: 0.92 },
 });

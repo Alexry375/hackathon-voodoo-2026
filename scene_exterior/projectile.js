@@ -87,6 +87,10 @@ async function safeVfx(method, ...args) {
   } catch (_) {}
 }
 
+function safeSpawnDmg(x, y, amount) {
+  import('./vfx.js').then(m => m.spawnDamageNumber(x, y, amount, 'player')).catch(() => {});
+}
+
 function _baseDamage(power) {
   return Math.round(DAMAGE_MIN + (DAMAGE_MAX - DAMAGE_MIN) * Math.max(0.1, Math.min(1, power)));
 }
@@ -158,9 +162,8 @@ function _jitter(j) { return j === 0 ? 0 : (Math.random() * 2 - 1) * j * 8; }
 function _resolveDamage(entity) {
   if (entity.damageEmitted) return;
   entity.damageEmitted = true;
-  // A miss still advances the turn (cut_to_interior MUST fire) but does no damage.
   const dmg = entity.didHit === false ? 0 : entity.damage;
-  // Beams are batch-of-1 implicit. Rockets use the explicit batch tracker.
+  if (dmg > 0) safeSpawnDmg(entity.x, entity.y, dmg);
   if (entity.batchId == null) {
     emit('cut_to_interior', {
       hp_self_after: state.hp_self_pct,
@@ -175,6 +178,7 @@ function _resolveDamage(entity) {
   b.remaining -= 1;
   if (b.remaining <= 0) {
     batches.delete(entity.batchId);
+    if (b.totalDamage > 0) safeSpawnDmg(entity.x, entity.y, b.totalDamage);
     emit('cut_to_interior', {
       hp_self_after: state.hp_self_pct,
       hp_enemy_after: Math.max(0, state.hp_enemy_pct - b.totalDamage),
@@ -255,7 +259,10 @@ export function updateAndDraw(ctx, _viewport, dt_ms) {
 
       const descending = p.vy > 0;
       const groundHit = descending && p.y >= WORLD.ground_y;
-      if ((descending && p.y >= tY) || groundHit || p.x > WORLD.width + 80 || p.t_ms > 3000) {
+      // Target-altitude check only applies when the projectile has crossed into
+      // the red castle's X band — otherwise it impacts prematurely over the blue side.
+      const nearTarget = p.x >= _TARGET_X - _RED_HIT_HALF_W * 1.5;
+      if ((descending && nearTarget && p.y >= tY) || groundHit || p.x > WORLD.width + 80 || p.t_ms > 3000) {
         p.impacted = true;
         const size = p.weapon_type === 'volley' ? 'small' : 'big';
         const hit = _hitsRedCastle(p.x) && !groundHit;

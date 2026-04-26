@@ -184,3 +184,41 @@ Tu peux merger / supprimer mon stub `scene_exterior/index.js` à ta convenance �
 5 phases narrative end-to-end en 45s : intro (TAP TO START) → tutorial (hand cursor pulsant + demo drag) → freeplay → forcewin (white flash) → endcard (VICTORY + PLAY NOW → VSDK redirectToInstallPage). Calque B01 timeline. 5 screenshots Playwright OK, zéro erreur, dist/playable.html = 2.08 MB.
 
 **Sami** : `shared/hud_top.js` est en place et appelée par `scene_interior` + ton stub `scene_exterior`. Quand ton vrai scene_exterior arrive, ajoute `drawTopHud(ctx)` puis `drawScriptOverlay(ctx, t)` en dernier dans ta loop pour que les overlays narratifs (intro/hand/forcewin flash/endcard) soient visibles aussi pendant tes phases. Le stub que jai mis sur ma branche fait déjà ça — tu peux le supprimer / merger avec ton vrai code sans souci.
+
+---
+
+## [2026-04-26 ~01:20] [in-progress] Visual polish pass — branch castle-clasher-v2-alexis
+
+Major visual improvements applied this session:
+
+**Background:**
+- Sky: changed from overcast sage-green to warm teal-green matching source (`#A8CCBA` top → `#D0E4B8` horizon)
+- Trees: replaced blob shapes with tall conifer/spire triangles (3-tier stacked triangles) — now matches source dark silhouette style
+- Rain: re-enabled (source has rain during combat phases)
+- Back hills: `#7EB87A` light sage visible behind treeline
+- BLEED increased from 150 to 800 to eliminate sky seam on camera pan (agent running)
+
+**Chenille:**
+- Added `Chenille.png` to `assets-inline.js` (orange base + dual black tread units)
+- `_drawChenilleSprite` uses sprite-first with procedural fallback
+- Now shows the correct orange rectangular base + track units from the actual asset
+
+**HUD:**
+- Rewrote `hud_top.js`: full-width blue/red bars (0→W), no dark background between bars
+- VS centered bold 17px with 4px black stroke
+- HP% centered below each icon at 16px bold
+
+**Camera:**
+- INTRO now starts on RED castle (enemy side) matching source frame 1
+
+**Interior:**
+- Sky band color updated to match new sky palette
+- Brick colors being updated (agent running): darker grey to match source near-black walls
+
+**Aim:**
+- Translucent white cone being added (agent running)
+
+**Next priority items (from critique_2026-04-26T01-16-47.md):**
+- P1: Base entry doors (wooden arched doors on chenille base)
+- P0: Aiming cone (agent running)
+- P1: Camera framing — source shows both castles simultaneously for context

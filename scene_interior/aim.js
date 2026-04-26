@@ -141,6 +141,20 @@ export function drawAimOverlay(ctx) {
   let vy = -power * SIM_V0 * Math.sin(rad); // canvas y-down → up = negative
 
   ctx.save();
+
+  // Cone: translucent white fan around aim direction, drawn before dots so dots sit on top.
+  const coneLen = 200;
+  const halfAngle = Math.PI / 9; // 20 degrees
+  const leftAngle  = rad - halfAngle;
+  const rightAngle = rad + halfAngle;
+  ctx.beginPath();
+  ctx.moveTo(o.x, o.y);
+  ctx.lineTo(o.x + Math.cos(leftAngle)  * coneLen, o.y - Math.sin(leftAngle)  * coneLen);
+  ctx.lineTo(o.x + Math.cos(rightAngle) * coneLen, o.y - Math.sin(rightAngle) * coneLen);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fill();
+
   ctx.fillStyle = DOT_COLOR;
   // Subtle drop shadow for readability against varying backgrounds (Q6).
   ctx.shadowColor = 'rgba(0,0,0,0.5)';

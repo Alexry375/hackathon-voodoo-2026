@@ -48,7 +48,7 @@ on('cut_to_interior', (payload) => {
   for (const id of (payload.units_destroyed_ids || [])) killUnit(id);
   state.turn_index += 1;
 
-  if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
+  if (state.hp_enemy_pct <= 0)  { transition('END_VICTORY'); return; }
   if (state.hp_self_pct <= 0)   { transition('END_DEFEAT');  return; }
   // Hand the turn to the enemy. EXTERIOR_OBSERVE replays the intro-style
   // attack cinematic, then scene_exterior calls ready_for_player_input()
@@ -70,7 +70,7 @@ export function start() {
 export function ready_for_player_input() {
   // Enemy attack just finished; bail to defeat screen if it killed us.
   if (state.hp_self_pct <= 0) { transition('END_DEFEAT'); return; }
-  if (state.hp_enemy_pct <= 30) { transition('END_VICTORY'); return; }
+  if (state.hp_enemy_pct <= 0) { transition('END_VICTORY'); return; }
   transition('INTERIOR_AIM');
 }
 

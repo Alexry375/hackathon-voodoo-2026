@@ -1,72 +1,100 @@
-// Top HP bar — visible in both scenes. Owned by Alexis (confirmed by Sami
-// in HANDOFF [20:00] decision (a)). Reads state.hp_self_pct / hp_enemy_pct.
-// Both scenes call drawTopHud(ctx) last in their render order.
-//
-// Layout (from B01 ref): top 80 px, 2 horizontal bars side-by-side. Player
-// (blue castle icon) on the LEFT, enemy (red castle icon) on the RIGHT.
+// Top HP bar — visible in both scenes. Reads state.hp_self_pct / hp_enemy_pct.
+// Layout matches source clip2.mp4:
+//   - full-width blue bar (left half) and red bar (right half), spanning 0→W
+//   - bars are 20px tall, sitting at the very top (y=0)
+//   - large bold "VS" centered, drawn over bars
+//   - 44×44 castle icon thumbnails in top corners, overlapping bar row
+//   - HP% text below each icon, bold 16px
 
 import { state } from './state.js';
 import { getImage, isImageReady } from './assets.js';
 
-const H = 76;
-const PAD = 10;
-const BAR_H = 18;
-const ICON_SIZE = 56;
+const ICON_SZ = 44;
+const BAR_H   = 20;
+const TOP     = 0;
 
 /** @param {CanvasRenderingContext2D} ctx */
 export function drawTopHud(ctx) {
   const W = ctx.canvas.width;
-  // semi-transparent dark band so the bars are readable on any background
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(0, 0, W, H);
-
   const halfW = W / 2;
-  drawSide(ctx, PAD, 0, halfW - PAD * 1.5, 'BLUE_CASTLE', state.hp_self_pct, '#3DA0FF', false);
-  drawSide(ctx, halfW + PAD * 0.5, 0, halfW - PAD * 1.5, 'RED_CASTLE', state.hp_enemy_pct, '#FF4848', true);
-}
+  const barY  = TOP;
+  const centerX = W / 2;
 
-function drawSide(ctx, x, y, w, assetName, hpPct, fillColor, mirror) {
-  // Icon
-  const iconX = mirror ? x + w - ICON_SIZE - 4 : x + 4;
-  const iconY = y + (H - ICON_SIZE) / 2 - 2;
-  if (isImageReady(assetName)) {
-    ctx.save();
-    if (mirror) {
-      // flip horizontally so the enemy castle faces the player
-      ctx.translate(iconX + ICON_SIZE, iconY);
-      ctx.scale(-1, 1);
-      ctx.drawImage(getImage(assetName), 0, 0, ICON_SIZE, ICON_SIZE);
-    } else {
-      ctx.drawImage(getImage(assetName), iconX, iconY, ICON_SIZE, ICON_SIZE);
-    }
-    ctx.restore();
-  } else {
-    // Asset still decoding — kick the load and draw a placeholder this frame.
-    getImage(assetName);
-    ctx.fillStyle = fillColor;
-    ctx.fillRect(iconX, iconY, ICON_SIZE, ICON_SIZE);
+  // ── Bar backgrounds (full width, split at center) ─────────────────────────
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, barY, W, BAR_H);
+
+  // ── Blue fill (left half, grows left→right) ───────────────────────────────
+  const bluePct = Math.max(0, Math.min(1, state.hp_self_pct / 100));
+  ctx.fillStyle = '#2B8FE8';
+  ctx.fillRect(0, barY, halfW * bluePct, BAR_H);
+  if (bluePct > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.fillRect(0, barY + 1, halfW * bluePct, 4);
   }
 
-  // Bar
-  const barX = mirror ? x : x + ICON_SIZE + 8;
-  const barW = w - ICON_SIZE - 8;
-  const barY = y + (H - BAR_H) / 2 + 8;
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.fillRect(barX, barY, barW, BAR_H);
-  const pct = Math.max(0, Math.min(100, hpPct)) / 100;
-  const fillW = mirror ? barW * pct : barW * pct;
-  const fillX = mirror ? barX + barW - fillW : barX;
-  ctx.fillStyle = fillColor;
-  ctx.fillRect(fillX, barY, fillW, BAR_H);
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(barX, barY, barW, BAR_H);
+  // ── Red fill (right half, grows right→left) ───────────────────────────────
+  const redPct = Math.max(0, Math.min(1, state.hp_enemy_pct / 100));
+  const redW = halfW * redPct;
+  ctx.fillStyle = '#E83030';
+  ctx.fillRect(W - redW, barY, redW, BAR_H);
+  if (redPct > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.fillRect(W - redW, barY + 1, redW, 4);
+  }
 
-  // Percentage text
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 14px sans-serif';
+  // ── Bar border ────────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(0, barY, W, BAR_H);
+  // center divider
+  ctx.beginPath();
+  ctx.moveTo(centerX, barY);
+  ctx.lineTo(centerX, barY + BAR_H);
+  ctx.stroke();
+
+  // ── VS text centered on bar ───────────────────────────────────────────────
+  ctx.font = 'bold 17px sans-serif';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.textAlign = mirror ? 'right' : 'left';
-  const txtX = mirror ? barX + barW - 6 : barX + 6;
-  ctx.fillText(`${Math.round(hpPct)}%`, txtX, barY + BAR_H / 2);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#000';
+  ctx.strokeText('VS', centerX, barY + BAR_H / 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('VS', centerX, barY + BAR_H / 2);
+
+  // ── Castle icons (44×44, top corners) ────────────────────────────────────
+  _drawIcon(ctx, 'BLUE_CASTLE', 2, TOP, false);
+  _drawIcon(ctx, 'RED_CASTLE', W - ICON_SZ - 2, TOP, true);
+
+  // ── HP percentage text (below each icon) ─────────────────────────────────
+  const pctY = TOP + ICON_SZ + 2;
+  const iconCenterL = 2 + ICON_SZ / 2;
+  const iconCenterR = W - ICON_SZ - 2 + ICON_SZ / 2;
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#000';
+
+  ctx.strokeText(`${Math.round(state.hp_self_pct)}%`, iconCenterL, pctY);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(`${Math.round(state.hp_self_pct)}%`, iconCenterL, pctY);
+
+  ctx.strokeText(`${Math.round(state.hp_enemy_pct)}%`, iconCenterR, pctY);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(`${Math.round(state.hp_enemy_pct)}%`, iconCenterR, pctY);
+}
+
+function _drawIcon(ctx, assetName, x, y, mirror) {
+  if (!isImageReady(assetName)) { getImage(assetName); return; }
+  ctx.save();
+  if (mirror) {
+    ctx.translate(x + ICON_SZ, y);
+    ctx.scale(-1, 1);
+    ctx.drawImage(getImage(assetName), 0, 0, ICON_SZ, ICON_SZ);
+  } else {
+    ctx.drawImage(getImage(assetName), x, y, ICON_SZ, ICON_SZ);
+  }
+  ctx.restore();
 }

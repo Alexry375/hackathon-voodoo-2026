@@ -1,6 +1,7 @@
 // Render the exterior battlefield: background + BOTH castles in world coords.
 // Camera (shared/camera.js) decides which castle is centered/zoomed.
 // HP-driven tilt + low-HP darkening per castle. Damage chunking lives in vfx.js.
+// Background is drawn procedurally (no image asset) — overcast jungle/forest scene.
 
 import { state } from '../shared/state.js';
 import { WORLD } from '../shared/world.js';
@@ -9,15 +10,17 @@ import { drawBites } from './damage_overlay.js';
 
 // Sourced from window.ASSETS data URIs (assets-inline.js) so the bundled
 // single-file playable works without an http server.
+// BACKGROUND is no longer an asset — the background is drawn procedurally.
 export function loadCastleAssets() {
   // getImage is synchronous; warm the cache so isImageReady flips on quickly.
-  try { getImage('BACKGROUND'); getImage('BLUE_CASTLE'); getImage('RED_CASTLE'); }
-  catch (e) { console.warn('[castles] asset preload failed:', e); }
+  try { getImage('BLUE_CASTLE'); getImage('RED_CASTLE'); getImage('CHENILLE'); }
+  catch (e) { console.warn('[castles] castle asset preload failed:', e); }
   return Promise.resolve();
 }
 
+// Only the castle sprites are required; background is always procedural.
 export function castleAssetsReady() {
-  return isImageReady('BACKGROUND') && isImageReady('BLUE_CASTLE') && isImageReady('RED_CASTLE');
+  return isImageReady('BLUE_CASTLE') && isImageReady('RED_CASTLE');
 }
 
 /**
@@ -26,7 +29,6 @@ export function castleAssetsReady() {
  * @param {CanvasRenderingContext2D} ctx
  */
 export function drawWorld(ctx) {
-  if (!castleAssetsReady()) return;
   _drawBackground(ctx);
   _drawCastle(ctx, 'blue', WORLD.blue_castle, state.hp_self_pct);
   drawBites(ctx, 'blue');
@@ -34,16 +36,154 @@ export function drawWorld(ctx) {
   drawBites(ctx, 'red');
 }
 
+// ---------------------------------------------------------------------------
+// Procedural sunny jungle background — no image asset required.
+//
+// Colour palette (matching source game reference frames):
+//   Sky top    #9EC8E8   Sky mid  #B8D8F0   Sky horizon  #D4EEC0
+//   Back hill  #7EB87A   Treeline #5A9E62   Front tree   #3E7A48
+//   Grass      #72B855   Ground   #7A2A1A → #5A1A0A (red-brown clay)
+//
+// All proportions are driven by WORLD constants.
+// Extends slightly outside world bounds (±150px) so camera pans never expose
+// a blank edge.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ */
 function _drawBackground(ctx) {
-  const bg = getImage('BACKGROUND');
-  // Background extended 30% wider than the battlefield to give the camera
-  // breathing room when it follows projectiles past the castle pivots.
-  // Anchored centered + ground line at ~85% of the bg's height.
-  const bgW = WORLD.width * 1.3;
-  const bgH = bgW * (bg.height / bg.width);
-  const bgX = (WORLD.width - bgW) / 2;
-  const bgY = WORLD.ground_y - bgH * 0.85;
-  ctx.drawImage(bg, bgX, bgY, bgW, bgH);
+  const W  = WORLD.width;    // 1400
+  const H  = WORLD.height;   // 960
+  const GY = WORLD.ground_y; // 760
+
+  const BLEED = 800;
+
+  // --- Sky gradient: warm teal-green daylight (matches source) ---
+  const sky = ctx.createLinearGradient(0, 0, 0, GY);
+  sky.addColorStop(0,    '#A8CCBA');
+  sky.addColorStop(0.45, '#BACEB8');
+  sky.addColorStop(0.8,  '#C8D8B8');
+  sky.addColorStop(1,    '#D0E4B8');
+  ctx.fillStyle = sky;
+  ctx.fillRect(-BLEED, -BLEED, W + BLEED * 2, GY + BLEED);
+
+  // --- Back hills (light sage) ---
+  ctx.fillStyle = '#7EB87A';
+  ctx.beginPath();
+  ctx.moveTo(-BLEED, GY);
+  ctx.lineTo(-BLEED, GY - 220);
+  ctx.bezierCurveTo(100, GY - 310, 300, GY - 360, 500, GY - 280);
+  ctx.bezierCurveTo(660, GY - 220, 820, GY - 330, 980, GY - 285);
+  ctx.bezierCurveTo(1130, GY - 245, 1280, GY - 305, W + BLEED, GY - 220);
+  ctx.lineTo(W + BLEED, GY);
+  ctx.closePath();
+  ctx.fill();
+
+  // --- Treeline: pointed conifer silhouettes matching source style ---
+  // Back layer — medium dark green conifers
+  ctx.fillStyle = '#3A6B40';
+  for (let tx = -BLEED; tx < W + BLEED; tx += 44) {
+    const hs   = Math.sin(tx * 0.027) * 0.5 + 0.5;
+    const tH   = 160 + hs * 120;
+    const tW   = 40 + hs * 24;
+    const baseY = GY - 190 + Math.sin(tx * 0.017) * 35;
+    // Stacked tiers: 3 triangles narrowing upward
+    for (let tier = 0; tier < 3; tier++) {
+      const frac = tier / 3;
+      const tipY  = baseY - tH * (1 - frac * 0.55);
+      const midY  = baseY - tH * (0.55 - frac * 0.18);
+      const halfW = (tW * 0.5) * (1 - frac * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(tx, tipY);
+      ctx.lineTo(tx + halfW, midY);
+      ctx.lineTo(tx - halfW, midY);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Trunk
+    ctx.fillRect(tx - tW * 0.06, baseY - tH * 0.22, tW * 0.12, tH * 0.22);
+  }
+
+  // Front layer — very dark near-black tall conifers
+  ctx.fillStyle = '#1A3020';
+  for (let tx = -BLEED + 22; tx < W + BLEED; tx += 52) {
+    const hs   = Math.sin(tx * 0.038 + 1.5) * 0.5 + 0.5;
+    const tH   = 190 + hs * 110;
+    const tW   = 48 + hs * 22;
+    const baseY = GY - 75 + Math.sin(tx * 0.021) * 20;
+    for (let tier = 0; tier < 3; tier++) {
+      const frac = tier / 3;
+      const tipY  = baseY - tH * (1 - frac * 0.52);
+      const midY  = baseY - tH * (0.52 - frac * 0.17);
+      const halfW = (tW * 0.5) * (1 - frac * 0.32);
+      ctx.beginPath();
+      ctx.moveTo(tx, tipY);
+      ctx.lineTo(tx + halfW, midY);
+      ctx.lineTo(tx - halfW, midY);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillRect(tx - tW * 0.06, baseY - tH * 0.20, tW * 0.12, tH * 0.20);
+  }
+
+  // --- Green grass ground surface strip ---
+  const grass = ctx.createLinearGradient(0, GY - 40, 0, GY + 30);
+  grass.addColorStop(0,   '#72B855');
+  grass.addColorStop(0.3, '#5A9640');
+  grass.addColorStop(1,   '#8B3A10');
+  ctx.fillStyle = grass;
+  ctx.fillRect(-BLEED, GY - 40, W + BLEED * 2, 70);
+
+  // --- Earth floor ---
+  const earth = ctx.createLinearGradient(0, GY, 0, H + BLEED);
+  earth.addColorStop(0,   '#7A2A1A');
+  earth.addColorStop(0.3, '#5A1A0A');
+  earth.addColorStop(1,   '#3A0E06');
+  ctx.fillStyle = earth;
+  ctx.fillRect(-BLEED, GY, W + BLEED * 2, H - GY + BLEED);
+
+  // --- Terrain mounds under each castle ---
+  ctx.fillStyle = '#8B4010';
+  ctx.beginPath();
+  ctx.moveTo(-200, GY + 80);
+  ctx.bezierCurveTo(0, GY + 80,  150, GY + 20,  200, GY - 40);
+  ctx.bezierCurveTo(250, GY - 80, 350, GY - 70,  400, GY - 50);
+  ctx.bezierCurveTo(500, GY - 20, 600, GY + 30,  700, GY + 50);
+  ctx.bezierCurveTo(800, GY + 60, 900, GY + 20,  980, GY - 40);
+  ctx.bezierCurveTo(1030, GY - 75, 1130, GY - 75, 1180, GY - 45);
+  ctx.bezierCurveTo(1280, GY - 10, 1400, GY + 40, 1600, GY + 80);
+  ctx.lineTo(1600, GY + 200);
+  ctx.lineTo(-200, GY + 200);
+  ctx.closePath();
+  ctx.fill();
+
+  // --- Grass tufts at mound bases ---
+  ctx.fillStyle = '#4A8E50';
+  const tufts = [
+    [160, GY - 10], [220, GY - 25], [280, GY - 40], [380, GY - 48], [450, GY - 30],
+    [550, GY + 10], [650, GY + 35], [750, GY + 42],
+    [860, GY + 15], [960, GY - 30], [1020, GY - 55], [1100, GY - 58], [1180, GY - 38], [1260, GY - 10],
+  ];
+  for (const [tx, ty] of tufts) {
+    ctx.beginPath(); ctx.ellipse(tx, ty, 14, 9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(tx + 10, ty - 6, 9, 6, -0.3, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/**
+ * Draw chenille using the CHENILLE sprite. Returns true on success, false if
+ * the image is not yet ready (caller should fall back to procedural).
+ */
+function _drawChenilleSprite(ctx, castleW, baseY, baseH, r) {
+  if (!isImageReady('CHENILLE')) { getImage('CHENILLE'); return false; }
+  const img = getImage('CHENILLE');
+  // The sprite shows the full tread assembly. Scale to match castleW.
+  const spriteAspect = img.width / img.height;
+  const drawW = castleW * 1.05;
+  const drawH = drawW / spriteAspect;
+  ctx.drawImage(img, -drawW / 2, baseY - drawH * 0.15, drawW, drawH);
+  return true;
 }
 
 /**
@@ -52,10 +192,17 @@ function _drawBackground(ctx) {
  * @param {number} hp_pct
  */
 function _drawCastle(ctx, which, pivot, hp_pct) {
-  const castle = getImage(which === 'blue' ? 'BLUE_CASTLE' : 'RED_CASTLE');
+  const imgKey = which === 'blue' ? 'BLUE_CASTLE' : 'RED_CASTLE';
   const castleH = WORLD.castle_h;
-  const castleScale = castleH / castle.height;
-  const castleW = castle.width * castleScale;
+
+  // Compute castleW — from image if ready, else use a sensible default ratio.
+  let castleW;
+  if (isImageReady(imgKey)) {
+    const castle = getImage(imgKey);
+    castleW = castle.width * (castleH / castle.height);
+  } else {
+    castleW = castleH * 0.6; // fallback aspect ratio matches source sprite
+  }
 
   const hpClamped = Math.max(0, Math.min(100, hp_pct));
   // Castles tilt AWAY from the impact direction (blue tilts left as it takes hits, red tilts right).
@@ -63,16 +210,24 @@ function _drawCastle(ctx, which, pivot, hp_pct) {
   const tilt = which === 'blue' ? -lean : lean;
   const darken = (1 - hpClamped / 100) * 0.35;
 
-  const baseH    = Math.max(34, castleW * 0.10);
-  const treadR   = Math.max(16, castleW * 0.06);
+  const baseH     = Math.max(34, castleW * 0.10);
+  const treadR    = Math.max(16, castleW * 0.06);
   const chenilleH = baseH + treadR * 1.1;
 
   ctx.save();
   ctx.translate(pivot.x, pivot.y);
   ctx.rotate(tilt);
 
-  _drawChenille(ctx, castleW, -chenilleH, baseH, treadR);
-  ctx.drawImage(castle, -castleW / 2, -castleH - chenilleH + 4, castleW, castleH);
+  if (!_drawChenilleSprite(ctx, castleW, -chenilleH, baseH, treadR)) {
+    _drawChenille(ctx, castleW, -chenilleH, baseH, treadR);
+  }
+
+  if (isImageReady(imgKey)) {
+    const castle = getImage(imgKey);
+    ctx.drawImage(castle, -castleW / 2, -castleH - chenilleH + 4, castleW, castleH);
+  } else {
+    _drawCastleProc(ctx, which, castleW, castleH, hpClamped, chenilleH);
+  }
 
   if (darken > 0) {
     ctx.globalCompositeOperation = 'source-atop';
@@ -82,6 +237,239 @@ function _drawCastle(ctx, which, pivot, hp_pct) {
   }
   ctx.restore();
 }
+
+// ---------------------------------------------------------------------------
+// Procedural castle renderer — used when sprite assets are not yet loaded.
+// Draws a multi-story stone keep with two flanking towers, battlements,
+// stone-bond texture, cannon ports, and a gate arch.
+// Coordinate origin: caller has already translated to pivot (base center) and
+// applied the hp tilt. The top-left of the castle bounding box sits at
+// (-castleW/2, -castleH - chenilleH + 4).
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {'blue'|'red'} which
+ * @param {number} castleW
+ * @param {number} castleH
+ * @param {number} hp_pct   0–100
+ * @param {number} chenilleH  height of the tread base below pivot
+ */
+function _drawCastleProc(ctx, which, castleW, castleH, hp_pct, chenilleH) {
+  // Base palette — dark stone.
+  const C_STONE    = which === 'blue' ? '#252838' : '#2E2428';
+  const C_STONE2   = which === 'blue' ? '#2A2D42' : '#33292C'; // keep body (slightly lighter)
+  const C_MORTAR   = which === 'blue' ? '#1A1828' : '#1E1518'; // mortar lines
+  const C_BATTLEMENT = which === 'blue' ? '#202035' : '#281820';
+  const C_SHADOW   = 'rgba(0,0,0,0.35)';
+  const C_GATE     = '#0d0b10';
+  const C_PORT     = '#0d0b10';
+
+  // Layout proportions.
+  const towerW   = castleW * 0.28;
+  const keepW    = castleW * 0.52;
+  const towerH   = castleH * 0.80;
+  const keepH    = castleH;
+  const merlon   = 20;          // battlement notch width
+  const crenH    = 18;          // battlement height
+
+  // Anchor: top-left of the whole castle bounding box.
+  const ox = -castleW / 2;
+  const oy = -castleH - chenilleH + 4;
+
+  // Horizontal positions of each section.
+  const leftTowerX  = ox;
+  const keepX       = ox + towerW;
+  const rightTowerX = ox + towerW + keepW;
+
+  // Vertical base of each section (bottom edge touches chenille top).
+  const groundY = oy + castleH;   // == -chenilleH + 4  relative to pivot
+
+  const leftTowerTop  = groundY - towerH;
+  const rightTowerTop = groundY - towerH;
+  const keepTop       = groundY - keepH;   // == oy
+
+  // --- Helper: fill rounded-top rect ---
+  function fillRect(x, y, w, h) {
+    ctx.fillRect(x, y, w, h);
+  }
+
+  // === LEFT TOWER ===
+  ctx.fillStyle = C_STONE;
+  fillRect(leftTowerX, leftTowerTop, towerW, towerH);
+  _drawStoneTexture(ctx, leftTowerX, leftTowerTop, towerW, towerH, C_MORTAR);
+  _drawShadowEdge(ctx, leftTowerX + towerW - 6, leftTowerTop, 6, towerH, C_SHADOW);
+  _drawBattlements(ctx, leftTowerX, leftTowerTop - crenH, towerW, crenH, merlon, C_BATTLEMENT, C_MORTAR);
+  _drawCannonPort(ctx, leftTowerX + towerW * 0.5, leftTowerTop + towerH * 0.40, C_PORT, which);
+
+  // === RIGHT TOWER ===
+  ctx.fillStyle = C_STONE;
+  fillRect(rightTowerX, rightTowerTop, towerW, towerH);
+  _drawStoneTexture(ctx, rightTowerX, rightTowerTop, towerW, towerH, C_MORTAR);
+  _drawShadowEdge(ctx, rightTowerX, rightTowerTop, 6, towerH, C_SHADOW);
+  _drawBattlements(ctx, rightTowerX, rightTowerTop - crenH, towerW, crenH, merlon, C_BATTLEMENT, C_MORTAR);
+  _drawCannonPort(ctx, rightTowerX + towerW * 0.5, rightTowerTop + towerH * 0.40, C_PORT, which);
+
+  // === MAIN KEEP ===
+  ctx.fillStyle = C_STONE2;
+  fillRect(keepX, keepTop, keepW, keepH);
+  _drawStoneTexture(ctx, keepX, keepTop, keepW, keepH, C_MORTAR);
+  _drawBattlements(ctx, keepX, keepTop - crenH, keepW, crenH, merlon, C_BATTLEMENT, C_MORTAR);
+
+  // Keep: a narrow window slit in upper center.
+  const slitW = Math.max(6, keepW * 0.07);
+  const slitH = keepH * 0.12;
+  const slitX = keepX + keepW / 2 - slitW / 2;
+  const slitY = keepTop + keepH * 0.18;
+  ctx.fillStyle = C_GATE;
+  _drawArch(ctx, slitX, slitY, slitW, slitH);
+
+  // Keep: gate arch at the base center.
+  const gateW = keepW * 0.42;
+  const gateH = keepH * 0.28;
+  const gateX = keepX + keepW / 2 - gateW / 2;
+  const gateY = groundY - gateH;
+  ctx.fillStyle = C_GATE;
+  _drawArch(ctx, gateX, gateY, gateW, gateH);
+
+  // Portcullis bars (dark vertical lines inside gate).
+  const barCount = 4;
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth   = 2;
+  for (let i = 1; i < barCount; i++) {
+    const bx = gateX + (gateW / barCount) * i;
+    ctx.beginPath();
+    ctx.moveTo(bx, gateY + gateH * 0.15);
+    ctx.lineTo(bx, groundY);
+    ctx.stroke();
+  }
+  // Horizontal crossbar.
+  ctx.beginPath();
+  ctx.moveTo(gateX, gateY + gateH * 0.5);
+  ctx.lineTo(gateX + gateW, gateY + gateH * 0.5);
+  ctx.stroke();
+
+  // Outline the whole castle body.
+  ctx.strokeStyle = C_MORTAR;
+  ctx.lineWidth   = 2;
+  ctx.strokeRect(leftTowerX, leftTowerTop, towerW, towerH);
+  ctx.strokeRect(keepX, keepTop, keepW, keepH);
+  ctx.strokeRect(rightTowerX, rightTowerTop, towerW, towerH);
+}
+
+/**
+ * Draw alternating merlons (raised) and crenels (gaps) along the top of a wall.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} x        left edge of wall
+ * @param {number} y        top of battlement row (merlons extend upward from here)
+ * @param {number} w        wall width
+ * @param {number} h        merlon height
+ * @param {number} merlon   width of one merlon (gap = same)
+ * @param {string} fill
+ * @param {string} outline
+ */
+function _drawBattlements(ctx, x, y, w, h, merlon, fill, outline) {
+  const count = Math.floor(w / (merlon * 2));
+  const pitch = w / count;
+  const mW    = pitch * 0.55;
+  for (let i = 0; i < count; i++) {
+    const mx = x + i * pitch + (pitch - mW) / 2;
+    ctx.fillStyle = fill;
+    ctx.fillRect(mx, y, mW, h);
+    ctx.strokeStyle = outline;
+    ctx.lineWidth   = 1.5;
+    ctx.strokeRect(mx, y, mW, h);
+  }
+}
+
+/**
+ * Fill horizontal mortar lines + staggered vertical seams (running bond).
+ */
+function _drawStoneTexture(ctx, x, y, w, h, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 1;
+  const courseH = 30;
+  const brickW  = 40;
+
+  // Horizontal bed joints.
+  for (let cy = y + courseH; cy < y + h; cy += courseH) {
+    ctx.beginPath();
+    ctx.moveTo(x, cy);
+    ctx.lineTo(x + w, cy);
+    ctx.stroke();
+  }
+
+  // Vertical perpend joints, offset every other course (running bond).
+  let row = 0;
+  for (let cy = y; cy < y + h; cy += courseH, row++) {
+    const offset = (row % 2 === 0) ? 0 : brickW / 2;
+    for (let bx = x + offset; bx < x + w; bx += brickW) {
+      const jh = Math.min(courseH, y + h - cy);
+      ctx.beginPath();
+      ctx.moveTo(bx, cy);
+      ctx.lineTo(bx, cy + jh);
+      ctx.stroke();
+    }
+  }
+}
+
+/**
+ * Dark oval cannon port with a subtle tint glow matching the castle team color.
+ */
+function _drawCannonPort(ctx, cx, cy, fill, which) {
+  const rx = 20;
+  const ry = 14;
+
+  // Outer stone surround.
+  ctx.fillStyle = which === 'blue' ? '#1e2235' : '#251820';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx + 5, ry + 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dark opening.
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Subtle muzzle glow.
+  const glowColor = which === 'blue' ? 'rgba(80,120,220,0.25)' : 'rgba(200,60,60,0.25)';
+  ctx.fillStyle = glowColor;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx * 0.55, ry * 0.55, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Draw a simple arch shape: rectangular body + semicircular top.
+ * Caller sets ctx.fillStyle before calling.
+ */
+function _drawArch(ctx, x, y, w, h) {
+  const r = w / 2;
+  const archTopY = y + r;       // center of the semicircle
+
+  ctx.beginPath();
+  ctx.arc(x + r, archTopY, r, Math.PI, 0); // top semicircle
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * Thin shadow strip on the inner vertical edge of each tower where it meets the keep.
+ */
+function _drawShadowEdge(ctx, x, y, w, h, color) {
+  const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+  grad.addColorStop(0, color);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+}
+
+// ---------------------------------------------------------------------------
+// Tank tread / chenille — unchanged from original.
+// ---------------------------------------------------------------------------
 
 const C_BASE_WOOD  = '#8B5E3C';
 const C_BASE_LIGHT = '#A07040';
@@ -93,36 +481,55 @@ const C_OUTLINE    = '#1a1208';
 function _drawChenille(ctx, castleW, baseY, baseH, r) {
   const baseW = castleW * 1.05;
   const baseX = -baseW / 2;
-
-  ctx.fillStyle = C_BASE_WOOD;  ctx.fillRect(baseX, baseY, baseW, baseH);
-  ctx.fillStyle = C_BASE_LIGHT; ctx.fillRect(baseX + 3, baseY + 3, baseW - 6, Math.max(8, baseH * 0.25));
-
-  ctx.fillStyle = C_ARCH;
-  for (let i = 0; i < 2; i++) {
-    const ax = baseX + baseW * (0.18 + i * 0.46);
-    const aw = baseW * 0.18;
-    ctx.beginPath();
-    ctx.moveTo(ax, baseY + baseH);
-    ctx.lineTo(ax, baseY + baseH * 0.45);
-    ctx.arc(ax + aw / 2, baseY + baseH * 0.45, aw / 2, Math.PI, 0, false);
-    ctx.lineTo(ax + aw, baseY + baseH);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.strokeStyle = C_OUTLINE; ctx.lineWidth = 3;
-  ctx.strokeRect(baseX, baseY, baseW, baseH);
-
   const treadY = baseY + baseH;
+  const trackH = r * 1.6;
+  const trackY = treadY - trackH * 0.15;
+
+  // Continuous track belt — rounded rectangle hugging the drive wheels.
+  const sprocketL = baseX + r * 1.1;
+  const sprocketR = baseX + baseW - r * 1.1;
+  const sprocketCY = trackY + r * 0.5;
   ctx.fillStyle = C_TREAD;
-  ctx.fillRect(baseX + 18, treadY - 4, baseW - 36, r * 0.7);
-  for (const cx of [baseX + baseW * 0.18, baseX + baseW * 0.82]) {
-    ctx.fillStyle = C_TREAD;
-    ctx.beginPath(); ctx.arc(cx, treadY + r * 0.2, r,        0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(sprocketL, sprocketCY, r,        0, Math.PI * 2); // left sprocket hull
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(sprocketR, sprocketCY, r,        0, Math.PI * 2); // right sprocket hull
+  ctx.fill();
+  // Track belt connecting both sprockets — top and bottom plates.
+  ctx.fillRect(sprocketL, sprocketCY - r, sprocketR - sprocketL, r * 2);
+
+  // Track link texture — dark notches along top and bottom.
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 1.5;
+  const linkW = r * 0.65;
+  for (let lx = sprocketL; lx <= sprocketR; lx += linkW) {
+    ctx.beginPath(); ctx.moveTo(lx, sprocketCY - r); ctx.lineTo(lx, sprocketCY - r * 0.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx, sprocketCY + r * 0.5); ctx.lineTo(lx, sprocketCY + r); ctx.stroke();
+  }
+
+  // 4 road wheels between sprockets.
+  const numWheels = 4;
+  const wheelR = r * 0.52;
+  const wheelCY = sprocketCY + r * 0.18;
+  for (let i = 0; i < numWheels; i++) {
+    const t = (i + 0.5) / numWheels;
+    const wcx = sprocketL + (sprocketR - sprocketL) * t;
     ctx.fillStyle = C_GEAR;
-    ctx.beginPath(); ctx.arc(cx, treadY + r * 0.2, r - 7,    0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(wcx, wheelCY, wheelR, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = C_TREAD;
-    ctx.beginPath(); ctx.arc(cx, treadY + r * 0.2, r - 14,   0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(wcx, wheelCY, wheelR * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = C_OUTLINE; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(wcx, wheelCY, wheelR, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // Sprocket detail — bolt ring.
+  for (const scx of [sprocketL, sprocketR]) {
+    ctx.fillStyle = C_GEAR;
+    ctx.beginPath(); ctx.arc(scx, sprocketCY, r * 0.62, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C_TREAD;
+    ctx.beginPath(); ctx.arc(scx, sprocketCY, r * 0.35, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = C_OUTLINE; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, treadY + r * 0.2, r,        0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(scx, sprocketCY, r, 0, Math.PI * 2); ctx.stroke();
   }
 }

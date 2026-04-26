@@ -19,7 +19,7 @@ const INT_LEFT  = C_LEFT  + WALL_W;
 const INT_RIGHT = C_RIGHT - WALL_W;
 const INT_WIDTH = INT_RIGHT - INT_LEFT;
 
-const FLOOR_H   = 16;
+const FLOOR_H   = 20;
 const LEDGE_W   = Math.round(INT_WIDTH * 0.42);
 // 0 = top, 1 = mid, 2 = bottom. 'L' = attached to left wall, 'R' = right wall.
 const FLOOR_SIDE = ['L', 'R', 'L'];
@@ -81,10 +81,10 @@ function _ledgeRect(f) {
 
 // ─── Colors ──────────────────────────────────────────────────────────────────
 const C = {
-  dark: '#1A1C20', mid: '#28292E', light: '#35383F',
+  dark: '#141414', mid: '#1C1C1C', light: '#262626',
   outline: '#000', platBrown: '#7A4520', platLight: '#A06230',
   platDark: '#502E12', baseWood: '#8B5E3C', baseLight: '#A07040',
-  spire: '#1A1C20', sky: '#88CCAA',
+  spire: '#1A1C20', sky: '#BACEB8',
   tread: '#2A2A2A', gear: '#7C7368',
 };
 
@@ -116,6 +116,15 @@ function _drawBody(ctx, dmg) {
     const r = _ledgeRect(f);
     _ledge(ctx, r.x, r.y, r.w, FLOOR_H, FLOOR_SIDE[f]);
   }
+
+  // Ground tile row — darker stone strip at the castle floor bottom.
+  ctx.fillStyle = '#1C1410';
+  ctx.fillRect(INT_LEFT, C_BOTTOM - 20, INT_WIDTH, 20);
+  ctx.strokeStyle = '#0E0C08'; ctx.lineWidth = 1;
+  for (let sx = INT_LEFT; sx < INT_RIGHT; sx += 40) {
+    ctx.beginPath(); ctx.moveTo(sx, C_BOTTOM - 20); ctx.lineTo(sx, C_BOTTOM); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(INT_LEFT, C_BOTTOM - 10); ctx.lineTo(INT_RIGHT, C_BOTTOM - 10); ctx.stroke();
 
   // Right-wall spire on top (full height wall only — gone at dmg≥3).
   if (dmg < 3) _spire(ctx, INT_RIGHT, C_TOP, WALL_W);
@@ -190,7 +199,7 @@ function _bricks(ctx, x, y, w, h) {
     for (let col = -1; col <= Math.ceil(w / BW) + 2; col++) {
       const rx = x + col * BW - shift;
       const t = (r * 3 + col * 2) % 5;
-      ctx.fillStyle = t > 3 ? C.light : t > 1 ? C.mid : C.dark;
+      ctx.fillStyle = t === 4 ? '#28201A' : t > 3 ? C.light : t > 1 ? C.mid : C.dark;
       ctx.fillRect(rx + 1, ry + 1, BW - 2, BH - 2);
     }
   }
@@ -292,3 +301,12 @@ function _treads(ctx, x, y, w) {
     ctx.beginPath(); ctx.arc(cx, y + 4, r, 0, Math.PI * 2); ctx.stroke();
   }
 }
+
+// Tooling hook: Playwright reads the live tilt-adjusted anchor for each floor.
+// Returns {x, y, width} in canvas (CSS) pixels, or null for unknown floor.
+/** @type {any} */ (window).__getFloorAnchor = (floor) => {
+  if (floor === null || floor === undefined) return null;
+  const a = getFloorAnchor(floor);
+  // aim.js subtracts ORIGIN_LIFT=40 so the unit origin sits above the ledge surface.
+  return { x: a.x, y: a.y - 40 };
+};

@@ -35,15 +35,12 @@ const URL = `http://localhost:${port}/`;
 const SHOTS_DIR = join(REPO_ROOT, 'shots');
 if (!existsSync(SHOTS_DIR)) mkdirSync(SHOTS_DIR, { recursive: true });
 
-// ─── Floor anchor positions — derived from castle_section.js constants ───────
-// C_LEFT=20 WALL_W=56 → INT_LEFT=76  INT_RIGHT=464  INT_WIDTH=388
-// LEDGE_W = round(388 * 0.42) = 163   half = 81
-// C_TOP=170  C_HEIGHT=650  ORIGIN_LIFT=40 (from aim.js)
-//
-// floor 0 (top,  Left side):  cx = 76 + 81 = 157,  y = 170 + round(650*0.34) - 40 = 391-40 = 351
-// floor 1 (mid,  Right side): cx = 464 - 81 = 383,  y = 170 + round(650*0.58) - 40 = 547-40 = 507
-// floor 2 (bot,  Left side):  cx = 157,             y = 170 + round(650*0.82) - 40 = 703-40 = 663
-const FLOOR_ORIGIN = {
+// Static fallback anchors — only used if window.__getFloorAnchor is unavailable.
+// Derived from castle_section.js constants at zero tilt:
+//   floor 0 (top,  Left):  cx=157, y=351
+//   floor 1 (mid,  Right): cx=383, y=507
+//   floor 2 (bot,  Left):  cx=157, y=663
+const FLOOR_ORIGIN_FALLBACK = {
   0: { x: 157, y: 351 },
   1: { x: 383, y: 507 },
   2: { x: 157, y: 663 },
@@ -51,18 +48,22 @@ const FLOOR_ORIGIN = {
 
 // Drag vector: pull back and down from unit origin.
 // Angry-Birds semantics: drag DOWN-LEFT → fires UP-RIGHT arc toward red castle.
-// Magnitude ~140px → power ≈ 0.7 (FULL_POWER_PX=200), angle ≈ 45°.
-const PULL = { dx: -130, dy: 130 };
+// Need power ≈ 0.9 at angle ≈ 60° to clear the 760 world-unit gap to red castle.
+// FULL_POWER_PX=200 → magnitude 180px. dx=-90 (cos60°*180), dy=156 (sin60°*180).
+const PULL = { dx: -90, dy: 156 };
 const DRAG_STEPS    = 20;
 const DRAG_STEP_MS  = 14;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const TERMINAL_STATES = new Set(['END_VICTORY', 'END_DEFEAT']);
 
 async function pollState(page, target, timeoutMs = 18000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const s = await page.evaluate(() => /** @type {any} */ (window).__sceneState?.());
     if (s === target) return;
+    if (TERMINAL_STATES.has(s)) throw Object.assign(new Error(`Game ended: ${s}`), { terminal: true });
     await page.waitForTimeout(120);
   }
   throw new Error(`Timeout waiting for sceneState=${target}`);
@@ -96,11 +97,14 @@ async function fireShot(page, shotNum) {
     return false;
   }
 
-  const origin = FLOOR_ORIGIN[floor];
+  // Prefer live tilt-adjusted anchor from the game; fall back to static constants.
+  const liveOrigin = await page.evaluate((f) => /** @type {any} */ (window).__getFloorAnchor?.(f) ?? null, floor);
+  const origin = liveOrigin ?? FLOOR_ORIGIN_FALLBACK[floor];
   if (!origin) {
     console.error(`[interactive] shot ${shotNum}: unknown floor ${floor}, skipping`);
     return false;
   }
+  console.error(`[interactive] shot ${shotNum}: anchor source=${liveOrigin ? 'live' : 'fallback'} origin=(${origin.x.toFixed(1)},${origin.y.toFixed(1)})`);
 
   const dragTo = { x: origin.x + PULL.dx, y: origin.y + PULL.dy };
   console.error(`[interactive] shot ${shotNum}: floor=${floor} origin=(${origin.x},${origin.y}) → drag to (${dragTo.x},${dragTo.y})`);
@@ -120,8 +124,9 @@ async function fireShot(page, shotNum) {
 
   console.error(`[interactive] shot ${shotNum}: released — waiting for EXTERIOR_RESOLVE…`);
 
-  // Confirm the shot registered: state should immediately leave INTERIOR_AIM.
-  const next = await pollStateNot(page, 'INTERIOR_AIM', 3000);
+  // Confirm the shot registered: state should quickly leave INTERIOR_AIM.
+  // Allow up to 5s — the drag fires player_fire which transitions sync to EXTERIOR_RESOLVE.
+  const next = await pollStateNot(page, 'INTERIOR_AIM', 5000);
   console.error(`[interactive] shot ${shotNum}: state → ${next}`);
   return true;
 }
@@ -166,10 +171,19 @@ await page.mouse.click(270, 480);
 
 // Fire shots. Between shots we just wait for INTERIOR_AIM again — the game
 // handles the EXTERIOR_OBSERVE enemy wave automatically.
+// If a terminal state (END_VICTORY / END_DEFEAT) is reached mid-loop, stop gracefully.
 let fired = 0;
 for (let i = 1; i <= totalShots; i++) {
-  const ok = await fireShot(page, i);
-  if (ok) fired++;
+  try {
+    const ok = await fireShot(page, i);
+    if (ok) fired++;
+  } catch (e) {
+    if (e.terminal) {
+      console.error(`[interactive] game ended (${e.message}) after ${fired} shots — stopping`);
+      break;
+    }
+    throw e;
+  }
 }
 
 // Let the last exterior resolution + endcard animate.

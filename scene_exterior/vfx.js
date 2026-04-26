@@ -59,11 +59,11 @@ export function loadVfxAssets() {
   return Promise.resolve();
 }
 
-// palette presets — player shots burn warm (yellow/orange), enemy shots
-// burn cold/dark (violet/black) per spec §VFX.
+// palette presets — player shots burn bright warm (gold/orange), enemy shots
+// burn darker orange-red (orange-red outer sparks, grey smoke core).
 const PALETTES = {
-  player: { hueBase: 30,  hueRange: 30,  dustColor: '#5a4a3a' }, // amber → orange
-  enemy:  { hueBase: 270, hueRange: 30,  dustColor: '#1a1020' }, // violet → near-black
+  player: { hueBase: 45,  hueRange: 20,  dustColor: '#555555' }, // gold → orange, grey smoke
+  enemy:  { hueBase: 18,  hueRange: 18,  dustColor: '#555555' }, // orange-red, grey smoke
 };
 
 /**
@@ -133,7 +133,7 @@ export function triggerExplosion(x, y, { size, palette = 'player' }) {
 const SMOKE_BY_WEAPON = {
   rocket: { color: '#D95B5B', size: 18, life_ms: 200 },
   volley: { color: '#8D8D8D', size:  6, life_ms: 1200 },
-  beam:   { color: '#9aa0a6', size:  8, life_ms: 400 },
+  beam:   { color: '#F28C1F', size: 10, life_ms: 500 },
   crow:   { color: '#4A4A4A', size: 17, life_ms: 1200 }, // Q1: dark charcoal, moderate trail
 };
 
@@ -208,7 +208,7 @@ function drawParticles(ctx, dt_ms) {
       ctx.fill();
     } else if (p.kind === KIND_DUST) {
       ctx.globalAlpha = fade * 0.5;
-      ctx.fillStyle = '#5a4a3a';
+      ctx.fillStyle = '#555555';
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * (1 + t * 0.8), 0, Math.PI * 2);
       ctx.fill();
@@ -301,7 +301,7 @@ function drawChunks(ctx, w, h, hp_pct, side) {
     ctx.fill();
   }
   // Subtle inner highlight along chunk edges suggests broken stone.
-  ctx.strokeStyle = 'rgba(80,60,90,0.55)';
+  ctx.strokeStyle = 'rgba(80,75,70,0.55)';
   ctx.lineWidth = 1.5;
   for (const c of chunks) {
     const px = cx + c.x * bbox_w;
@@ -325,11 +325,51 @@ function drawChunks(ctx, w, h, hp_pct, side) {
  * @param {number} dt_ms
  * @param {{ hp_self_pct: number, hp_enemy_pct: number }} hp
  */
+// ─── Floating damage numbers ─────────────────────────────────────────────────
+/** @type {{x:number, y:number, age_ms:number, life_ms:number, text:string, color:string}[]} */
+const dmgNums = [];
+
+/**
+ * Spawn a floating "-N" number at a world position.
+ * @param {number} x @param {number} y @param {number} amount @param {'player'|'enemy'} side
+ */
+export function spawnDamageNumber(x, y, amount, side = 'player') {
+  dmgNums.push({
+    x, y: y - 20,
+    age_ms: 0,
+    life_ms: 900,
+    text: `-${amount}`,
+    color: side === 'player' ? '#FFD700' : '#FF4040',
+  });
+}
+
+function drawDamageNumbers(ctx, dt_ms) {
+  for (let i = dmgNums.length - 1; i >= 0; i--) {
+    const d = dmgNums[i];
+    d.age_ms += dt_ms;
+    d.y -= dt_ms * 0.045; // float upward
+    if (d.age_ms >= d.life_ms) { dmgNums.splice(i, 1); continue; }
+    const alpha = d.age_ms < 200 ? 1 : 1 - (d.age_ms - 200) / (d.life_ms - 200);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 40px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 5;
+    ctx.strokeText(d.text, d.x, d.y);
+    ctx.fillStyle = d.color;
+    ctx.fillText(d.text, d.x, d.y);
+    ctx.restore();
+  }
+}
+
 // World-space pass: explosion sparks/smoke/dust/rings (positions are world
 // coords from triggerExplosion / triggerSmokeTrail callers). Caller MUST
 // have applied the camera transform before this.
 export function updateAndDraw(ctx, _viewport, dt_ms, _hp = {}) {
   drawParticles(ctx, dt_ms);
+  drawDamageNumbers(ctx, dt_ms);
 }
 
 // Screen-space pass: rain only. Caller MUST call this OUTSIDE the camera
