@@ -14,6 +14,8 @@ import { getFloorAnchor } from '../scene_interior/castle_section.js';
 import { getActiveFloor } from '../scene_interior/turn.js';
 import { showHandOn, showHandDrag, hideHand, drawHandCursor } from './hand_cursor.js';
 import { drawEndcard, setEndcardOpacity, installEndcardTap } from './endcard.js';
+import { emit } from '../shared/events.js';
+import { getActiveUnitId } from '../scene_interior/turn.js';
 
 // Phase timings (ms since boot)
 const PHASE_INTRO_END     = 4500;   // bomb impact ~3s + buffer + zoom 900ms + guard
@@ -142,3 +144,12 @@ export function _devForcePhase(phase) {
   if (phase === 'forcewin') state.hp_enemy_pct = 0;
 }
 /** @type {any} */ (window).__forcePhase = _devForcePhase;
+
+// Test/recording hook: synthesize a player_fire so headless capture can drive
+// the scripted ad past the tutorial gate without simulating pointer drags.
+/** @type {any} */ (window).__simulateFire = (angle_deg = 55, power = 0.95) => {
+  const unit_id = getActiveUnitId();
+  if (!unit_id) return false;
+  emit('player_fire', { unit_id, angle_deg, power });
+  return true;
+};
