@@ -67,7 +67,7 @@ function _makeIntroCrow() {
   const flightMs = rand(2800, 3400);
   return { x, y, baseY: y, vx: (tx - x) / flightMs, vy: (ty - y) / flightMs,
            tx, ty, ttlMs: flightMs, totalMs: flightMs, smokeAccumMs: 0, resolved: false,
-           sineAmp: 55, sineFreq: 0.010, sinePhase: 0 };
+           sineAmp: 55, sineFreq: 0.006, sinePhase: 0 };
 }
 
 /** Returns the current intro crow world position (or null if not active). */
@@ -123,7 +123,7 @@ function spawnProjectile(_viewport) {
 
   return { x, y, baseY: y, vx, vy, tx, ty, ttlMs: flightMs, totalMs: flightMs,
            smokeAccumMs: 0, resolved: false,
-           sineAmp: 55, sineFreq: 0.010, sinePhase };
+           sineAmp: 55, sineFreq: 0.006, sinePhase };
 }
 
 /**
