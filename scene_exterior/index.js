@@ -36,15 +36,19 @@ const SHAKE_AMP = 7; // world-space pixels
 /** Trigger a screen shake (called from enemy_ai on crow impact). */
 export function triggerShake() { _shakeMs = SHAKE_DURATION; }
 
+/** Returns 0–1: how far through the enter-castle transition we are. */
+export function getZoomT() { return _zoomT; }
+
 // INTRO is included so the exterior scene renders during the "TAP TO START"
 // pause — camera stays on the red castle (set by mount's snapPreset('red'))
 // until the player taps and scene_manager.start() advances to EXTERIOR_OBSERVE.
 const EXTERIOR_STATES = new Set(['INTRO', 'EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
 
-// Slide-out: when interior takes over, exterior slides upward off-screen.
-let _slideOutY = 0;
-let _slideOutActive = false;
-const SLIDE_OUT_EASE = 0.13;
+// Gentle peek transition: exterior eases to a small zoom in toward the castle,
+// then the interior appears. Subtle — just enough to feel like entering.
+let _zoomT = 0;       // 0 = normal, 1 = fully transitioned
+let _zoomActive = false;
+const ZOOM_SPEED = 0.0025; // full peek in ~400ms
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
@@ -72,15 +76,15 @@ export function mount(c) {
     const wasVisible = visible;
     visible = EXTERIOR_STATES.has(s);
     if (visible && !wasVisible) {
-      // Coming back into view — reset slide-out.
-      _slideOutY = 0;
-      _slideOutActive = false;
+      // Coming back into view — reset zoom state.
+      _zoomT = 0;
+      _zoomActive = false;
     }
     if (!visible && wasVisible && s === 'INTERIOR_AIM') {
-      // Interior is taking over — slide exterior upward.
-      _slideOutActive = true;
+      // Interior is taking over — gentle zoom into castle, then stop.
+      _zoomActive = true;
     }
-    if (visible && !rafId) {
+    if ((visible || _zoomActive) && !rafId) {
       last_t = performance.now();
       loop();
     }
@@ -179,7 +183,7 @@ function _drawEnemyTint(ctx, viewport, dt_ms) {
 }
 
 function loop() {
-  if (!visible && !_slideOutActive) { rafId = 0; return; }
+  if (!visible && !_zoomActive) { rafId = 0; return; }
   rafId = requestAnimationFrame(loop);
   if (!ctx || !canvas) return;
 
@@ -189,19 +193,17 @@ function loop() {
 
   const viewport = { w: canvas.width, h: canvas.height };
 
-  // Slide-out: ease exterior upward then stop the loop.
-  if (_slideOutActive) {
-    const target = -canvas.height;
-    _slideOutY += (target - _slideOutY) * SLIDE_OUT_EASE;
-    if (Math.abs(_slideOutY - target) < 2) {
-      _slideOutActive = false;
+  // Zoom-punch: accelerate into the blue castle then hand off to interior.
+  if (_zoomActive) {
+    _zoomT = Math.min(1, _zoomT + ZOOM_SPEED * dt_ms);
+    if (_zoomT >= 1) {
+      _zoomActive = false;
       rafId = 0;
-      return; // exterior fully off-screen, stop drawing
+      return;
     }
   }
 
   ctx.save();
-  ctx.translate(0, _slideOutY);
 
   // Warm teal-green sky fill — matches source game palette.
   const sky = ctx.createLinearGradient(0, 0, 0, viewport.h);
@@ -248,5 +250,12 @@ function loop() {
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
 
-  ctx.restore(); // closes the slide-out translate
+  // As we zoom into the castle, darken the exterior — "entering the wall".
+  if (_zoomActive && _zoomT > 0) {
+    const ease = 1 - (1 - _zoomT) * (1 - _zoomT);
+    ctx.fillStyle = `rgba(0,0,0,${(ease * 0.85).toFixed(3)})`;
+    ctx.fillRect(0, 0, viewport.w, viewport.h);
+  }
+
+  ctx.restore();
 }
