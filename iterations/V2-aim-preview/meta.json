@@ -6,5 +6,6 @@
   "diff_from_baseline": [
     "scene_interior/aim.js: drawAimOverlay now renders an idle preview arc (62°, power 0.7, pulsing alpha) when the player isn't dragging"
   ],
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis respected (only aim render touched, not input). Active-drag preview unchanged. Visible in thumb at INTERIOR_AIM."
 }

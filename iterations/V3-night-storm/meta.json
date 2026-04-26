@@ -7,5 +7,6 @@
     "scene_exterior/index.js: sky gradient teal→deep-navy/bruise-purple, hills crushed to dark slate, forest near-black",
     "scene_exterior/index.js: periodic 70ms lightning flash every 3.2s with soft afterglow"
   ],
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis respected (palette only — sky/hills/forest tints + lightning overlay). Combat loop untouched. Note: thumb captures past-intro interior view; storm visible during exterior cuts (each turn)."
 }

@@ -6,5 +6,6 @@
   "diff_from_baseline": [
     "playable/endcard.js: 'VICTORY!' → 'TOO CLOSE!' (red), supporting copy reframed as challenge, CTA 'PLAY NOW' → 'TRY AGAIN'"
   ],
-  "review": "pending"
+  "review": "pass",
+  "review_notes": "Axis respected (endcard copy/colors only). CTA tap handler unchanged. Thumb captured at forced endcard phase."
 }
