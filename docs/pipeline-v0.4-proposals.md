@@ -308,6 +308,46 @@ comme nouveau kind distinct car les sémantiques d'arrivée (player→enemy
 vs enemy→ours) sont opposées.
 ```
 
+### 5.3. Gotcha build : `npx esbuild` ≠ `node tools/build.mjs`
+
+```markdown
+## 4.7. Toujours rebuild via `tools/build.mjs`, jamais `npx esbuild`
+
+Le format AppLovin Playable Ad impose un single-file HTML auto-portant
+(<5 MB, assets en base64, JS inline). Le browser charge UNIQUEMENT
+`dist/playable.html` ; rien d'autre n'est servi à runtime.
+
+`tools/build.mjs` :
+1. `esbuild ... write:false` → produit le bundle JS **en RAM**.
+2. Lit `dist/_template.html` (squelette).
+3. Inline `vsdk_shim.js` + `assets-inline.js` + bundle JS dans 3
+   `<script>` tags du template.
+4. Écrit `dist/playable.html` (~2 MB, single-file prod).
+
+Aucun `dist/playable.bundle.js` n'est produit par ce pipeline. Si un
+tel fichier traîne, c'est un orphelin — le browser ne le charge jamais.
+
+**Piège** : `npx esbuild ... --outfile=dist/playable.bundle.js` met à
+jour ce fichier orphelin et donne l'illusion d'avoir buildé, mais
+`playable.html` (qui contient une copie figée du bundle inliné au
+dernier `build.mjs`) reste inchangé. Symptôme : modifs source visibles
+dans le code et dans `playable.bundle.js`, mais le browser affiche
+l'ancien comportement (pixels d'avant la modif, anciennes valeurs,
+features manquantes).
+
+**Règle** : après TOUTE modif source, `node tools/build.mjs`. Vérifier
+le timestamp de `dist/playable.html` (doit être > timestamp des
+sources modifiées). Si un serveur HTTP tourne en background, il sert
+le `playable.html` à jour automatiquement (pas de cache côté http.server),
+mais un orphan process peut servir une vieille version — un `pkill -f
+http.server` + restart règle ce cas.
+
+Run-3 a perdu ~30 min sur ce piège : le diff de bg interior était
+correct, le bundle.js (orphan) à jour, mais playable.html figé sur
+l'ancienne version → pixel sample retournait l'ancienne couleur
+(`#88CCAA`) malgré 0 occurrence dans le source.
+```
+
 ---
 
 ## 6. `reference/tools-available.md`
