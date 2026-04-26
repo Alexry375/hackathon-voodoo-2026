@@ -106,41 +106,20 @@ node tools/record_clip.mjs \
 
 Le clip doit couvrir : opening (intro) → 1 cycle ping-pong complet → début endcard. 12 s suffisent en général.
 
-### 5.5.2. Pré-process avant upload Gemini (économie cost)
+### 5.5.2. Pré-process (optionnel — auto par défaut)
 
-**Toujours** pré-process à 1 fps + 540p **avant** de faire appeler `compare_clips.py`. Findings techniques : Gemini sample en interne à 1 fps quoi qu'on envoie ; uploader 8 fps coûte ~80 % de tokens vidéo en plus pour zéro gain analytique.
+`compare_clips.py` re-encode automatiquement chaque clip en **540p / 1 fps / no-audio** avant upload (économie bandwidth, uniformise la base d'analyse). Tu peux désactiver avec `--no-preprocess` si tu veux full-res. Note : le 540p n'est PAS une reco Google — c'est le viewport natif AppLovin portrait, donc pas d'upscale gaspillé. Côté Google, le levier officiel de qualité est `--media-resolution` (LOW/MEDIUM/HIGH = 70/70/280 tokens par frame). Voir [`reference/tools-available.md`](../reference/tools-available.md).
 
-```bash
-# Pré-process notre clip
-ffmpeg -i SANDBOX/clips/ours.mp4 \
-    -r 1 -vf "scale=540:-2" -an -c:v libx264 -crf 28 \
-    SANDBOX/clips/ours_1fps.mp4
+### 5.5.3. Sampling fin via `--fps` (officiel, Files API directe)
 
-# Pré-process la source (référence) sur la même fenêtre temporelle
-ffmpeg -ss 00:00 -t 12 -i input/<jeu>/input/source.mp4 \
-    -r 1 -vf "scale=540:-2" -an -c:v libx264 -crf 28 \
-    SANDBOX/clips/source_12s_1fps.mp4
-```
+Pour critique de transitions sub-seconde (ease, fade, motion blur, micro-dwell), Gemini sample par défaut à **1 fps**, ce qui rend invisibles les events <1 s. La Files API directe expose `videoMetadata.fps` officiellement → passe simplement `--fps 4` à `compare_clips.py` pour que Gemini sample à 4 fps côté serveur. **Plus besoin du hack `setpts=4*PTS` qu'on faisait sur OpenRouter.**
 
-### 5.5.3. Hack slow-motion pour révéler le pacing fin
+**Reco usage** :
+- `--fps 1` (default Gemini) → vue d'ensemble structure + pacing macro
+- `--fps 2` → bon compromis sur clips ~25 s
+- `--fps 4` → critique fine de transitions sub-seconde, **sur clips courts**
 
-Limite fondamentale d'OpenRouter : sampling figé à 1 fps → **transitions <1 s sont invisibles** à Gemini (vu comme un cut sec). Solution : ralentir le clip avant upload pour que Gemini "voit" plus de frames sur l'événement court.
-
-```bash
-# Slow-mo 4× via setpts → 12s deviennent 48s → résolution effective 250ms
-ffmpeg -i SANDBOX/clips/ours_1fps.mp4 \
-    -filter:v "setpts=4*PTS" -an \
-    SANDBOX/clips/ours_slow4x.mp4
-```
-
-**Reco usage du slow-mo** :
-- `--slow-mo 1` (default) → vue d'ensemble structure + pacing macro (clip 12 s complet)
-- `--slow-mo 2` → bon compromis : couvre ~6 s réelles avec résolution 500 ms
-- `--slow-mo 4-6` → uniquement sur clips ultra-courts ciblés (ex: 2 s de transition cinématique, ralenti 6× = analyse 333 ms)
-
-⚠️ **Cap interne Gemini** : ~52 frames analysées par appel. À slow-mo 4× sur 12 s → seules les ~3 premières secondes réelles sont vues. Si tu veux scorer un segment précis (ex: drag-fire ou endcard), capture un clip **dédié court** plutôt que de slow-mo le clip complet.
-
-Toujours préciser dans le prompt focal : *"Cette vidéo est ralentie ×N. Divise tous les timestamps observés par N pour les rapporter en temps réel."*
+⚠️ **Cap interne Gemini** : ~52 frames analysées par appel. À 4 fps tu couvres ~13 s max. Si tu veux scorer un segment précis (ex: drag-fire ou endcard), capture un clip **dédié court** + `--start-offset` / `--end-offset` plutôt que d'analyser le clip complet.
 
 ### 5.5.4. Audit segmenté — score par segment
 
@@ -148,12 +127,15 @@ Toujours préciser dans le prompt focal : *"Cette vidéo est ralentie ×N. Divis
 
 ```bash
 python tools/compare_clips.py \
-    --ours SANDBOX/clips/ours_1fps.mp4 \
-    --ref  SANDBOX/clips/source_12s_1fps.mp4 \
-    --segments intro,aim,fire_cinematic,impact,endcard \
-    --cinematic-spec SANDBOX/outputs/cinematic-spec.md \
+    --prompt SANDBOX/prompts/critic-clips-segments.md \
+    --clip ours:SANDBOX/clips/ours.mp4 \
+    --clip source:input/<jeu>/input/source.mp4 \
+    --fps 1 \
+    --media-resolution MEDIUM \
     --out SANDBOX/outputs/critique-clipclip-pass<N>.md
 ```
+
+Le prompt `critic-clips-segments.md` doit demander explicitement à Gemini un score `/10` par segment (intro / aim / fire_cinematic / impact / endcard) avec critères timing / pacing / fidélité visuelle / camera state, en s'appuyant sur `SANDBOX/outputs/cinematic-spec.md` comme oracle.
 
 Le tool doit produire un rapport avec **un score /10 par segment** + critères explicites :
 - **Timing** : durée du segment vs source (±15 % accepté)

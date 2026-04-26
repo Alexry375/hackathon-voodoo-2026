@@ -39,7 +39,7 @@ Les descriptions Antoine sont **généralement bonnes mais pas infaillibles**. T
 
 **Premier appel obligatoire** : une analyse vidéo complète **avant** de répondre aux 6 questions de §1.4. C'est la seule façon fiable de locker la classification de rythme (tour-par-tour / temps-réel / hybride) et la structure des transitions caméra. Cas vécu : un run précédent a skippé cet appel et a classé "asynchrone temps-réel" un jeu qui était en réalité **tour-par-tour avec résolution physique en temps-réel** — toute l'archi qui en découle était fausse.
 
-**Appels suivants** : pas de cap budgétaire strict (~0.07 $ par appel via OpenRouter). Lance Gemini sur un extrait court chaque fois qu'un de ces signaux apparaît :
+**Appels suivants** : pas de cap budgétaire strict (~0.05–0.10 $ par appel via Gemini direct, **plus de rate limit gênant**). Lance Gemini sur un extrait court chaque fois qu'un de ces signaux apparaît :
 
 - Deux fichiers d'`input/` se contredisent sur un point structurant (mécanique de tir, comportement ennemi, structure du tour)
 - Une description te semble bizarre ou imprécise sur un point qui change ton architecture
@@ -51,7 +51,7 @@ Les descriptions Antoine sont **généralement bonnes mais pas infaillibles**. T
 Le script `tools/analyze_video.py` est dispo (sera copié dans le scaffold du run). Voir [`reference/tools-available.md`](../reference/tools-available.md) pour les détails (format payload OpenRouter, recompression auto, paramètres).
 
 ```bash
-set -a; source .env; set +a    # charge OPENROUTER_API_KEY
+set -a; source .env; set +a    # charge GEMINI_API_KEY
 
 # Analyse complète d'une vidéo (prompt par défaut = synthèse game design)
 # Recompression auto si > 10 Mo (540p / 4fps / no-audio)
