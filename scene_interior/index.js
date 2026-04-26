@@ -95,7 +95,13 @@ export function mount(c) {
   subscribe((s) => {
     const wasVisible = visible;
     visible = (s === 'INTERIOR_AIM');
-    if (visible && !wasVisible) entranceT0 = performance.now();
+    if (visible && !wasVisible) {
+      entranceT0 = performance.now();
+      // Snap upright on entry: the cut-in cinematic should land on a
+      // straight castle, not mid-tangue. Tilt resumes easing toward its
+      // hp-based target after the entrance window.
+      currentTilt = 0;
+    }
     if (visible && !rafId) loop();
   });
 }
@@ -108,7 +114,14 @@ function loop() {
   const t = performance.now() / 1000;
 
   const targetTilt = targetTiltFor(state.hp_self_pct);
-  currentTilt += (targetTilt - currentTilt) * TILT_EASE;
+  // Hold tilt at 0 during the entrance window so the cut-in lands upright;
+  // after that the lean eases toward its hp-based target.
+  const entranceAge = (performance.now() - entranceT0) / ENTRANCE_DUR;
+  if (entranceT0 > 0 && entranceAge < 1) {
+    currentTilt = 0;
+  } else {
+    currentTilt += (targetTilt - currentTilt) * TILT_EASE;
+  }
   const damageLevel = damageLevelFor(state.hp_self_pct);
 
   // Atmospheric bg coherent with exterior. The castle covers y≈170..820,
