@@ -1,0 +1,11 @@
+{
+  "id": "V1",
+  "title": "Cold-open — bomb mid-arc, HP 15%",
+  "axis": "hook",
+  "hypothesis": "Pattern-interrupt in first 1.5s: bomb already falling, massive damage, red danger vignette → maximizes retention@5s",
+  "diff_from_baseline": [
+    "playable/script.js: PHASE_INTRO_END 4500→2700 + red radial vignette during intro (0..1500ms)",
+    "scene_exterior/index.js: opening flock t0+200/dur=2200 → t0+0/dur=1100, dmgVal 33→85"
+  ],
+  "review": "pending"
+}
