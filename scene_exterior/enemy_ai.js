@@ -29,12 +29,16 @@ let _introCrowOnArrived = null;
 /**
  * @typedef {Object} Projectile
  * @property {number} x @property {number} y
+ * @property {number} baseY   centre-line Y (straight-line component); sine offset added on top
  * @property {number} vx @property {number} vy
  * @property {number} tx @property {number} ty
  * @property {number} ttlMs
  * @property {number} totalMs
  * @property {number} smokeAccumMs
  * @property {boolean} resolved
+ * @property {number} sineAmp    px amplitude of vertical sine oscillation
+ * @property {number} sineFreq   rad/ms — how fast it oscillates
+ * @property {number} sinePhase  starting phase offset (rad) so paired crows are π apart
  */
 
 /** @returns {Promise<void>} */
@@ -60,10 +64,10 @@ function _makeIntroCrow() {
   const y = WORLD.ground_y - WORLD.castle_h * rand(0.55, 0.80);
   const tx = WORLD.blue_castle.x + rand(-60, 60);
   const ty = WORLD.ground_y - WORLD.castle_h * 0.6 + rand(-30, 30);
-  // ~3s to cross — slow enough to be a smooth cinematic pan.
   const flightMs = rand(2800, 3400);
-  return { x, y, vx: (tx - x) / flightMs, vy: (ty - y) / flightMs,
-           tx, ty, ttlMs: flightMs, totalMs: flightMs, smokeAccumMs: 0, resolved: false };
+  return { x, y, baseY: y, vx: (tx - x) / flightMs, vy: (ty - y) / flightMs,
+           tx, ty, ttlMs: flightMs, totalMs: flightMs, smokeAccumMs: 0, resolved: false,
+           sineAmp: 55, sineFreq: 0.010, sinePhase: 0 };
 }
 
 /** Returns the current intro crow world position (or null if not active). */
@@ -79,11 +83,9 @@ export function stopIntroCrow() { _introCrow = null; _introCrowOnArrived = null;
  * @param {{ onComplete: () => void, intensity?: 'opening' | 'normal' }} opts
  */
 export function startEnemyAttack({ onComplete, intensity = 'normal' }) {
-  // Guard against re-entry — caller bug, but don't double-fire onComplete.
   if (wave) return;
-  // 'opening' = the no-input crisis hook, drops blue HP from 100% → ~30%.
-  // 'normal' = chip damage between player turns.
   const pendingSpawns = intensity === 'opening' ? 7 : 2;
+  _spawnCount = 0; // reset phase alternation for each new wave
   wave = {
     projectiles: [],
     pendingSpawns,
@@ -96,32 +98,32 @@ export function startEnemyAttack({ onComplete, intensity = 'normal' }) {
 
 function rand(a, b) { return a + Math.random() * (b - a); }
 
+// Tracks how many projectiles have been spawned in the current wave so
+// consecutive crows alternate sine phase by π (creating the intertwining helix).
+let _spawnCount = 0;
+
 /**
  * @param {{w:number,h:number}} viewport
- * @param {boolean} castleOnly  when true, never target units (opening wave)
  * @returns {Projectile}
  */
 function spawnProjectile(_viewport) {
-  // Q1 (Gemini): crows enter from the right edge of the screen flying right→left
-  // with a slight downward tilt. Camera is panned left (blue castle in view) so
-  // the red castle is off-screen right — crows emerge from that right edge.
-  // Spawn well off the right canvas edge in world coords; target the upper portion
-  // of the blue castle.
   const x = WORLD.red_castle.x + rand(60, 140);  // off-screen right
   const y = WORLD.ground_y - WORLD.castle_h * rand(0.6, 0.9) + rand(-40, 40);
   const tx = WORLD.blue_castle.x + rand(-90, 90);
   const ty = WORLD.ground_y - WORLD.castle_h * 0.55 + rand(-30, 30);
 
   const flightMs = rand(800, 1200);
-  const vx = (tx - x) / flightMs; // always negative (right→left)
+  const vx = (tx - x) / flightMs;
   const vy = (ty - y) / flightMs;
 
-  // Crows always target the castle — units only die when fired as projectiles.
-  const kind = /** @type {'castle' | 'unit'} */ ('castle');
-  const unitId = null;
+  // Alternate phase by π so consecutive crows intertwine — their crossing smoke
+  // trails form the figure-8 / helix the source footage shows.
+  const sinePhase = (_spawnCount % 2) * Math.PI;
+  _spawnCount += 1;
 
-  return { x, y, vx, vy, tx, ty, ttlMs: flightMs, totalMs: flightMs,
-           smokeAccumMs: 0, resolved: false };
+  return { x, y, baseY: y, vx, vy, tx, ty, ttlMs: flightMs, totalMs: flightMs,
+           smokeAccumMs: 0, resolved: false,
+           sineAmp: 55, sineFreq: 0.010, sinePhase };
 }
 
 /**
@@ -152,7 +154,9 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
   if (_introCrow) {
     const dt = Math.min(dt_ms, 64);
     _introCrow.x += _introCrow.vx * dt;
-    _introCrow.y += _introCrow.vy * dt;
+    _introCrow.baseY += _introCrow.vy * dt;
+    const _elapsed = _introCrow.totalMs - _introCrow.ttlMs;
+    _introCrow.y = _introCrow.baseY + Math.sin(_elapsed * _introCrow.sineFreq + _introCrow.sinePhase) * _introCrow.sineAmp;
     _introCrow.ttlMs -= dt;
     _introCrow.smokeAccumMs += dt;
     if (_introCrow.smokeAccumMs > 55) {
@@ -184,7 +188,11 @@ export function updateAndDraw(ctx, viewport, dt_ms) {
   for (const p of wave.projectiles) {
     if (p.resolved) continue;
     p.x += p.vx * dt;
-    p.y += p.vy * dt;
+    p.baseY += p.vy * dt;
+    // Sine oscillation on top of the straight-line baseline — consecutive crows
+    // are π out of phase so their trails intertwine into the helix visible in source.
+    const elapsed = p.totalMs - p.ttlMs;
+    p.y = p.baseY + Math.sin(elapsed * p.sineFreq + p.sinePhase) * p.sineAmp;
     p.ttlMs -= dt;
     p.smokeAccumMs += dt;
     if (p.smokeAccumMs > 50) {
