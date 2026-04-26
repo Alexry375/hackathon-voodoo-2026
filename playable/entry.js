@@ -23,7 +23,9 @@ function _bootAudio() {
   if (_audioStarted) return;
   _audioStarted = true;
   unlockAudio();
-  playMusic('MUSIC_LOOP', { volume: 0.32 });
+  // Hold the music for 5s so the intro raven beat isn't drowned by the
+  // chiptune loop — gameplay is the focus during the first turn.
+  setTimeout(() => playMusic('MUSIC_LOOP', { volume: 0.32 }), 5000);
 }
 window.addEventListener('pointerdown', _bootAudio, { once: false, passive: true });
 window.addEventListener('keydown', _bootAudio, { once: false });
