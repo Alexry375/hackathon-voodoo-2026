@@ -108,6 +108,23 @@ function loop() {
       ctx.fillStyle = `rgba(0,0,0,${eDimAlpha})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    // Iris-in (matches exterior iris-out): start fully closed, open over the
+    // first ~45% of the entrance window so the cut from exterior is masked.
+    const irisK = Math.min(1, eAge / 0.45);
+    if (irisK < 1) {
+      const cx = canvas.width / 2, cy = canvas.height * 0.62;
+      const maxR = Math.hypot(Math.max(cx, canvas.width - cx),
+                              Math.max(cy, canvas.height - cy));
+      const r = maxR * irisK;
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.moveTo(cx + r, cy);
+      ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+      ctx.restore();
+    }
   }
 
   drawTopHud(ctx);

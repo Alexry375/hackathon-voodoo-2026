@@ -55,8 +55,12 @@ let view = 'OURS';
 
 /** Damage marks per side (don't bleed across views). Each zone caches a
  *  jagged polygon outline + crack rays so it doesn't shimmer between frames. */
-const dmg = { OURS: /** @type {{x:number,y:number,r:number,poly:[number,number][],cracks:[number,number][]}[]} */ ([]),
-              ENEMY: /** @type {{x:number,y:number,r:number,poly:[number,number][],cracks:[number,number][]}[]} */ ([]) };
+/** @typedef {{x:number,y:number,r:number,
+ *             poly:[number,number][], cracks:[number,number][],
+ *             innerRim:[number,number][],
+ *             innerChunks:{x:number,y:number,w:number,h:number,rot:number,shade:number,lit:boolean}[]}} DamageZone */
+const dmg = { OURS: /** @type {DamageZone[]} */ ([]),
+              ENEMY: /** @type {DamageZone[]} */ ([]) };
 
 function _makeDamageZone(x, y, r) {
   // Irregular polygon: 12 spokes around the centre with ±35% radius jitter.
@@ -67,6 +71,14 @@ function _makeDamageZone(x, y, r) {
     const rr = r * (0.65 + Math.random() * 0.55);
     poly.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
   }
+  // Inner jagged rim at ~55-73% radius — drawn in warm stone color so the
+  // hole reads as broken masonry instead of a flat black polygon.
+  const innerRim = /** @type {[number,number][]} */ ([]);
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 + Math.random() * 0.4;
+    const rr = r * (0.55 + Math.random() * 0.18);
+    innerRim.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  }
   // 5-8 crack rays extending past the polygon edge.
   const cracks = /** @type {[number,number][]} */ ([]);
   const nC = 5 + Math.floor(Math.random() * 4);
@@ -75,7 +87,24 @@ function _makeDamageZone(x, y, r) {
     const rr = r * (1.05 + Math.random() * 0.6);
     cracks.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
   }
-  return { x, y, r, poly, cracks };
+  // Pre-baked stone fragments visible INSIDE the hole — kills the "giant black
+  // blob" reading. Generated once at impact so they don't shimmer.
+  const innerChunks = /** @type {{x:number,y:number,w:number,h:number,rot:number,shade:number,lit:boolean}[]} */ ([]);
+  const nChunks = 7 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < nChunks; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rr = r * (0.15 + Math.random() * 0.42);
+    innerChunks.push({
+      x: x + Math.cos(a) * rr,
+      y: y + Math.sin(a) * rr,
+      w: 3 + Math.random() * 5,
+      h: 3 + Math.random() * 4,
+      rot: Math.random() * Math.PI * 2,
+      shade: Math.random(),
+      lit: Math.random() < 0.35,
+    });
+  }
+  return { x, y, r, poly, cracks, innerRim, innerChunks };
 }
 
 /** Castle tilt angle (radians) for firing animation. */
@@ -169,7 +198,10 @@ let stepT0 = 0;
 let transitioning = false;
 let transitionT0 = 0;
 let transitionEndAction = /** @type {(()=>void)|null} */ (null);
-const TRANSITION_DUR = 900;
+let transitionEndFired = false;
+// Longer + harder ease so the dive reads as cinematic, not as a cut. The iris
+// (radial vignette closing on the castle keep) covers the actual scene swap.
+const TRANSITION_DUR = 1300;
 
 // View whip-pan transition (T2 from Gemini critique).
 // During cut OURS→ENEMY (and back) we slide both castles horizontally so the
@@ -211,19 +243,23 @@ function _startIncoming() {
   // the castle from off-screen right with phase-opposed sinusoidal bobs (one
   // peaks while the other dips). Raven A crashes into the castle and triggers
   // impact; raven B grazes just above and exits frame as a second wave.
-  const target = { x: CASTLE_X + CASTLE_W * 0.72, y: CASTLE_TOP_Y + 60 };
+  // Randomised so each playthrough lands a visually different incoming run.
+  const target = {
+    x: CASTLE_X + CASTLE_W * (0.45 + Math.random() * 0.40),
+    y: CASTLE_TOP_Y + 40 + Math.random() * 200,
+  };
   const dmgVal = 33;
   pendingPlayerImpact = target;
   const t = performance.now();
   /** @type {Projectile} */
   const flock = {
     kind: 'flock',
-    from: { x: W + 100, y: 320 },
+    from: { x: W + 80 + Math.random() * 120, y: 220 + Math.random() * 200 },
     to: target,
     t0: t + 200,
-    dur: 2200,
+    dur: 1700 + Math.random() * 600,
     peakLift: 0,
-    sinAmp: 50, sinFreq: 0, sinPhase: 0,
+    sinAmp: 30 + Math.random() * 50, sinFreq: 0, sinPhase: 0,
     onLand: () => _impactOurs(target, dmgVal),
   };
   projectiles.push(flock);
@@ -337,18 +373,22 @@ function _startEnemyRiposte() {
 }
 
 function _spawnEnemyRiposteFlock() {
-  const target = { x: CASTLE_X + CASTLE_W * 0.65, y: CASTLE_TOP_Y + 80 };
+  // Randomised so every enemy riposte hits a fresh spot/timing.
+  const target = {
+    x: CASTLE_X + CASTLE_W * (0.45 + Math.random() * 0.40),
+    y: CASTLE_TOP_Y + 40 + Math.random() * 200,
+  };
   const dmgVal = 14 + Math.floor(Math.random() * 6);
   const t = performance.now();
   /** @type {Projectile} */
   const flock = {
     kind: 'flock',
-    from: { x: W + 100, y: 320 },
+    from: { x: W + 80 + Math.random() * 120, y: 220 + Math.random() * 200 },
     to: target,
     t0: t + 150,
-    dur: 1900,
+    dur: 1700 + Math.random() * 600,
     peakLift: 0,
-    sinAmp: 50, sinFreq: 0, sinPhase: 0,
+    sinAmp: 30 + Math.random() * 50, sinFreq: 0, sinPhase: 0,
     onLand: () => _routeOursImpact(target, dmgVal),
   };
   projectiles.push(flock);
@@ -374,6 +414,7 @@ function _startExitTransition(endAction) {
   transitioning = true;
   transitionT0 = performance.now();
   transitionEndAction = endAction;
+  transitionEndFired = false;
 }
 
 function _emitCutToInterior() {
@@ -451,16 +492,27 @@ function loop() {
     sy = (Math.random() * 2 - 1) * shakeIntensity * decay;
   }
 
-  // Zoom transition (T1): scale around castle center with ease-in-out cubic.
-  // Punch-in to 2.4x; slight darkening at the very end (entering the castle's
-  // shadow). NO white flash — that was breaking the continuity to interior.
+  // Zoom transition (T1): "diving into the castle". An accelerating zoom punches
+  // forward into the keep while a circular iris closes around the muzzle/door.
+  // The iris reaches full black just before the scene swap, so the cut is
+  // hidden behind the vignette — what the viewer perceives is a continuous
+  // plunge through the castle wall, not a hard cut.
   let zoomScale = 1;
-  let dimAlpha = 0;
+  let irisProgress = 0;       // 0 = open, 1 = fully closed (black)
+  let radialSpeedAlpha = 0;   // alpha of radial streaks during mid-dive
   if (transitioning) {
     const tn = Math.min(1, (now - transitionT0) / TRANSITION_DUR);
-    const eased = tn < 0.5 ? 4 * tn * tn * tn : 1 - Math.pow(-2 * tn + 2, 3) / 2;
-    zoomScale = 1 + eased * 1.4;              // 1 → 2.4
-    dimAlpha = Math.max(0, tn - 0.65) / 0.35 * 0.5; // last 35%: dim 0 → 0.5
+    // ease-in pow 2.6 — accelerates aggressively near the end (dive feel).
+    const easedZoom = Math.pow(tn, 2.6);
+    zoomScale = 1 + easedZoom * 4.0;          // 1 → 5.0x: real punch-through
+    // Iris stays open ~40%, then closes hard over the last 60% (ease-in cubic).
+    const irisRaw = Math.max(0, (tn - 0.40) / 0.60);
+    irisProgress = irisRaw * irisRaw * irisRaw;
+    // Radial speed-lines peak in the middle of the dive (40-85%).
+    if (tn > 0.40 && tn < 0.92) {
+      const k = (tn - 0.40) / 0.52;
+      radialSpeedAlpha = Math.sin(k * Math.PI) * 0.35;
+    }
   }
 
   // Whip pan (T2): horizontal slide between two castle "slots".
@@ -534,19 +586,64 @@ function loop() {
 
   ctx.restore();
 
-  if (dimAlpha > 0) {
-    ctx.fillStyle = `rgba(0,0,0,${dimAlpha})`;
-    ctx.fillRect(0, 0, W, H);
+  // Radial speed-lines from castle center outward — sells the dive velocity.
+  if (radialSpeedAlpha > 0) {
+    const cx = W / 2, cy = BASE_Y - 40;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = `rgba(255,250,235,${radialSpeedAlpha})`;
+    ctx.lineWidth = 2.5;
+    const N = 26;
+    const innerR = 80;
+    const outerR = Math.hypot(W, H);
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 + (now / 600);
+      const c = Math.cos(a), s = Math.sin(a);
+      ctx.beginPath();
+      ctx.moveTo(c * innerR, s * innerR);
+      ctx.lineTo(c * outerR, s * outerR);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Iris-out: circular black mask shrinking toward zero radius around the
+  // castle keep. When irisProgress reaches 1 the screen is fully black, which
+  // is when we hand off to interior — masking the swap entirely.
+  if (irisProgress > 0) {
+    const cx = W / 2, cy = BASE_Y - 40;
+    const maxR = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+    // Start radius covers the screen; closes to 0 as progress→1.
+    const r = maxR * (1 - irisProgress);
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    // Black ring filled by even-odd: outer rect minus inner circle.
+    ctx.rect(0, 0, W, H);
+    ctx.moveTo(cx + r, cy);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.restore();
   }
 
   drawTopHud(ctx);
   drawScriptOverlay(ctx, now / 1000);
 
+  // Fire the end action once the iris is fully closed (~92% of duration) so
+  // the actual scene swap is hidden behind black. Then keep drawing exterior
+  // until TRANSITION_DUR elapses (visible==false flips and the loop stops on
+  // its own once interior takes over).
+  if (transitioning && !transitionEndFired) {
+    const tn = (now - transitionT0) / TRANSITION_DUR;
+    if (tn >= 0.92) {
+      transitionEndFired = true;
+      const endAction = transitionEndAction;
+      transitionEndAction = null;
+      if (endAction) endAction();
+    }
+  }
   if (transitioning && (now - transitionT0) >= TRANSITION_DUR) {
     transitioning = false;
-    const endAction = transitionEndAction;
-    transitionEndAction = null;
-    if (endAction) endAction();
   }
 }
 
@@ -758,33 +855,66 @@ function _drawTreads(ctx) {
 }
 
 // ── Drawing — damage / projectiles / floats ──────────────────────────────────
+// Stone-destruction palette. Avoid pure-black flat fill which Gemini flagged
+// as a giant placeholder polygon — layered gradient + colored rim + visible
+// fragments make the hole read as broken masonry instead.
+const HOLE_DEEP   = '#0A0A0C'; // deepest interior
+const HOLE_MID    = '#1F1A18'; // brown-black mid-rim
+const HOLE_OUTER  = '#3A3530'; // warm dark outer rim (jagged)
+const STONE_FRAG_DARK = '#5C5450';
+const STONE_FRAG_MID  = '#7C7368';
+const STONE_FRAG_LIT  = '#9A8E7E';
+const STONE_FRAG_HI   = '#B8AC9A';
+
+function _polyPath(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+}
+
 function _drawDamageMasks(ctx, zones) {
   if (!zones.length) return;
   ctx.save();
   for (const z of zones) {
-    // Hard-edged jagged hole revealing dark interior.
-    ctx.fillStyle = '#0E0E10';
-    ctx.beginPath();
-    ctx.moveTo(z.poly[0][0], z.poly[0][1]);
-    for (let i = 1; i < z.poly.length; i++) {
-      ctx.lineTo(z.poly[i][0], z.poly[i][1]);
-    }
-    ctx.closePath();
+    // 1. Outer jagged rim — warm dark stone color (NOT pure black).
+    //    Drawn slightly larger so it peeks out around the inner hole.
+    ctx.fillStyle = HOLE_OUTER;
+    _polyPath(ctx, z.poly);
     ctx.fill();
 
-    // Inner ragged edge (slightly darker rim)
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#000';
+    // 2. Mid rim — brown-black, drawn from inner-rim polygon, gives a 2nd
+    //    chamfer that breaks the silhouette.
+    ctx.fillStyle = HOLE_MID;
+    _polyPath(ctx, z.innerRim);
+    ctx.fill();
+
+    // 3. Deep core — radial gradient from the center toward the inner rim
+    //    so the hole has perceived depth instead of reading as a black blob.
+    const grad = ctx.createRadialGradient(z.x, z.y, Math.max(2, z.r * 0.05),
+                                          z.x, z.y, z.r * 0.7);
+    grad.addColorStop(0,    HOLE_DEEP);
+    grad.addColorStop(0.55, HOLE_MID);
+    grad.addColorStop(1,    'rgba(31,26,24,0)');
+    ctx.fillStyle = grad;
+    _polyPath(ctx, z.innerRim);
+    ctx.fill();
+
+    // 4. Outer ragged edge stroke — dark warm brown rather than pitch-black,
+    //    so the silhouette doesn't collapse into a hard shape.
+    ctx.lineJoin = 'miter';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#15110F';
+    _polyPath(ctx, z.poly);
     ctx.stroke();
 
-    // Crack rays extending outward from the centre
-    ctx.strokeStyle = '#1A1A1A';
+    // 5. Crack rays — same as before, slight zig-zag.
+    ctx.strokeStyle = '#1A1614';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     for (const [cx, cy] of z.cracks) {
       ctx.beginPath();
       ctx.moveTo(z.x, z.y);
-      // Slight zig-zag along the crack
       const mx = (z.x + cx) / 2 + (cy - z.y) * 0.08;
       const my = (z.y + cy) / 2 - (cx - z.x) * 0.08;
       ctx.lineTo(mx, my);
@@ -792,13 +922,31 @@ function _drawDamageMasks(ctx, zones) {
       ctx.stroke();
     }
 
-    // Small stone chunks scattered just outside the hole
-    ctx.fillStyle = '#7C7368';
+    // 6. Inner stone fragments — visible against the dark core. Pre-baked
+    //    on _makeDamageZone (no per-frame randomness → no shimmer).
+    for (const c of z.innerChunks) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.rot);
+      ctx.fillStyle = c.shade < 0.33 ? STONE_FRAG_DARK
+                    : c.shade < 0.75 ? STONE_FRAG_MID
+                                     : STONE_FRAG_LIT;
+      ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+      if (c.lit) {
+        ctx.fillStyle = STONE_FRAG_HI;
+        ctx.fillRect(-c.w / 2, -c.h / 2, c.w, 1); // top-light highlight
+      }
+      ctx.restore();
+    }
+
+    // 7. Outer scattered chunks (kept from previous version, slightly
+    //    lighter palette so they read as dust-covered rubble).
     for (let k = 0; k < 6; k++) {
       const a = Math.PI * 2 * (k / 6) + (z.x % 1);
       const rr = z.r * 1.05 + (k * 5) % 14;
       const px = z.x + Math.cos(a) * rr;
       const py = z.y + Math.sin(a) * rr;
+      ctx.fillStyle = k % 2 ? STONE_FRAG_MID : STONE_FRAG_DARK;
       ctx.fillRect(px, py, 5 + (k % 3) * 2, 4 + ((k * 3) % 3));
     }
   }
