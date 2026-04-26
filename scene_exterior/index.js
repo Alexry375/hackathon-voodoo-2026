@@ -30,6 +30,8 @@ import { isFailScreenShown } from '../playable/fail_screen.js';
 import { drawRaven } from './raven.js';
 import { drawRavenFlock } from './raven_flock.js';
 import { planForUnit, drawProjectileP1, drawProjectileP2 } from './projectile_sprites.js';
+import { drawGlowHalo, drawSparks, dropSpark, shouldDropSpark } from './projectile_glow.js';
+import { drawAmbientHaze } from '../playable/idle_pulses.js';
 import { playSfx } from '../shared/audio.js';
 
 const FIRING_SFX_BY_UNIT = {
@@ -862,6 +864,18 @@ function loop() {
 
   _drawProjectiles(ctx, now, viewOffset);
   _drawParticles(ctx, now);
+  drawSparks(ctx);
+
+  // Ambient haze over the active castle during dwell / await beats so the
+  // post-impact pause never reads as a frozen frame. Stronger during ours_dwell
+  // (lingering smoke memory), gentler during the tap-await overview.
+  let hazeAlpha = 0;
+  if (step === 'ours_dwell' || step === 'enemy_dwell') hazeAlpha = 0.85;
+  else if (awaitingTap) hazeAlpha = 0.5;
+  if (hazeAlpha > 0) {
+    drawAmbientHaze(ctx, now / 1000, { cx: W / 2, cy: BASE_Y - 60 }, hazeAlpha);
+  }
+
   _drawFloats(ctx, now);
 
   ctx.restore();
@@ -1351,10 +1365,25 @@ function _drawProjectiles(ctx, now, viewOffset = 0) {
         flapSpeed: 5,
       });
     }
-    else if (p.kind === 'rocket') _drawRocketSprite(ctx, pos.x + dx_screen, pos.y, ang, 36);
-    else if (p.kind === 'rocket_p1') drawProjectileP1(ctx, pos.x + dx_screen, pos.y, ang, p._spriteSize ?? 30);
-    else if (p.kind === 'bomb_p2')   drawProjectileP2(ctx, pos.x + dx_screen, pos.y, ang, p._spriteSize ?? 44);
-    else if (p.kind === 'bomb') _drawBombSprite(ctx, pos.x + dx_screen, pos.y, ang);
+    else {
+      const sx = pos.x + dx_screen;
+      // Glow halo + occasional sparks behind every non-flock projectile.
+      // Picks a tinted halo colour that matches each projectile's "vibe" so
+      // rafale reads warm yellow, bomb reads orange-red, classic rocket red.
+      let haloColor = 'rgba(255,220,140,1)';
+      let haloR = 22;
+      if (p.kind === 'bomb_p2' || p.kind === 'bomb') { haloColor = 'rgba(255,150,80,1)'; haloR = 28; }
+      else if (p.kind === 'rocket') { haloColor = 'rgba(255,120,90,1)'; haloR = 24; }
+      drawGlowHalo(ctx, sx, pos.y, { radius: haloR, color: haloColor, alpha: 0.55 });
+      if (shouldDropSpark()) {
+        const c = (p.kind === 'bomb_p2' || p.kind === 'bomb') ? '#FFB060' : '#FFE48A';
+        dropSpark(sx, pos.y, c);
+      }
+      if (p.kind === 'rocket') _drawRocketSprite(ctx, sx, pos.y, ang, 36);
+      else if (p.kind === 'rocket_p1') drawProjectileP1(ctx, sx, pos.y, ang, p._spriteSize ?? 30);
+      else if (p.kind === 'bomb_p2')   drawProjectileP2(ctx, sx, pos.y, ang, p._spriteSize ?? 44);
+      else if (p.kind === 'bomb') _drawBombSprite(ctx, sx, pos.y, ang);
+    }
   }
 }
 

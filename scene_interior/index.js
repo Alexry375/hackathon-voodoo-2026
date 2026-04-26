@@ -16,6 +16,9 @@ import { getActiveFloor, getActiveUnitId } from './turn.js';
 import { drawTopHud } from '../shared/hud_top.js';
 import { drawScriptOverlay } from '../playable/script.js';
 import { drawSky } from '../scene_exterior/index.js';
+import { drawAimReadyPulse, drawDustMotes } from '../playable/idle_pulses.js';
+import { getFloorAnchor } from './castle_section.js';
+import { isAiming } from './aim.js';
 
 /** @type {HTMLCanvasElement | null} */
 let canvas = null;
@@ -149,10 +152,28 @@ function loop() {
   }
 
   drawCastleSection(ctx, { tilt_deg: currentTilt, damage_level: damageLevel });
+  // Dust motes drift inside the castle (behind units so they don't obscure
+  // weapon detail). Always-on ambient that keeps the interior alive during
+  // the long aim-idle windows.
+  drawDustMotes(ctx, t, canvas.width, canvas.height);
   drawUnits(ctx, t);
   drawRipStones(ctx);
   const activeFloor = getActiveFloor();
   if (activeFloor !== null) drawArrow(ctx, t, activeFloor);
+  // Aim-ready pulse on active unit — only when player isn't dragging and we're
+  // past the entrance zoom-in. Hidden during tutorial (script overlay handles
+  // hand cursor instead) by deferring to a low alpha during the initial 5s.
+  if (activeFloor !== null && !isAiming()) {
+    const a = getFloorAnchor(activeFloor);
+    if (a) {
+      // Fade pulse in after entrance zoom (≥700ms) and skip while tutorial hand
+      // cursor is showing — the script's tutorial cycle is 0..0.92 of 2200ms.
+      const sinceMount = performance.now() - entranceT0;
+      const pulseAlpha = sinceMount < ENTRANCE_DUR ? 0
+        : Math.min(1, (sinceMount - ENTRANCE_DUR) / 1200);
+      drawAimReadyPulse(ctx, a, t, pulseAlpha);
+    }
+  }
   drawAimOverlay(ctx);
   drawHudCards(ctx, getActiveUnitId());
 
