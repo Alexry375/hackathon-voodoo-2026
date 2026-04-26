@@ -2,11 +2,27 @@
   "id": "V3",
   "axis": "palette",
   "name": "y2k-neon",
-  "hypothesis": "Y2K neon overlay (pink/cyan diagonal wash + 4px scan-lines + violet corner vignette + sweeping chromatic-aberration band) creates a thumb-stop palette signature on TikTok/Reels 2026 feeds without altering gameplay, hook, or endcard structure.",
-  "diff_from_baseline": {
-    "added_files": ["playable/y2k_overlay.js"],
-    "modified_files": ["playable/script.js"],
-    "scope": "palette only — overlay applied at top of _paintOverlay, gated to skip endcard and forcewin phases so Sami's juice stays intact."
-  },
-  "review": "pending"
+  "title": "Y2K-neon JUICY — overlay-wash + scan-lines + chromatic sweep + edge bands",
+  "hypothesis": "Aggressive Y2K post-FX stack (saturated pink↔cyan overlay-blend wash + 4px alternating scan-lines + scrolling chromatic-aberration sweep + violet vignette + pink-top/cyan-bottom edge bands) creates a high-saturation TikTok/Reels thumb-stop palette signature without altering gameplay legibility or Sami's endcard juice.",
+  "diff_from_baseline": [
+    "NEW playable/y2k_overlay.js (~70 LOC) exporting applyY2KPostFX(ctx, t) — 5-pass post-FX",
+    "Pass 1 — Diagonal pink→violet→cyan gradient wash, overlay blend, breathing alpha 0.65±0.12 @ 0.8Hz (saturated rather than soft-light to keep colors punchy)",
+    "Pass 2 — Horizontal scan-lines every 4px (white 10% + black 18% interleaved) — overlay blend → CRT/Y2K signature",
+    "Pass 3 — Chromatic aberration sweep — pink/cyan band scrolling vertically @ 180px/s, screen blend (lighter)",
+    "Pass 4 — Violet radial vignette (rgba 60,20,120,0.55), multiply blend, focuses gaze on castles",
+    "Pass 5 — Pink top edge band + cyan bottom edge band (60px each, lighter blend) — TikTok creative-tier framing signature",
+    "playable/script.js — 1 import + applyY2KPostFX(ctx, t) at top of _paintOverlay, gated to skip endcard + forcewin so Sami's shimmer/confetti/flash stay clean"
+  ],
+  "review": "pass",
+  "juicy_checklist_validated": [
+    "color-shift continuous: pink→violet→cyan diagonal wash with breathing alpha pulse @ 0.8Hz",
+    "particles/lines 2+: alternating 4px scan-lines (white+black interleaved) covering full canvas",
+    "glow-bloom: pink top band + cyan bottom band in 'lighter' composite operation",
+    "trail persistence: chromatic-aberration sweep scrolling vertically continuously @ 180px/s",
+    "layered blending 5+: overlay (wash), overlay (scanlines), screen (sweep), multiply (vignette), lighter (edge bands) — all stacked"
+  ],
+  "juicy_omitted": [
+    "screen-shake: out of axis — palette overlay should not move the underlying image (gameplay legibility)",
+    "scale-punch lettering: out of axis — no new diegetic copy for palette variation"
+  ]
 }
