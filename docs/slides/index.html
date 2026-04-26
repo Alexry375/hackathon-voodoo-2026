@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>N7.42 — Voodoo × Unaite × Anthropic 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="deck">
+
+    <!-- ========== SLIDE 1 — INTRO ========== -->
+    <section class="slide" data-slide="1">
+      <div class="frame">
+        <div class="eyebrow">Voodoo × Unaite × Anthropic — avril 2026</div>
+        <h1 class="team">N7<span class="dot">·</span>42</h1>
+        <div class="track">
+          <span class="track-tag">Track 2</span>
+          <span class="track-flow">vidéo gameplay <span class="arrow">→</span> playable ad</span>
+        </div>
+        <ul class="roster">
+          <li>Antoine Monot</li>
+          <li>Sami Ennedoui</li>
+          <li>Kseniia Osipova</li>
+          <li>Alexis Briend</li>
+          <li>Bo Sébastien</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 2 — DEMO + PIPELINE ANTOINE ========== -->
+    <section class="slide" data-slide="2">
+      <div class="frame two-col">
+        <div class="col">
+          <div class="kicker">01 — Démo en ligne</div>
+          <h2>Castle Clashers <em>playable</em></h2>
+          <div class="demo-box">
+            <div class="demo-frame-wrap">
+              <iframe class="demo-frame" src="../../iterations/baseline/playable.html" title="Live demo"></iframe>
+            </div>
+            <div class="demo-meta">
+              <code>iterations/baseline/playable.html</code>
+              <span>2.81 MB · single-file · sub-5MB AppLovin cap</span>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="kicker">02 — Phase 1 · Antoine</div>
+          <h2>Analyse vidéo <em>arborescente</em></h2>
+          <div class="io">
+            <div class="io-row"><span class="io-tag">in</span><code>Videos/B01.mp4</code></div>
+            <div class="io-row"><span class="io-tag">out</span><code>game_spec.md</code> + 20 sous-fiches</div>
+          </div>
+          <div class="graph">
+            <div class="node root">B01.mp4</div>
+            <div class="branches">
+              <div class="branch">
+                <div class="node">visuals</div>
+                <div class="leaves"><span>palette</span><span>chars</span><span>fx</span><span>props</span></div>
+              </div>
+              <div class="branch">
+                <div class="node">gameplay</div>
+                <div class="leaves"><span>loop</span><span>ennemis</span><span>aim</span><span>impact</span></div>
+              </div>
+              <div class="branch">
+                <div class="node">audio</div>
+                <div class="leaves"><span>music</span><span>SFX</span><span>voice</span><span>ambience</span></div>
+              </div>
+              <div class="branch">
+                <div class="node">narratif</div>
+                <div class="leaves"><span>hook</span><span>beats</span><span>endcard</span><span>CTA</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="caption"><code>pipeline_agentic.py</code> — Gemini 2.5 Pro, branching=4, depth=2 → 21 .md</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 3 — PIPELINE MVP ========== -->
+    <section class="slide" data-slide="3">
+      <div class="frame">
+        <div class="kicker">03 — Phase 2 · Sami + Alexis</div>
+        <h2>Du <em>game_spec.md</em> au playable single-file</h2>
+
+        <div class="skills-strip">
+          <div class="skill"><span class="num">00</span>mission</div>
+          <div class="skill"><span class="num">01</span>skim &amp; validate</div>
+          <div class="skill"><span class="num">02</span>asset anchor</div>
+          <div class="skill"><span class="num">03</span>asset fanout</div>
+          <div class="skill"><span class="num">04</span>implementation</div>
+          <div class="skill"><span class="num">05</span>playwright loop</div>
+          <div class="skill"><span class="num">06</span>bundle &amp; deliver</div>
+        </div>
+
+        <div class="zoom">
+          <div class="zoom-title">Technique d'itération — un asset = un sous-agent</div>
+          <div class="case">
+            <div class="case-row">
+              <span class="case-tag">repéré</span>
+              <span>« Le projectile ennemi est un corbeau qui plonge en sinusoïdale »</span>
+            </div>
+            <div class="case-row">
+              <span class="case-tag fanout">fanout</span>
+              <span>1 sous-agent dédié corbeau : sprite, animation, trajectoire, SFX cawing, trail</span>
+            </div>
+            <div class="case-row">
+              <span class="case-tag merge">merge</span>
+              <span>livre <code>scene_exterior/raven.js</code> + <code>raven_flock.js</code> isolés, plug-and-play</span>
+            </div>
+          </div>
+          <div class="zoom-pun">Granularité par <strong>asset signifiant</strong>, pas par couche technique.</div>
+        </div>
+
+        <div class="badge">MVP livré en <strong>6 h 45</strong> · premier prompt → commit avec musique</div>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 4 — ITERATIONS ========== -->
+    <section class="slide" data-slide="4">
+      <div class="frame two-col">
+        <div class="col col-narrow">
+          <div class="kicker">04 — Phase 3 · Pipeline d'itérations</div>
+          <h2>Itérer <em>en parallèle</em>, comparer <em>côte à côte</em></h2>
+          <div class="roles">
+            <div class="role">
+              <div class="role-name">Main</div>
+              <div class="role-desc">brainstorm 30+ idées hors-genre · triage assets · arbitrage</div>
+            </div>
+            <div class="role">
+              <div class="role-name">Variables ×n</div>
+              <div class="role-desc">un sous-agent par axe unique · sous-branche · single-file build</div>
+            </div>
+            <div class="role">
+              <div class="role-name">Reviewer</div>
+              <div class="role-desc">vérifie axe respecté · pas de régression boucle · pass / fail</div>
+            </div>
+          </div>
+          <div class="axes">
+            <span>hook</span><span>mechanic</span><span>palette</span><span>narrative</span><span>endcard</span>
+          </div>
+          <div class="caption">Décision pragmatique · drop Gemini scoring · pas de skill bloat</div>
+        </div>
+        <div class="col col-wide">
+          <div class="kicker">live</div>
+          <div class="grid-frame-wrap">
+            <iframe class="grid-frame" src="http://127.0.0.1:8766/iterations/" title="Iterations grid"></iframe>
+          </div>
+          <div class="caption mono">http://127.0.0.1:8766/iterations/</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SLIDE 5 — MERCI + SOURCES ========== -->
+    <section class="slide" data-slide="5">
+      <div class="frame">
+        <h1 class="thanks">Merci.</h1>
+        <div class="sources">
+          <div class="src-col">
+            <div class="src-title">Vidéo &amp; assets fournis</div>
+            <ul>
+              <li><strong>Voodoo</strong> — vidéo source <code>B01.mp4</code> (Castle Clashers)</li>
+              <li><strong>Voodoo</strong> — pack <code>Castle Clashers Assets</code> (PSB, PNG, OGG)</li>
+            </ul>
+          </div>
+          <div class="src-col">
+            <div class="src-title">Assets tiers</div>
+            <ul>
+              <li><strong>Kenney.nl</strong> — hand cursor sprite (CC0)</li>
+              <li><strong>Scenario.com</strong> — assets génératifs via MCP</li>
+              <li><strong>htdemucs_ft</strong> — séparation stems audio (musique &amp; voix)</li>
+            </ul>
+          </div>
+          <div class="src-col">
+            <div class="src-title">Modèles &amp; outils</div>
+            <ul>
+              <li><strong>Anthropic Claude</strong> — Opus 4.7, Sonnet 4.6, Claude Code</li>
+              <li><strong>Google Gemini 2.5 Pro</strong> — analyse vidéo multimodale</li>
+              <li><strong>esbuild · Playwright · Three.js</strong> — bundling, capture, rendu</li>
+            </ul>
+          </div>
+          <div class="src-col">
+            <div class="src-title">Hosts &amp; orga</div>
+            <ul>
+              <li><strong>Voodoo</strong> · <strong>Unaite</strong> · <strong>Anthropic</strong> — hackathon avril 2026</li>
+              <li><strong>itch.io</strong> — hosting démo publique</li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer">N7.42 — Antoine · Sami · Kseniia · Alexis · Sébastien</div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="dots" aria-label="Slides">
+    <button data-go="1"></button><button data-go="2"></button><button data-go="3"></button><button data-go="4"></button><button data-go="5"></button>
+  </nav>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const dots = document.querySelectorAll('.dots button');
+    let cur = 0;
+
+    function go(i) {
+      cur = Math.max(0, Math.min(slides.length - 1, i));
+      slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+      dots.forEach((d, k) => d.classList.toggle('active', k === cur));
+      location.hash = String(cur + 1);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(cur + 1); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(cur - 1); }
+      else if (e.key === 'Home') go(0);
+      else if (e.key === 'End') go(slides.length - 1);
+    });
+
+    dots.forEach(d => d.addEventListener('click', () => go(parseInt(d.dataset.go, 10) - 1)));
+
+    const init = parseInt((location.hash || '#1').slice(1), 10) - 1;
+    go(isNaN(init) ? 0 : init);
+  </script>
+</body>
+</html>

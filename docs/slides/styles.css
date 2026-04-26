@@ -1,0 +1,294 @@
+/* ============================================================
+   N7.42 — slides
+   Minimal, classy, dark, typo-driven. Fraunces + JetBrains Mono.
+   ============================================================ */
+
+:root {
+  --bg: #0a0a0b;
+  --bg-soft: #131316;
+  --line: #2a2a30;
+  --fg: #f0ece4;
+  --fg-mute: #7c7872;
+  --accent: #d4a857;        /* or doux */
+  --accent-soft: rgba(212, 168, 87, 0.14);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; background: var(--bg); color: var(--fg);
+             font-family: 'Fraunces', 'Times New Roman', serif;
+             font-feature-settings: 'ss01', 'ss02';
+             overflow: hidden; }
+
+code, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+#deck { position: fixed; inset: 0; }
+
+.slide {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .45s ease;
+  padding: 5vh 6vw;
+}
+.slide.active { opacity: 1; pointer-events: auto; }
+
+.frame {
+  width: 100%; max-width: 1280px; height: 100%;
+  display: flex; flex-direction: column; justify-content: center;
+}
+
+.frame.two-col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4vw;
+  align-items: stretch;
+}
+.frame.two-col .col { display: flex; flex-direction: column; justify-content: center; }
+.col-narrow { grid-column: span 1; }
+.col-wide   { grid-column: span 1; }
+
+/* ---------- typography ---------- */
+
+h1, h2 { font-weight: 300; letter-spacing: -0.02em; line-height: 1.05; }
+h1 { font-size: clamp(56px, 8vw, 128px); }
+h2 { font-size: clamp(32px, 4vw, 56px); margin-bottom: 24px; }
+h2 em { font-style: italic; color: var(--accent); }
+
+.eyebrow, .kicker {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--fg-mute); margin-bottom: 18px;
+}
+
+.caption {
+  margin-top: 14px; color: var(--fg-mute); font-size: 13px;
+  font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;
+}
+.caption code { color: var(--fg); }
+
+/* ---------- slide 1 — intro ---------- */
+
+.team {
+  font-size: clamp(120px, 18vw, 280px);
+  font-weight: 300; line-height: .9;
+  margin: 18px 0 28px;
+}
+.team .dot { color: var(--accent); margin: 0 -.04em; }
+
+.track {
+  display: flex; align-items: center; gap: 18px;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  margin-bottom: 56px; color: var(--fg-mute);
+}
+.track-tag {
+  border: 1px solid var(--accent); color: var(--accent);
+  padding: 4px 10px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.track-flow .arrow { color: var(--accent); margin: 0 .4em; }
+
+.roster {
+  list-style: none; display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 24px; padding-top: 24px; border-top: 1px solid var(--line);
+}
+.roster li {
+  font-size: 18px; font-weight: 400; letter-spacing: -0.005em;
+  color: var(--fg);
+}
+
+/* ---------- slide 2 — demo + pipeline antoine ---------- */
+
+.demo-box {
+  border: 1px solid var(--line); background: var(--bg-soft);
+  padding: 14px; border-radius: 4px;
+}
+.demo-frame-wrap {
+  position: relative; aspect-ratio: 540/960; max-height: 56vh;
+  margin: 0 auto; background: #000;
+}
+.demo-frame { width: 100%; height: 100%; border: 0; display: block; }
+.demo-meta {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-top: 12px; font-size: 11px; color: var(--fg-mute);
+  font-family: 'JetBrains Mono', monospace;
+}
+.demo-meta code { color: var(--fg); }
+
+.io { margin-bottom: 24px; }
+.io-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+}
+.io-tag {
+  color: var(--accent); width: 28px; text-transform: uppercase;
+  font-size: 11px; letter-spacing: 0.12em;
+}
+
+.graph {
+  margin: 18px 0; padding: 22px; border: 1px solid var(--line);
+  background: var(--bg-soft); border-radius: 4px;
+}
+.graph .node {
+  display: inline-block; padding: 6px 14px;
+  border: 1px solid var(--line); color: var(--fg);
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+}
+.graph .root {
+  display: block; margin: 0 auto 18px; width: max-content;
+  border-color: var(--accent); color: var(--accent);
+}
+.branches {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.branch { text-align: center; }
+.branch .node { display: block; margin-bottom: 10px; }
+.leaves {
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--fg-mute);
+}
+
+/* ---------- slide 3 — pipeline mvp ---------- */
+
+.skills-strip {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px;
+  margin: 8px 0 36px;
+}
+.skill {
+  border: 1px solid var(--line); padding: 14px 12px;
+  background: var(--bg-soft); position: relative;
+  font-size: 13px; color: var(--fg);
+  display: flex; flex-direction: column; gap: 8px;
+  text-align: left; transition: border-color .2s;
+}
+.skill:hover { border-color: var(--accent); }
+.skill .num {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--accent); letter-spacing: 0.08em;
+}
+
+.zoom {
+  border-left: 2px solid var(--accent);
+  padding: 4px 0 4px 26px; margin: 8px 0 28px;
+}
+.zoom-title {
+  font-size: 22px; font-style: italic; color: var(--fg);
+  margin-bottom: 18px;
+}
+.case { display: flex; flex-direction: column; gap: 12px; }
+.case-row {
+  display: flex; gap: 16px; align-items: baseline;
+  font-size: 16px; line-height: 1.5;
+}
+.case-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--fg-mute); width: 64px; flex-shrink: 0;
+  padding-top: 4px;
+}
+.case-tag.fanout { color: var(--accent); }
+.case-tag.merge  { color: #7ec48a; }
+.case-row code {
+  background: var(--accent-soft); padding: 1px 6px; border-radius: 3px;
+  font-size: 13px; color: var(--accent);
+}
+.zoom-pun {
+  margin-top: 16px; font-size: 17px; color: var(--fg-mute);
+  font-style: italic;
+}
+.zoom-pun strong { color: var(--accent); font-weight: 400; font-style: normal; }
+
+.badge {
+  align-self: center; margin-top: auto;
+  padding: 12px 28px; border: 1px solid var(--accent);
+  color: var(--fg); font-size: 16px; letter-spacing: 0.04em;
+  background: var(--accent-soft);
+}
+.badge strong { color: var(--accent); font-weight: 600; }
+
+/* ---------- slide 4 — iterations ---------- */
+
+.roles { display: flex; flex-direction: column; gap: 18px; margin: 12px 0 26px; }
+.role {
+  border-left: 2px solid var(--line);
+  padding: 6px 0 6px 18px;
+  transition: border-color .2s;
+}
+.role:hover { border-color: var(--accent); }
+.role-name {
+  font-size: 22px; font-weight: 400; color: var(--fg);
+  letter-spacing: -0.01em; margin-bottom: 2px;
+}
+.role-desc { font-size: 13px; color: var(--fg-mute); }
+
+.axes {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+}
+.axes span {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  border: 1px solid var(--line); padding: 4px 10px;
+  letter-spacing: 0.08em; color: var(--fg-mute);
+}
+
+.grid-frame-wrap {
+  flex: 1; min-height: 0;
+  border: 1px solid var(--line); border-radius: 4px;
+  overflow: hidden; background: var(--bg-soft);
+}
+.grid-frame { width: 100%; height: 100%; border: 0; display: block; }
+
+/* ---------- slide 5 — merci + sources ---------- */
+
+.thanks {
+  text-align: center; font-size: clamp(80px, 12vw, 180px);
+  margin-bottom: 56px; font-style: italic;
+}
+.sources {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px;
+  flex: 1;
+}
+.src-col {
+  border-top: 1px solid var(--accent);
+  padding-top: 16px;
+}
+.src-title {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 14px;
+}
+.src-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.src-col li { font-size: 13px; line-height: 1.5; color: var(--fg-mute); }
+.src-col li strong { color: var(--fg); font-weight: 500; }
+.src-col li code {
+  font-size: 11px; color: var(--accent);
+  background: var(--accent-soft); padding: 0 4px; border-radius: 2px;
+}
+
+.footer {
+  margin-top: 48px; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.16em; color: var(--fg-mute);
+}
+
+/* ---------- nav dots ---------- */
+
+.dots {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; z-index: 100;
+}
+.dots button {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--line); border: 0; cursor: pointer;
+  padding: 0; transition: background .2s, transform .2s;
+}
+.dots button:hover { background: var(--fg-mute); }
+.dots button.active { background: var(--accent); transform: scale(1.3); }
+
+/* ---------- responsive guard ---------- */
+
+@media (max-width: 900px) {
+  .frame.two-col { grid-template-columns: 1fr; gap: 24px; }
+  .roster { grid-template-columns: repeat(2, 1fr); }
+  .skills-strip { grid-template-columns: repeat(3, 1fr); }
+  .branches { grid-template-columns: repeat(2, 1fr); }
+  .sources { grid-template-columns: repeat(2, 1fr); }
+}
