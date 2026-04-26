@@ -287,7 +287,10 @@ function startPlayerShot(payload) {
 
   // Camera pan runs concurrently with the first ~73% of the rocket flight; the
   // last 400ms of the rocket arc descend onto the enemy castle in ENEMY view.
-  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1100, dir: 1 };
+  // Pan mirrors rocket flight: starts at fire+250ms (same as rocket), runs
+  // 1300ms so the camera "tracks" the rocket through most of its arc, finishing
+  // ~150ms before impact so the last beat lands cleanly in ENEMY view.
+  viewTransition = { fromView: 'OURS', toView: 'ENEMY', t0: t + 250, dur: 1300, dir: 1 };
 }
 
 // ── Cinematic tick (called each frame) ───────────────────────────────────────
@@ -334,7 +337,7 @@ function _emitCutToInterior() {
   const now = performance.now();
   viewTransition = {
     fromView: 'ENEMY', toView: 'OURS',
-    t0: now, dur: 500, dir: -1,
+    t0: now, dur: 950, dir: -1,
     onComplete: () => {
       emit('cut_to_interior', {
         hp_self_after:  state.hp_self_pct,
