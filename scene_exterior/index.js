@@ -44,10 +44,10 @@ export function getZoomT() { return _zoomT; }
 // until the player taps and scene_manager.start() advances to EXTERIOR_OBSERVE.
 const EXTERIOR_STATES = new Set(['INTRO', 'EXTERIOR_OBSERVE', 'EXTERIOR_RESOLVE']);
 
-// Transition state — kept minimal: a brief white flash on cut, then hard-cut.
+// Transition state — camera punches into blue castle wall, then white flash covers the cut.
 let _zoomT = 0;
 let _zoomActive = false;
-const ZOOM_SPEED = 0.012; // flash lasts ~80ms
+const ZOOM_SPEED = 0.0022; // total ~450ms: first ~350ms = camera zoom, last ~100ms = white flash
 
 // Camera follow is gated by these flags so we don't override scene_exterior's
 // idle preset every frame.
@@ -80,7 +80,8 @@ export function mount(c) {
       _zoomActive = false;
     }
     if (!visible && wasVisible && s === 'INTERIOR_AIM') {
-      // Interior is taking over — gentle zoom into castle, then stop.
+      // Interior is taking over — snap camera close to castle wall, then animate inward.
+      snapTo({ x: WORLD.blue_castle.x, y: WORLD.ground_y - 260, zoom: 1.30 });
       _zoomActive = true;
     }
     if ((visible || _zoomActive) && !rafId) {
@@ -192,9 +193,17 @@ function loop() {
 
   const viewport = { w: canvas.width, h: canvas.height };
 
-  // Zoom-punch: accelerate into the blue castle then hand off to interior.
+  // Camera zoom-in: push toward the blue castle wall, then white flash covers the cut.
   if (_zoomActive) {
     _zoomT = Math.min(1, _zoomT + ZOOM_SPEED * dt_ms);
+    // Snap camera immediately to a zoomed close-up of the castle wall.
+    // Hold there for the first 78% of the transition so player sees the zoom.
+    // We use snapTo-style large ease so the camera reaches target in one frame.
+    const camT = Math.min(1, _zoomT / 0.78);
+    const eased = camT * camT * (3 - 2 * camT); // smoothstep
+    const zoomLevel = 1.30 + eased * 0.55;      // starts already close (1.30), pushes to 1.85
+    const targetY = WORLD.ground_y - 260 - eased * 70;
+    setTarget({ x: WORLD.blue_castle.x, y: targetY, zoom: zoomLevel }, { ease: 0.5 });
     if (_zoomT >= 1) {
       _zoomActive = false;
       rafId = 0;
@@ -213,7 +222,7 @@ function loop() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, viewport.w, viewport.h);
 
-  _driveCamera();
+  if (!_zoomActive) _driveCamera();
   updateCamera(dt_ms);
 
   // === World-space draws ===
@@ -249,13 +258,11 @@ function loop() {
   drawTopHud(ctx);
   if (drawScriptOverlay) drawScriptOverlay(ctx, performance.now() / 1000);
 
-  // Brief white flash on the cut frame — matches source's snappy feel.
-  if (_zoomActive && _zoomT > 0) {
-    const alpha = Math.max(0, 1 - _zoomT * 5); // fades out in first 20% of duration
-    if (alpha > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-      ctx.fillRect(0, 0, viewport.w, viewport.h);
-    }
+  // White flash builds in the last 22% (~100ms) right before the cut.
+  if (_zoomActive && _zoomT > 0.78) {
+    const alpha = Math.min(1, (_zoomT - 0.78) / 0.22);
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.fillRect(0, 0, viewport.w, viewport.h);
   }
 
   ctx.restore();

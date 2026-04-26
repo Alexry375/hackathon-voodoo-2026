@@ -88,7 +88,15 @@ function loop() {
   // Interior: much darker than exterior sky — only a sliver of daylight shows
   // through the castle's broken top cutout. Background gets near-black to
   // make units and platforms read clearly against a dim stone environment.
+  // Punch-in: scale game world only (not HUD).
   ctx.save();
+  if (_punchActive && _punchScale !== 1) {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(_punchScale, _punchScale);
+    ctx.translate(-cx, -cy);
+  }
 
   ctx.fillStyle = '#0A1210';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -107,9 +115,8 @@ function loop() {
   drawRipStones(ctx);
   const activeFloor = getActiveFloor();
   drawAimOverlay(ctx);
+  ctx.restore(); // end punch-in scale (HUD drawn outside)
+
   drawTopHud(ctx);
   drawScriptOverlay(ctx, t);
-
-
-  ctx.restore();
 }
