@@ -1027,58 +1027,116 @@ function _drawForestNear(ctx) {
 }
 
 function _drawGround(ctx) {
-  // Three layers (turf → topsoil → deep dirt) with scalloped lower edges
-  // and thin dark outlines, matching the source's vector-cartoon stack.
-  // Palette sampled from clip2 frame 0.
-  const GRASS_TOP = HORIZON_Y + 86;
-  const SOIL_TOP  = HORIZON_Y + 118;
-  const DEEP_TOP  = HORIZON_Y + 152;
+  // Source-frame inspection (clip1 blue side vs clip2 red side):
+  //   • OURS  view (blue castle): plain muted green ground, two soft bands
+  //     (#668F56 over #466B3F), no scalloped red dirt anywhere.
+  //   • ENEMY view (red castle):  three-layer stack with the dramatic
+  //     scarlet deep-dirt slab and scalloped soil/dirt boundaries.
+  // The red slab only belongs to the enemy frame — drawing it under the
+  // blue castle reads as "wrong terrain" and was the user's complaint.
+  // Default to the plain green source-style ground everywhere — the red
+  // scalloped dirt only appears in the source during a tight close-up on
+  // the red castle, which our pan/wide cinematography never reaches, so
+  // surfacing it elsewhere just reads as wrong terrain.
+  return _drawGroundOurs(ctx);
+}
 
-  // Scalloped edge: sequence of downward circular semicircles joined at sharp
-  // points along baseY. r = bump radius (= half bumpW). Issues a series of
-  // ctx.arc() calls so the bumps are true circles, not bezier blobs.
-  const drawScallopedEdge = (baseY, r) => {
-    const x0 = BG_X0, x1 = BG_X0 + BG_W;
-    for (let x = x0 + r; x < x1 + r; x += 2 * r) {
-      ctx.arc(x, baseY, r, Math.PI, 0, true); // downward semicircle, ccw
+function _drawGroundOurs(ctx) {
+  // Two flat green bands matching the blue-side source (sampled from clip1).
+  const GRASS_TOP = HORIZON_Y + 92;
+  const DEEP_TOP  = HORIZON_Y + 124;
+  ctx.fillStyle = '#466B3F';
+  ctx.fillRect(BG_X0, DEEP_TOP, BG_W, H - DEEP_TOP);
+  ctx.fillStyle = '#668F56';
+  ctx.fillRect(BG_X0, GRASS_TOP, BG_W, DEEP_TOP - GRASS_TOP);
+  // Thin separator stroke between the two greens.
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#2C4225';
+  ctx.beginPath();
+  ctx.moveTo(BG_X0, DEEP_TOP); ctx.lineTo(BG_X0 + BG_W, DEEP_TOP);
+  ctx.stroke();
+}
+
+function _drawGroundEnemy(ctx) {
+  // Three layers (turf → topsoil → deep dirt) with wide scalloped lower edges
+  // and a uniform dark-brown outline on every horizontal boundary —
+  // matching the source's vector-cartoon stack on the red/enemy side.
+  // Palette + proportions sampled from clip2_t0 vertical scan:
+  //   grass #5F8C4D, topsoil #763E2E, deep dirt #7C241D, outline #3E2817
+  const GRASS_TOP = HORIZON_Y + 92;
+  const SOIL_TOP  = HORIZON_Y + 108;
+  const DEEP_TOP  = HORIZON_Y + 132;
+  const BUMP_R    = 14;
+  const STROKE_W  = 1.5;
+  const STROKE    = '#3E2817';
+
+  // Generate one polyline of arc points for a scalloped boundary running
+  // left→right, starting and ending on baseY. Points are sampled along each
+  // semicircle so a single ctx.beginPath() + lineTo loop traces a clean,
+  // non-intersecting curve. Returns the array of {x, y} points.
+  const scallopPoints = (baseY, r, x0, x1) => {
+    const pts = [];
+    const stepsPerArc = 12;
+    for (let cx = x0 + r; cx < x1 + r; cx += 2 * r) {
+      // Down-bump: y = baseY + r * sin(theta), x = cx - r*cos(theta)
+      // theta from 0 → PI sweeps the bottom of a circle from left tangent to right tangent
+      for (let i = 0; i <= stepsPerArc; i++) {
+        const t = (i / stepsPerArc) * Math.PI;
+        pts.push({ x: cx - r * Math.cos(t), y: baseY + r * Math.sin(t) });
+      }
     }
+    return pts;
   };
 
-  const drawScallopedFill = (topY, baseY, r, fill) => {
-    const x0 = BG_X0, x1 = BG_X0 + BG_W;
-    ctx.beginPath();
-    ctx.moveTo(x0, topY);
-    ctx.lineTo(x1, topY);
-    ctx.lineTo(x1, baseY);
-    // Trace the scalloped lower edge right→left to close the polygon CCW.
-    for (let x = x1 - r; x > x0 - r; x -= 2 * r) {
-      ctx.arc(x, baseY, r, 0, Math.PI, false); // downward semicircle, cw
-    }
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-  };
+  const x0 = BG_X0, x1 = BG_X0 + BG_W;
+  const grassEdge = scallopPoints(SOIL_TOP, BUMP_R, x0, x1);
+  const soilEdge  = scallopPoints(DEEP_TOP, BUMP_R, x0, x1);
 
   // ── Layer 3 (deep brick-red dirt) — bottom slab, completely flat.
-  ctx.fillStyle = '#5D2621';
-  ctx.fillRect(BG_X0, DEEP_TOP, BG_W, H - DEEP_TOP);
+  ctx.fillStyle = '#7C241D';
+  ctx.fillRect(x0, DEEP_TOP, BG_W, H - DEEP_TOP);
 
-  // ── Layer 2 (topsoil) — scalloped lower edge dipping into deep dirt.
-  drawScallopedFill(SOIL_TOP, DEEP_TOP, 14, '#6B3C32');
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#2A0F0C';
+  // ── Layer 2 (topsoil) — fill bounded by SOIL_TOP and the soilEdge scallops.
   ctx.beginPath();
-  ctx.moveTo(BG_X0, DEEP_TOP);
-  drawScallopedEdge(DEEP_TOP, 14);
+  ctx.moveTo(x0, SOIL_TOP);
+  ctx.lineTo(x1, SOIL_TOP);
+  ctx.lineTo(x1, DEEP_TOP);
+  for (let i = soilEdge.length - 1; i >= 0; i--) ctx.lineTo(soilEdge[i].x, soilEdge[i].y);
+  ctx.lineTo(x0, DEEP_TOP);
+  ctx.closePath();
+  ctx.fillStyle = '#763E2E';
+  ctx.fill();
+
+  // ── Layer 1 (grass turf) — fill bounded by GRASS_TOP and the grassEdge scallops.
+  ctx.beginPath();
+  ctx.moveTo(x0, GRASS_TOP);
+  ctx.lineTo(x1, GRASS_TOP);
+  ctx.lineTo(x1, SOIL_TOP);
+  for (let i = grassEdge.length - 1; i >= 0; i--) ctx.lineTo(grassEdge[i].x, grassEdge[i].y);
+  ctx.lineTo(x0, SOIL_TOP);
+  ctx.closePath();
+  ctx.fillStyle = '#5F8C4D';
+  ctx.fill();
+
+  // ── Outlines: uniform 2.5 px dark brown on grass top, grass-soil edge,
+  // and soil-deep edge. lineJoin=round keeps the cusps clean.
+  ctx.lineWidth = STROKE_W;
+  ctx.strokeStyle = STROKE;
+  ctx.lineJoin = 'round';
+  ctx.lineCap  = 'round';
+  // Grass top edge
+  ctx.beginPath();
+  ctx.moveTo(x0, GRASS_TOP); ctx.lineTo(x1, GRASS_TOP);
   ctx.stroke();
-
-  // ── Layer 1 (grass turf) — slightly larger scallops dipping into topsoil.
-  drawScallopedFill(GRASS_TOP, SOIL_TOP, 12, '#608B49');
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = '#1F2E14';
+  // Grass→soil scalloped edge
   ctx.beginPath();
-  ctx.moveTo(BG_X0, SOIL_TOP);
-  drawScallopedEdge(SOIL_TOP, 12);
+  ctx.moveTo(grassEdge[0].x, grassEdge[0].y);
+  for (let i = 1; i < grassEdge.length; i++) ctx.lineTo(grassEdge[i].x, grassEdge[i].y);
+  ctx.stroke();
+  // Soil→deep scalloped edge
+  ctx.beginPath();
+  ctx.moveTo(soilEdge[0].x, soilEdge[0].y);
+  for (let i = 1; i < soilEdge.length; i++) ctx.lineTo(soilEdge[i].x, soilEdge[i].y);
   ctx.stroke();
 }
 
