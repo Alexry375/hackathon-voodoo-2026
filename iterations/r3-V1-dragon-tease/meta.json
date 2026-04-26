@@ -1,12 +1,28 @@
 {
   "id": "V1",
-  "title": "Dragon-tease — boss tease eye blinks behind enemy castle in intro",
+  "title": "Dragon-tease JUICY — eye+flare+claws+vignette+tremor+BEWARE shake stack",
   "axis": "hook",
-  "hypothesis": "A red dragon eye blinking behind the enemy castle plus a pulsing BEWARE! subtitle creates a Zeigarnik pattern-interrupt that boosts retention@5s.",
+  "hypothesis": "A 6-effect synchronized juicy cascade (red dragon eye dilating + rotating lens-flare + screen-edge claw scratches + pulsing red vignette + cumulative tremor with spike on eye-open + scale-punched BEWARE! lettering) during the first 4.2s creates a high-density pattern-interrupt that crushes retention@5s vs the minimal eye+text v0.",
   "diff_from_baseline": [
-    "New playable/dragon_tease.js draws a red blinking dragon eye + radial halo at top-right of canvas during intro phase",
-    "Adds pulsing 'BEWARE!' subtitle (Arial Black bold italic, red #B0000F with black stroke, easeOutBack pop at 900ms)",
-    "Hook layer fades in at 200-600ms and fades out at 3900-4500ms; only active while game.phase === 'intro'"
+    "NEW playable/dragon_tease.js (~250 LOC) exporting drawDragonTease + getTremorOffset, with 6 sub-helpers (drawDragonEye, drawLensFlare, drawClawsLeft, drawClawsRight, drawVignettePulse, drawBewareLettering)",
+    "Effect 1 — Dragon eye: almond shape, reptilian vertical pupil dilating 0.6→1.0 over 600ms, blink cycle (200ms closed every 1.8s), radial iris gradient #5C0000→#FF1A1A→#FFB0B0 at (420,180) r=70",
+    "Effect 2 — Lens-flare: 8 rotating star branches (0.1Hz) length 80–150px, additive 'lighter' blend rgba(255,180,80) pulsing 0.7Hz in sync with pupil dilation, plus soft halo radial",
+    "Effect 3 — Claws: 3 black silhouette claws scratch-in from LEFT edge at +400ms (200ms reveal), 3 from RIGHT at +550ms; hold 1500ms then fade 400ms",
+    "Effect 4 — Vignette: red radial gradient rgba(180,10,10,0→α) center→edges, multiply blend, alpha pulse 0.7Hz amplitude 0.15→0.35",
+    "Effect 5 — Tremor: getTremorOffset(elapsed) returns 4Hz baseline 2px + decaying spike to 12px over +200..+450ms; script.js wraps drawDragonTease in a translate(sh.x,sh.y) so OVERLAY shakes (gameplay underneath stays stable)",
+    "Effect 6 — BEWARE!: italic bold 80px Arial Black at (270,700), double stroke (black 10px outer + dark-red 4px inner) + #FF2A2A fill, easeOutBack pop 0.5→1.20→1.0 over 350ms with ±6° rotation jitter, idle ±2° loop, fade 500ms at +3700ms",
+    "playable/script.js — added imports + invocation block in _paintOverlay BEFORE praise/CTA/instruction layers, gated to game.phase === 'intro' only, with tremor translate wrap"
   ],
-  "review": "pending"
+  "review": "pending",
+  "juicy_checklist_validated": [
+    "screen-shake graduated (4Hz baseline 2px → spike 12px on eye-open, decay 250ms)",
+    "particles 2+: lens-flare 8 branches additive + 6 claws scratch-in",
+    "color-shift: dragon eye iris dilation + reptilian pupil scale 0.6→1.0",
+    "scale-punch+rotation jitter: BEWARE easeOutBack 0.5→1.20→1.0 + ±6°→±2° wobble",
+    "glow-bloom: lens-flare 'lighter' composite + halo radial gradient on eye",
+    "trail persistence: vignette pulse 0.7Hz multiply blend running entire 4.2s",
+    "layered timing 3+ events (eye dilate +0, spike +200, claws-L +400, claws-R +550, BEWARE pop +900, fade +3700)",
+    "lettering BEWARE 80px italic bold double-stroke with shake + scale-punch"
+  ],
+  "juicy_omitted": ["audio_stinger: shared/audio.js exposes only HTMLAudioElement — no WebAudio context for a clean 60Hz sub-pulse, skipped to keep bundle clean"]
 }
