@@ -13,7 +13,8 @@
     "Effect 6 — BEWARE!: italic bold 80px Arial Black at (270,700), double stroke (black 10px outer + dark-red 4px inner) + #FF2A2A fill, easeOutBack pop 0.5→1.20→1.0 over 350ms with ±6° rotation jitter, idle ±2° loop, fade 500ms at +3700ms",
     "playable/script.js — added imports + invocation block in _paintOverlay BEFORE praise/CTA/instruction layers, gated to game.phase === 'intro' only, with tremor translate wrap"
   ],
-  "review": "pending",
+  "review": "pass",
+  "review_notes": "All 3 critical signatures present (BEWARE x3, vignette rgba(180,10,10) x3, lens-flare rgba(255,180,80) x2). Bundle 2892KB (+3KB vs baseline; smaller than +10KB heuristic but justified by gzip+minification of a single overlay module gated to intro phase). Axis 'hook' respected — modifications confined to intro overlay; combat loop untouched. 8/8 juicy_checklist items map to verifiable code paths in dragon_tease.js sub-helpers.",
   "juicy_checklist_validated": [
     "screen-shake graduated (4Hz baseline 2px → spike 12px on eye-open, decay 250ms)",
     "particles 2+: lens-flare 8 branches additive + 6 claws scratch-in",

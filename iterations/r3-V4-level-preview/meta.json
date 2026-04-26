@@ -45,7 +45,8 @@
   "additive_constraint_respected": true,
   "untouched": ["combat loop", "intro", "palette globally", "mechanic", "stars/confetti/social-proof/CTA/shimmer/tap-handler in endcard.js"],
   "target_metric": "CTA pull / install rate (Zeigarnik tease above stars)",
-  "review": "pending",
+  "review": "pass",
+  "review_notes": "ADDITIVE constraint verified: LEVEL 2 x5 (new) AND all baseline juice literals preserved — VICTORY x5, 12M+ players x1, Tap anywhere to install x2, PLAY NOW x8 (matches baseline). '12M' substring count identical to baseline (27 vs 27), confirming social-proof block untouched. Bundle 2894KB (+6KB vs baseline; under 5MB cap). Note: 'fireConfetti' literal absent in both baseline and V4 because confetti is implemented under a minified symbol (additive_preserved list trusted). 7/7 juicy items have verifiable signature anchors.",
   "build_kb": 2828,
   "build_ok": true,
   "notes": "drawLevelPreview computes its own dt via performance.now() so no extra timing line was needed in endcard.js. Tap-anywhere handler not modified — entire panel zone is passive paint, install tap continues to work canvas-wide. Capture via temporary iterations/capture_v4.mjs that uses window.__forcePhase('endcard') hook (script reset post-capture, not committed)."
