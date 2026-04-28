@@ -12,12 +12,18 @@ castle-clasher-v2/node_modules/
 .DS_Store
 *.swp
 node_modules/
-dist/playable.html
 
 # Secrets
 .env
 .env.local
 .env.*.local
+.envrc
+*.key
+*.pem
+*credentials*
+*service-account*.json
+.claude/settings.json
+.claude/settings.local.json
 
 # Pipeline runs — vidéos source + sandbox de l'agent restent locales
 input/*/input/*.mp4
