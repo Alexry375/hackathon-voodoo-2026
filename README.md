@@ -8,7 +8,6 @@
 |---|---|
 | 📊 Slides | <https://alexry375.github.io/hackathon-voodoo-2026/docs/slides/> |
 | 🎮 Playable MVP — *Castle Clashers* | <https://alexry375.github.io/hackathon-voodoo-2026/dist/playable.html> |
-| ✨ Galerie d'itérations auto | <https://alexry375.github.io/hackathon-voodoo-2026/iterations/> |
 
 ---
 
